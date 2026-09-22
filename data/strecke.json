@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T20:53:38.072Z",
+  "stand": "2026-09-22T20:53:48.761Z",
   "wildarten": [
     {
       "id": "hase",
@@ -169,7 +169,7 @@
       "strecke": {
         "beckhuis": {
           "fasan": 1,
-          "schnepfe": 1
+          "sonstiges": 1
         },
         "geerdes-w": {
           "fasan": 1
