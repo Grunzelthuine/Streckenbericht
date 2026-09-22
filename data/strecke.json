@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T20:55:10.164Z",
+  "stand": "2026-09-22T20:55:35.189Z",
   "wildarten": [
     {
       "id": "hase",
@@ -41,6 +41,12 @@
       "id": "kraehe",
       "name": "Krähe",
       "punkte": 1
+    },
+    {
+      "id": "gans",
+      "name": "Gans",
+      "punkte": 1,
+      "eigen": true
     },
     {
       "id": "sonstiges",
