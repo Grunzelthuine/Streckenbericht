@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T19:38:05.604Z",
+  "stand": "2026-09-22T19:38:44.613Z",
   "wildarten": [
     {
       "id": "hase",
@@ -413,6 +413,28 @@
         "kaninchen": 1,
         "sonstiges": 1
       }
+    },
+    {
+      "id": "2025-12-27",
+      "datum": "2025-12-27",
+      "art": "normal",
+      "sonderkoenig": "",
+      "bemerkung": "",
+      "strecke": {
+        "bruns-s": {
+          "fasan": 1
+        },
+        "geerdes-h": {
+          "fasan": 1
+        },
+        "heskamp": {
+          "fasan": 1
+        },
+        "kall": {
+          "fasan": 2
+        }
+      },
+      "hund": {}
     }
   ]
 }
