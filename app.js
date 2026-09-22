@@ -5,7 +5,7 @@
  */
 'use strict';
 
-const APP_VERSION = '1.0.0';
+const APP_VERSION = '1.1.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -82,7 +82,24 @@ const isAdmin = () => !!(state.cfg.token && state.cfg.owner && state.cfg.repo);
 const species = () => state.data.wildarten;
 const ptsMap = () => Object.fromEntries(species().map(w => [w.id, Number(w.punkte) || 0]));
 const shooterById = id => state.data.schuetzen.find(s => s.id === id);
-const shooterName = id => shooterById(id)?.name || id;
+/** Anzeigename (voller Name), z. B. "Sebastian Bruns" */
+const shooterName = id => { const s = shooterById(id); return s ? (s.vollname || s.name) : id; };
+/** Kurzname wie auf der Erlegerliste, z. B. "Bruns, S." */
+const shortName = id => shooterById(id)?.name || id;
+const findShooter = txt => {
+  const t = String(txt || '').trim().toLowerCase();
+  return t ? state.data.schuetzen.find(s => s.id === t || s.name.toLowerCase() === t || (s.vollname || '').toLowerCase() === t) : null;
+};
+/** Sonderkönig-Text → voller Name, falls ein Schütze passt */
+const sonderName = txt => { const s = findShooter(txt); return s ? (s.vollname || s.name) : (txt || ''); };
+/** Gehört der Schütze in diesem Jagdjahr zur Gemeinschaft? */
+const isMember = (s, season) => s.aktiv !== false && (!s.ab || season >= s.ab) && (!s.bis || season <= s.bis);
+function seasonRange() {
+  const first = state.data.jagdtage.map(d => seasonOf(d.datum)).sort()[0] || seasonOf(todayISO());
+  const y0 = Number(first.slice(0, 4)), y1 = Number(seasonOf(todayISO()).slice(0, 4)) + 3;
+  const out = []; for (let y = y0; y <= y1; y++) out.push(`${y}/${String((y + 1) % 100).padStart(2, '0')}`);
+  return out;
+}
 
 function sumCounts(obj) { return Object.values(obj || {}).reduce((a, b) => a + (Number(b) || 0), 0); }
 function pointsOf(counts, pm = ptsMap()) {
@@ -138,7 +155,7 @@ function seasonStats(season) {
     ds.koenig.forEach(id => get(id).siege++);
     ds.vize.forEach(id => get(id).vize++);
     const sk = (d.sonderkoenig || '').trim();
-    if (sk) { const s = state.data.schuetzen.find(x => x.name === sk); if (s) get(s.id).sonder++; }
+    if (sk) { const s = findShooter(sk); if (s) get(s.id).sonder++; }
   }
   const ranking = Object.values(per).sort((a, b) =>
     b.punkte - a.punkte || b.stueck - a.stueck || shooterName(a.id).localeCompare(shooterName(b.id), 'de'));
@@ -307,7 +324,7 @@ function renderTage() {
         <div class="kings">
           ${ds.koenig.length ? `<div><span class="k"><span class="crown">♛</span> Jagdkönig</span> ${names(ds.koenig)} · ${fmt(ds.koenigPts)} Pkt.</div>` : ''}
           ${ds.vize.length ? `<div><span class="k">Vizekönig</span> ${names(ds.vize)} · ${fmt(ds.vizePts)} Pkt.</div>` : ''}
-          ${d.sonderkoenig ? `<div><span class="k">Sonderkönig</span> ${esc(d.sonderkoenig)}</div>` : ''}
+          ${d.sonderkoenig ? `<div><span class="k">Sonderkönig</span> ${esc(sonderName(d.sonderkoenig))}</div>` : ''}
         </div>
       </button>`;
     }).join('');
@@ -438,7 +455,7 @@ function openDay(id) {
     <div class="card pad kings" style="margin-top:12px">
       <div><span class="k"><span class="crown">♛</span> Jagdkönig</span> ${ds.koenig.length ? `${names(ds.koenig)} · ${fmt(ds.koenigPts)} Pkt.` : '–'}</div>
       <div><span class="k">Vizekönig</span> ${ds.vize.length ? `${names(ds.vize)} · ${fmt(ds.vizePts)} Pkt.` : '–'}</div>
-      <div><span class="k">Sonderkönig</span> ${esc(d.sonderkoenig) || '–'}</div>
+      <div><span class="k">Sonderkönig</span> ${esc(sonderName(d.sonderkoenig)) || '–'}</div>
     </div>
     ${d.bemerkung ? `<div class="card pad"><div class="sub">Bemerkung</div>${esc(d.bemerkung)}</div>` : ''}`;
   const foot = isAdmin()
@@ -477,7 +494,8 @@ function openEditor(dayId, prefill = null) {
 
 function editorShooters() {
   const inDay = new Set([...Object.keys(editor.day.strecke), ...Object.keys(editor.day.hund), ...Object.keys(editor.flags)]);
-  return state.data.schuetzen.filter(s => s.aktiv !== false || inDay.has(s.id));
+  const season = seasonOf(editor.day.datum || todayISO());
+  return state.data.schuetzen.filter(s => isMember(s, season) || inDay.has(s.id));
 }
 
 function renderEditor() {
@@ -499,7 +517,7 @@ function renderEditor() {
       <div class="btn-row" style="margin-top:8px">
         <select class="field-inline" data-assign="${i}" style="flex:1 1 180px;padding:8px;border-radius:10px;border:1px solid var(--line);background:var(--paper)">
           <option value="">Schütze wählen …</option>
-          ${state.data.schuetzen.map(s => `<option value="${esc(s.id)}">${esc(s.name)}</option>`).join('')}
+          ${state.data.schuetzen.map(s => `<option value="${esc(s.id)}">${esc(s.vollname || s.name)} (${esc(s.name)})</option>`).join('')}
           <option value="__new">+ Als neuen Schützen „${esc(u.name)}“ anlegen</option>
         </select>
         <button class="btn ghost" data-drop="${i}">Verwerfen</button>
@@ -514,7 +532,7 @@ function renderEditor() {
     const dogOpen = editor.showDog.has(s.id);
     return `<div class="ed-row ${cnt ? 'has' : ''} ${editor.flags[s.id] ? 'flag' : ''}" data-sid="${esc(s.id)}">
       <button class="ed-head" data-toggle="${esc(s.id)}">
-        <span class="ed-name">${esc(s.name)}</span>
+        <span class="ed-name">${esc(s.name)}${s.vollname ? `<small class="ed-full">${esc(s.vollname)}</small>` : ''}</span>
         <span class="ed-sum">${esc(sum)}</span>
         <span class="ed-pts">${cnt ? fmt(pointsOf(e, pm)) : ''}</span>
       </button>
@@ -538,8 +556,8 @@ function renderEditor() {
     <div>${rows}</div>
     <button class="btn secondary block" id="edAddShooter">+ Gast / neuen Schützen hinzufügen</button>
     <label class="field"><span>Sonderkönig</span>
-      <input type="text" id="edSonder" list="shooterList" value="${esc(d.sonderkoenig)}" placeholder="optional">
-      <datalist id="shooterList">${state.data.schuetzen.map(s => `<option value="${esc(s.name)}">`).join('')}</datalist>
+      <input type="text" id="edSonder" list="shooterList" value="${esc(sonderName(d.sonderkoenig))}" placeholder="optional">
+      <datalist id="shooterList">${state.data.schuetzen.map(s => `<option value="${esc(s.vollname || s.name)}">`).join('')}</datalist>
     </label>
     <label class="field"><span>Bemerkung</span><textarea id="edNote" placeholder="optional, z. B. wer gefehlt hat">${esc(d.bemerkung)}</textarea></label>`;
   const foot = `<button class="btn secondary" data-close>Abbrechen</button><button class="btn" id="edSave">Speichern</button>`;
@@ -592,7 +610,7 @@ function bindEditor() {
     const u = editor.unassigned[Number(sel.dataset.assign)];
     let id = sel.value;
     if (!id) return;
-    if (id === '__new') id = addShooter(u.name);
+    if (id === '__new') id = addShooter(u.name, '', seasonOf(editor.day.datum));
     mergeCounts(editor.day.strecke, id, u.erlegt);
     mergeCounts(editor.day.hund, id, u.hund);
     if (Object.keys(u.hund).length) editor.showDog.add(id);
@@ -605,14 +623,15 @@ function bindEditor() {
     syncEditorFields();
     const wrap = document.createElement('div');
     wrap.className = 'card pad';
-    wrap.innerHTML = `<label class="field"><span>Name (wie auf der Liste, z. B. „Muster, H.“)</span><input type="text" id="newShooter"></label>
+    wrap.innerHTML = `<label class="field"><span>Kurzname wie auf der Liste (z. B. „Muster, H.“)</span><input type="text" id="newShooter"></label>
+      <label class="field" style="margin-top:8px"><span>Voller Name (z. B. „Hans Muster“)</span><input type="text" id="newShooterFull"></label>
       <div class="btn-row" style="margin-top:8px"><button class="btn" id="newShooterOk">Hinzufügen</button></div>`;
     $('#edAddShooter').replaceWith(wrap);
     $('#newShooter').focus();
     $('#newShooterOk').addEventListener('click', () => {
       const n = $('#newShooter').value.trim();
       if (!n) return;
-      const id = addShooter(n);
+      const id = addShooter(n, $('#newShooterFull').value.trim(), seasonOf(editor.day.datum));
       editor.open.add(id); renderEditor();
     });
   });
@@ -626,12 +645,14 @@ function mergeCounts(bucket, id, counts) {
   }
 }
 
-function addShooter(name) {
-  const existing = state.data.schuetzen.find(s => s.name.toLowerCase() === name.toLowerCase());
-  if (existing) { existing.aktiv = true; return existing.id; }
+function addShooter(name, vollname = '', ab = '') {
+  const existing = findShooter(name);
+  if (existing) { existing.aktiv = true; if (vollname && !existing.vollname) existing.vollname = vollname; return existing.id; }
   let id = slug(name), i = 2;
   while (shooterById(id)) id = `${slug(name)}-${i++}`;
-  state.data.schuetzen.push({ id, name, aktiv: true });
+  const s = { id, name, vollname: vollname || '', aktiv: true };
+  if (ab) s.ab = ab;
+  state.data.schuetzen.push(s);
   return id;
 }
 
@@ -677,13 +698,13 @@ async function imageToJpeg(file, maxSide = 1800) {
 }
 
 function buildPrompt() {
-  const list = state.data.schuetzen.map(s => `${s.id} = ${s.name}`).join('\n');
+  const list = state.data.schuetzen.map(s => `${s.id} = ${s.name}${s.vollname ? ` (${s.vollname})` : ''}`).join('\n');
   const arten = species().map(w => `${w.id} (${w.name})`).join(', ');
   return `Du liest eine handschriftlich ausgefüllte "Erlegerliste" (Streckenbericht einer Treibjagd) von einem Foto aus.
 
 Aufbau des Zettels: Oben "Jagdtag" mit Datum (z. B. 18.10.25). Darunter eine Tabelle: Spalte "Name" (vorgedruckte Schützen), dann Spalten für Wildarten (z. B. Hase, Fasan, Kanin., Taube, Schnepfe, Ente, Fuchs, Sonstig) und ganz rechts "Punkte" (handschriftlich, nur zur Kontrolle). Unten "Gesamtstrecke" und die Felder Jagdkönig, Vizekönig, Sonderkönig.
 
-Bekannte Schützen (id = Name auf dem Zettel):
+Bekannte Schützen (id = Name auf dem Zettel (voller Name)):
 ${list}
 
 Wildarten-IDs: ${arten}
@@ -766,7 +787,7 @@ function applyAiResult(res, photo) {
     const erlegt = cleanCounts(e.erlegt), hund = cleanCounts(e.hund);
     if (!sumCounts(erlegt) && !sumCounts(hund)) continue;
     let id = e.schuetze_id && shooterById(e.schuetze_id) ? e.schuetze_id : null;
-    if (!id && e.name_zettel) id = state.data.schuetzen.find(s => s.name.toLowerCase() === String(e.name_zettel).toLowerCase())?.id || null;
+    if (!id && e.name_zettel) id = findShooter(e.name_zettel)?.id || null;
     if (!id) { unassigned.push({ name: e.name_zettel || 'Unbekannt', erlegt, hund }); continue; }
     mergeCounts(day.strecke, id, erlegt);
     mergeCounts(day.hund, id, hund);
@@ -779,8 +800,8 @@ function applyAiResult(res, photo) {
   }
   // Sonderkönig auf bekannten Namen abbilden
   if (day.sonderkoenig) {
-    const s = state.data.schuetzen.find(x => x.id === day.sonderkoenig || x.name.toLowerCase() === day.sonderkoenig.toLowerCase());
-    if (s) day.sonderkoenig = s.name;
+    const s = findShooter(day.sonderkoenig);
+    if (s) day.sonderkoenig = s.vollname || s.name;
   }
   const existing = state.data.jagdtage.find(x => x.datum === day.datum);
   openEditor(null);
@@ -811,8 +832,9 @@ function openSettings() {
     </fieldset>
     ${isAdmin() ? `
     <fieldset><legend>Schützen</legend>
-      <div id="cfShooters">${state.data.schuetzen.map(s => `<div class="list-row"><input type="text" data-sname="${esc(s.id)}" value="${esc(s.name)}"><label class="switch"><input type="checkbox" data-sactive="${esc(s.id)}" ${s.aktiv !== false ? 'checked' : ''}> aktiv</label></div>`).join('')}</div>
-      <p class="hint">Inaktive Schützen erscheinen nicht mehr beim Erfassen, bleiben aber in alten Jagdjahren erhalten.</p>
+      <div id="cfShooters">${state.data.schuetzen.map(s => shooterCfgRow(s)).join('')}</div>
+      <button class="btn secondary block" id="cfAddShooter" style="margin-top:10px">+ Neuer Schütze</button>
+      <p class="hint">„ab“/„bis“ = Jagdjahre, in denen der Schütze dabei ist. Außerhalb davon erscheint er nicht mehr beim Erfassen, seine alten Ergebnisse bleiben erhalten. Der Kurzname muss so lauten wie auf der Erlegerliste.</p>
     </fieldset>
     <fieldset><legend>Wildarten &amp; Punkte</legend>
       ${species().map(w => `<div class="list-row"><span class="nm">${esc(w.name)}</span><input type="number" step="0.5" min="0" data-wpts="${w.id}" value="${w.punkte}"></div>`).join('')}
@@ -825,6 +847,11 @@ function openSettings() {
     <p class="hint" style="text-align:center">Version ${APP_VERSION}</p>`;
   openSheet('Einstellungen', body, `<button class="btn secondary" data-close>Abbrechen</button><button class="btn" id="cfSave">Übernehmen</button>`);
 
+  $('#cfAddShooter')?.addEventListener('click', () => {
+    const tmp = { id: `neu-${Date.now()}`, name: '', vollname: '', ab: seasonOf(todayISO()), _neu: true };
+    $('#cfShooters').insertAdjacentHTML('beforeend', shooterCfgRow(tmp));
+    $$('#cfShooters [data-sname]').at(-1)?.focus();
+  });
   $('#cfLoadModels').addEventListener('click', async () => {
     const key = $('#cfKey').value.trim();
     if (!key) { toast('Bitte zuerst den API-Schlüssel eintragen.'); return; }
@@ -857,13 +884,33 @@ function openSettings() {
       token: $('#cfToken').value.trim(), apiKey: $('#cfKey').value.trim(), model: $('#cfModel').value,
     });
     lsSet(LS_CFG, state.cfg);
-    $$('[data-sname]').forEach(i => { const s = shooterById(i.dataset.sname); if (s && i.value.trim()) s.name = i.value.trim(); });
-    $$('[data-sactive]').forEach(i => { const s = shooterById(i.dataset.sactive); if (s) s.aktiv = i.checked; });
+    $$('.sh-cfg').forEach(row => {
+      const id = row.dataset.sid;
+      const kurz = $('[data-sname]', row).value.trim(), voll = $('[data-sfull]', row).value.trim();
+      const ab = $('[data-sab]', row).value, bis = $('[data-sbis]', row).value;
+      let s = shooterById(id);
+      if (!s) { if (!kurz) return; s = shooterById(addShooter(kurz, voll)); }
+      if (kurz) s.name = kurz;
+      s.vollname = voll;
+      s.aktiv = true;
+      if (ab) s.ab = ab; else delete s.ab;
+      if (bis) s.bis = bis; else delete s.bis;
+    });
     $$('[data-wpts]').forEach(i => { const w = species().find(x => x.id === i.dataset.wpts); const v = Number(i.value); if (w && v >= 0) w.punkte = v; });
     closeSheet();
     if (JSON.stringify({ s: state.data.schuetzen, w: state.data.wildarten }) !== before) await persist('Schützen/Punkte geändert');
     else { render(); if (state.pending) pushRemote(); else load(); }
   });
+}
+
+function shooterCfgRow(s) {
+  const opts = (val, empty) => `<option value="">${empty}</option>` + seasonRange().map(x => `<option value="${x}" ${x === val ? 'selected' : ''}>${x}</option>`).join('');
+  return `<div class="sh-cfg" data-sid="${esc(s.id)}">
+    <input type="text" data-sname value="${esc(s.name)}" placeholder="Kurzname (Liste)" aria-label="Kurzname">
+    <input type="text" data-sfull value="${esc(s.vollname || '')}" placeholder="Voller Name" aria-label="Voller Name">
+    <label>ab <select data-sab>${opts(s.ab, 'immer')}</select></label>
+    <label>bis <select data-sbis>${opts(s.bis, 'offen')}</select></label>
+  </div>`;
 }
 
 /* ================= Teilen / Download ================= */
@@ -972,7 +1019,7 @@ async function exportStrecke(season) {
     y = sectionTitle(doc, 'Tageskönige', y);
     doc.autoTable({ ...tableStyle, startY: y,
       head: [['Jagdtag', 'Jagdkönig', 'Vizekönig', 'Sonderkönig']],
-      body: st.days.map(d => { const ds = dayStats(d); return [dateDE(d.datum), ds.koenig.length ? `${ds.koenig.map(shooterName).join(', ')} (${fmt(ds.koenigPts)})` : '–', ds.vize.length ? `${ds.vize.map(shooterName).join(', ')} (${fmt(ds.vizePts)})` : '–', d.sonderkoenig || '–']; }),
+      body: st.days.map(d => { const ds = dayStats(d); return [dateDE(d.datum), ds.koenig.length ? `${ds.koenig.map(shooterName).join(', ')} (${fmt(ds.koenigPts)})` : '–', ds.vize.length ? `${ds.vize.map(shooterName).join(', ')} (${fmt(ds.vizePts)})` : '–', sonderName(d.sonderkoenig) || '–']; }),
     });
     if (hundTotal) { doc.setFontSize(8.5); doc.setTextColor(...PDF.muted); doc.text('H = vom Hund gegriffen (zählt zur Strecke, ohne Punkte)', 14, doc.lastAutoTable.finalY + 6); }
     pdfFooter(doc);

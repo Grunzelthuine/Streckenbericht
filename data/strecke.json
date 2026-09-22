@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T18:37:40.975Z",
+  "stand": "2026-09-22T20:00:00Z",
   "wildarten": [
     {
       "id": "hase",
@@ -47,91 +47,110 @@
     {
       "id": "beckhuis",
       "name": "Beckhuis",
+      "vollname": "Ferdi Beckhuis",
       "aktiv": true
     },
     {
       "id": "bruns-m",
       "name": "Bruns, M.",
+      "vollname": "Martin Bruns",
       "aktiv": true
     },
     {
       "id": "bruns-s",
       "name": "Bruns, S.",
+      "vollname": "Sebastian Bruns",
       "aktiv": true
     },
     {
       "id": "bruendermann",
       "name": "Bründermann",
+      "vollname": "Georg Bründermann",
       "aktiv": true
     },
     {
       "id": "gebbe-kh",
       "name": "Gebbe, K-H.",
+      "vollname": "Karl-Heinz Gebbe",
       "aktiv": true
     },
     {
       "id": "dreishing-v",
       "name": "Dreishing, V.",
+      "vollname": "Vera Dreishing",
       "aktiv": true
     },
     {
       "id": "gebbe-w",
       "name": "Gebbe, W.",
+      "vollname": "Werner Gebbe",
       "aktiv": true
     },
     {
       "id": "geerdes-h",
       "name": "Geerdes, H.",
+      "vollname": "Henning Geerdes",
       "aktiv": true
     },
     {
       "id": "geerdes-w",
       "name": "Geerdes, W.",
+      "vollname": "Werner Geerdes",
       "aktiv": true
     },
     {
       "id": "heskamp",
       "name": "Heskamp",
+      "vollname": "Reinhard Heskamp",
       "aktiv": true
     },
     {
       "id": "joerlemann",
       "name": "Jörlemann",
+      "vollname": "Christoph Jörlemann",
       "aktiv": true
     },
     {
       "id": "kall",
       "name": "Kall",
+      "vollname": "Andreas Kall",
       "aktiv": true
     },
     {
       "id": "kock",
       "name": "Kock",
+      "vollname": "Peter Kock",
       "aktiv": true
     },
     {
       "id": "koelker-s",
       "name": "Kölker, S.",
+      "vollname": "Stefan Kölker",
       "aktiv": true
     },
     {
       "id": "koelker-w",
       "name": "Kölker, W.",
+      "vollname": "Werner Kölker",
       "aktiv": true
     },
     {
       "id": "roettering",
       "name": "Röttering",
-      "aktiv": true
+      "vollname": "Hans Röttering",
+      "aktiv": true,
+      "bis": "2025/26"
     },
     {
       "id": "schmees",
       "name": "Schmees",
+      "vollname": "Bernhard Schmees",
       "aktiv": true
     },
     {
       "id": "schoo",
       "name": "Schoo",
+      "vollname": "Alexander Schoo",
       "aktiv": true
     }
   ],
@@ -140,7 +159,7 @@
       "id": "2025-10-18",
       "datum": "2025-10-18",
       "sonderkoenig": "",
-      "bemerkung": "Jagdkönig: Henning Geerdes (Geerdes, H.), Vizekönig: Sebastian Bruns (Bruns, S.). Gesamtstrecke: Hase 4, Fasan 7.",
+      "bemerkung": "",
       "strecke": {
         "bruns-s": {
           "hase": 1,
@@ -166,6 +185,104 @@
         }
       },
       "hund": {}
+    },
+    {
+      "id": "2025-11-03",
+      "datum": "2025-11-03",
+      "sonderkoenig": "",
+      "bemerkung": "",
+      "strecke": {
+        "gebbe-kh": {
+          "fasan": 1
+        },
+        "gebbe-w": {
+          "hase": 1
+        },
+        "geerdes-h": {
+          "fasan": 1
+        },
+        "geerdes-w": {
+          "fasan": 1
+        },
+        "kock": {
+          "fasan": 2
+        },
+        "schmees": {
+          "hase": 1
+        }
+      },
+      "hund": {}
+    },
+    {
+      "id": "2025-11-08",
+      "datum": "2025-11-08",
+      "sonderkoenig": "",
+      "bemerkung": "",
+      "strecke": {
+        "bruns-s": {
+          "hase": 1
+        },
+        "gebbe-kh": {
+          "hase": 1
+        },
+        "gebbe-w": {
+          "fasan": 1
+        },
+        "geerdes-h": {
+          "hase": 1
+        },
+        "koelker-s": {
+          "hase": 1
+        },
+        "koelker-w": {
+          "hase": 1,
+          "fasan": 1
+        },
+        "schoo": {
+          "fasan": 1
+        }
+      },
+      "hund": {}
+    },
+    {
+      "id": "2025-11-29",
+      "datum": "2025-11-29",
+      "sonderkoenig": "Geerdes, W.",
+      "bemerkung": "Beckhuis und Bründermann fehlten.",
+      "strecke": {
+        "bruns-m": {
+          "fasan": 2
+        },
+        "bruns-s": {
+          "fasan": 1
+        },
+        "gebbe-kh": {
+          "hase": 1,
+          "fasan": 1
+        },
+        "gebbe-w": {
+          "fasan": 3
+        },
+        "geerdes-w": {
+          "fasan": 1,
+          "schnepfe": 1
+        },
+        "kock": {
+          "hase": 1
+        },
+        "koelker-w": {
+          "fasan": 1
+        },
+        "roettering": {
+          "fasan": 3,
+          "sonstiges": 1
+        }
+      },
+      "hund": {
+        "geerdes-w": {
+          "hase": 1
+        }
+      }
     }
   ]
 }
