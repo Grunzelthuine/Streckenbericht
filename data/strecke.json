@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T20:53:48.761Z",
+  "stand": "2026-09-22T20:55:10.164Z",
   "wildarten": [
     {
       "id": "hase",
@@ -176,6 +176,25 @@
         },
         "kock": {
           "fasan": 1
+        }
+      },
+      "hund": {}
+    },
+    {
+      "id": "2024-11-09",
+      "datum": "2024-11-09",
+      "art": "normal",
+      "sonderkoenig": "",
+      "bemerkung": "Jagdkönig: Jörlemann; Vizekönig: Kölker (W. oder S. unklar, handschriftlich 'Kölker'). Heskamp: Eintrag in Kanin.-Spalte erscheint wie 'dunkel/1' – könnte auch eine andere Zahl sein.",
+      "strecke": {
+        "joerlemann": {
+          "sonstiges": 1
+        },
+        "koelker-s": {
+          "ente": 1
+        },
+        "schoo": {
+          "ente": 1
         }
       },
       "hund": {}
