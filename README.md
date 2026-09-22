@@ -9,6 +9,7 @@ Web-App (PWA) für die Erlegerliste. Du erfasst die Jagdtage, alle anderen sehen
 | **Jagdtage** | Kennzahlen, alle Jagdtage des Jagdjahres mit Tages-, Vize- und Sonderkönig. Antippen öffnet die Details. Im Bearbeitungsmodus: Foto auswerten oder manuell erfassen, bearbeiten, löschen |
 | **Strecke** | Gesamtstrecke je Wildart im Jagdjahr, Vergleich der Jagdjahre, PDF-Export |
 | **Jagdkönig** | Siegerpodest und Rangliste nach der Punktsumme im Jagdjahr, PDF-Export mit Einzelnachweis (Datum, Wild, Punkte) |
+| **Reh & Damm** | Reh- und Dammwildjagd: Übersicht nach Kategorien (erlegt/Fallwild), Liste der Erlegungen, eigene Fallwild-Liste, Übersicht je Schütze, PDF-Export |
 
 - **Jagdjahr:** 1.4. bis 31.3., angezeigt als „2025/26“. Ein neues Jagdjahr entsteht automatisch mit dem ersten Jagdtag.
 - **Punkte:** Hase 5 · Fasan 3 · Kaninchen 2,5 · Taube, Schnepfe, Ente, Fuchs, Sonstiges je 1. Die Punkte lassen sich in den Einstellungen ändern.
@@ -35,6 +36,11 @@ Web-App (PWA) für die Erlegerliste. Du erfasst die Jagdtage, alle anderen sehen
 - **Wildarten:** Hase, Fasan, Kaninchen, Taube, Schnepfe, Ente, Fuchs, Krähe, Sonstiges.
   - Neue Wildarten legst du direkt beim Nachtragen an („+ Neue Wildart …“) oder unter Einstellungen → Wildarten & Punkte.
   - Eigene Wildarten lassen sich wieder entfernen, solange sie nirgends eingetragen sind.
+
+- **Reh- & Dammwild:** Auf der Seite „Reh & Damm“ unter „+ Erlegung / Fallwild eintragen“ Datum, Wildart, Kategorie und Schütze eintragen. Bei Fallwild wählst du statt des Schützen optional eine Ursache.
+  - Rehwild: Rehbock, Ricke, Schmalreh, Kitz.
+  - Dammwild: Hirsch 1a–3b, Alttier, Schmaltier, Spießer, Kalb, Hirschkalb.
+  - Reh- und Dammwild zählt nicht zum Niederwild-Streckenbericht und nicht zum Jagdkönig.
 
 ## Einrichtung (einmalig, ca. 10 Minuten)
 

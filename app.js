@@ -5,10 +5,13 @@
  */
 'use strict';
 
-const APP_VERSION = '1.4.0';
+const APP_VERSION = '1.6.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
+const LS_SCHALEN = 'sb.schalen.v1';
+const LS_SCHALEN_OPS = 'sb.schalen.ops.v1';
+const SCHALEN_PATH = 'schalenwild.json';
 const FALLBACK_MODEL = 'claude-sonnet-4-6';
 
 /* ================= Hilfsfunktionen ================= */
@@ -66,7 +69,10 @@ const state = {
   sha: null,
   pending: !!lsGet(LS_PENDING, false),
   cfg: Object.assign(defaultCfg(), lsGet(LS_CFG, {})),
+  schalen: normalizeSchalen(lsGet(LS_SCHALEN, null)),
+  schalenOps: lsGet(LS_SCHALEN_OPS, []),
 };
+function normalizeSchalen(d) { d = d && typeof d === 'object' ? d : {}; d.version ||= 1; d.eintraege = Array.isArray(d.eintraege) ? d.eintraege : []; return d; }
 
 function defaultCfg() {
   let owner = '', repo = '';
@@ -74,9 +80,12 @@ function defaultCfg() {
     owner = location.hostname.split('.')[0];
     repo = location.pathname.split('/').filter(Boolean)[0] || `${owner}.github.io`;
   }
-  return { owner, repo, branch: 'main', path: 'data/strecke.json', token: '', apiKey: '', model: '' };
+  return { owner, repo, repo2: repo ? `${repo}-schalenwild` : '', branch: 'main', path: 'data/strecke.json', token: '', apiKey: '', model: '', mode: '', ich: '' };
 }
-const isAdmin = () => !!(state.cfg.token && state.cfg.owner && state.cfg.repo);
+// Rollen: 'voll' = alles bearbeiten (Sebastian), 'schalen' = nur Reh- & Dammwild eintragen, '' = nur ansehen
+if (state.cfg.token && !state.cfg.mode) state.cfg.mode = 'voll';
+const isAdmin = () => !!(state.cfg.mode === 'voll' && state.cfg.token && state.cfg.owner && state.cfg.repo);
+const canSchalen = () => !!((state.cfg.mode === 'voll' || state.cfg.mode === 'schalen') && state.cfg.token && state.cfg.owner && state.cfg.repo2);
 
 /* ================= Berechnungen ================= */
 const species = () => state.data.wildarten;
@@ -153,7 +162,7 @@ function seasonNachtraege(season) {
   return (state.data.nachtraege || []).filter(n => seasonOf(n.datum) === season).sort((a, b) => a.datum.localeCompare(b.datum));
 }
 function allSeasons() {
-  const s = new Set([...state.data.jagdtage, ...(state.data.nachtraege || [])].map(d => seasonOf(d.datum)));
+  const s = new Set([...state.data.jagdtage, ...(state.data.nachtraege || []), ...(state.schalen?.eintraege || [])].map(d => seasonOf(d.datum)));
   s.add(seasonOf(todayISO()));
   return [...s].sort().reverse();
 }
@@ -234,6 +243,7 @@ async function load() {
     const remote = normalize(await fetchRemote());
     state.data = remote; lsSet(LS_DATA, remote);
     render();
+    if (state.schalenFresh) migrateSchalen();
   } catch (e) {
     if (!cached) {
       $('#view-tage').innerHTML = `<div class="card pad empty"><img src="icons/logo.png" alt=""><p>Keine Daten erreichbar. Bitte Internetverbindung prüfen.</p></div>`;
@@ -261,7 +271,7 @@ const speciesUsed = id => state.data.jagdtage.some(t =>
   (state.data.nachtraege || []).some(n => n.art === id);
 
 function normalize(d) {
-  d.wildarten ||= []; d.schuetzen ||= []; d.jagdtage ||= []; d.nachtraege ||= [];
+  d.wildarten ||= []; d.schuetzen ||= []; d.jagdtage ||= []; d.nachtraege ||= []; d.schalenwild ||= [];
   if (!d.wildarten.some(w => w.id === 'kraehe')) insertSpecies(d, { id: 'kraehe', name: 'Krähe', punkte: 1 });
   d.jagdtage.forEach(t => { t.art ||= 'normal'; t.strecke ||= {}; t.hund ||= {}; if (t.art !== 'normal') t.gaeste ||= []; if (t.art === 'venslage') t.revier ||= {}; t.sonderkoenig ||= ''; t.bemerkung ||= ''; t.id ||= t.datum; });
   return d;
@@ -310,6 +320,94 @@ async function pushRemote(message = 'Streckenbericht aktualisiert') {
   } finally { saving = false; }
 }
 
+/* ================= Reh- & Dammwild: eigenes Repository ================= */
+function ghFileUrl(repo, path, ref = true) {
+  const { owner, branch } = state.cfg;
+  return `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${path.split('/').map(encodeURIComponent).join('/')}` + (ref ? `?ref=${encodeURIComponent(branch || 'main')}` : '');
+}
+/** Liest die Reh-/Dammwild-Datei; null-Inhalt = Datei existiert noch nicht */
+async function fetchSchalenRemote(auth) {
+  const { owner, repo2, branch } = state.cfg;
+  if (!owner || !repo2) throw new Error('kein Repository');
+  try {
+    const r = await fetch(ghFileUrl(repo2, SCHALEN_PATH) + `&t=${Date.now()}`, { headers: ghHeaders(auth), cache: 'no-store' });
+    if (r.status === 404) return { data: normalizeSchalen(null), sha: undefined };
+    if (r.ok) { const j = await r.json(); return { data: normalizeSchalen(JSON.parse(b64decodeUtf8(j.content))), sha: j.sha }; }
+    if (auth) throw new Error(`GitHub ${r.status}`);
+  } catch (e) { if (auth) throw e; }
+  // Fallback ohne API-Limit (kann bis zu 5 Min. verzögert sein)
+  const r = await fetch(`https://raw.githubusercontent.com/${owner}/${repo2}/${branch || 'main'}/${SCHALEN_PATH}?t=${Date.now()}`, { cache: 'no-store' });
+  if (r.status === 404) return { data: normalizeSchalen(null) };
+  if (!r.ok) throw new Error('Reh-/Dammwild-Daten nicht erreichbar');
+  return { data: normalizeSchalen(await r.json()) };
+}
+function applySchalenOp(d, op) {
+  d.eintraege = d.eintraege.filter(x => x.id !== (op.rec?.id || op.id));
+  if (op.type === 'upsert') d.eintraege.push(op.rec);
+  return d;
+}
+async function loadSchalen() {
+  try {
+    const { data } = await fetchSchalenRemote(canSchalen());
+    state.schalen = data;
+    state.schalenOps.forEach(op => applySchalenOp(state.schalen, op)); // eigene, noch nicht hochgeladene Einträge
+    lsSet(LS_SCHALEN, state.schalen);
+    state.schalenFresh = true;
+    if (state.data) render();
+    if (state.schalenOps.length) pushSchalen();
+    else migrateSchalen();
+  } catch { /* offline: Cache bleibt */ }
+}
+/** Einmalige Übernahme alter Reh-/Dammwild-Einträge aus der Hauptdatei (Version 1.5) */
+async function migrateSchalen() {
+  const old = state.data?.schalenwild;
+  if (!old?.length || !isAdmin() || state.pending || migrateSchalen.busy) return;
+  migrateSchalen.busy = true;
+  old.forEach(rec => { if (!state.schalen.eintraege.some(x => x.id === rec.id)) queueSchalenOp({ type: 'upsert', rec }); });
+  try { if (await pushSchalen('Reh-/Dammwild aus Hauptdatei übernommen')) { delete state.data.schalenwild; await persist('Reh-/Dammwild in eigenes Repository verschoben'); } }
+  finally { migrateSchalen.busy = false; }
+}
+function queueSchalenOp(op) {
+  state.schalenOps.push(op); lsSet(LS_SCHALEN_OPS, state.schalenOps);
+  applySchalenOp(state.schalen, op); lsSet(LS_SCHALEN, state.schalen);
+}
+let savingSchalen = false;
+async function pushSchalen(message = 'Reh-/Dammwild aktualisiert') {
+  if (!state.schalenOps.length) return true;
+  if (!canSchalen()) { showSchalenBanner('Zugang fehlt – bitte in den Einstellungen eintragen.'); return false; }
+  if (savingSchalen) return false;
+  savingSchalen = true;
+  try {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      // immer den neuesten Stand holen und nur die eigenen Änderungen darauf anwenden
+      const { data, sha } = await fetchSchalenRemote(true);
+      const ops = [...state.schalenOps];
+      ops.forEach(op => applySchalenOp(data, op));
+      data.stand = new Date().toISOString();
+      const body = { message, content: b64encodeUtf8(JSON.stringify(data, null, 2) + '\n'), branch: state.cfg.branch || 'main' };
+      if (sha) body.sha = sha;
+      const r = await fetch(ghFileUrl(state.cfg.repo2, SCHALEN_PATH, false), { method: 'PUT', headers: { ...ghHeaders(true), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (r.ok) {
+        state.schalen = data;
+        state.schalenOps = state.schalenOps.slice(ops.length); lsSet(LS_SCHALEN_OPS, state.schalenOps);
+        lsSet(LS_SCHALEN, state.schalen);
+        hideBanner(); toast('Gespeichert ✓ – für alle sichtbar.');
+        if (state.data) render();
+        return true;
+      }
+      if (r.status === 409 || r.status === 422) continue;
+      if (r.status === 401 || r.status === 403 || r.status === 404) throw new Error('Keine Schreibrechte für Reh & Damm (Token prüfen)');
+      throw new Error(`GitHub ${r.status}`);
+    }
+    throw new Error('Konflikt beim Speichern – bitte erneut senden');
+  } catch (e) { showSchalenBanner(e.message); return false; }
+  finally { savingSchalen = false; }
+}
+function showSchalenBanner(err) {
+  showBanner(`<span>Reh-/Dammwild-Einträge noch nicht hochgeladen${err ? ` (${esc(err)})` : ''}.</span><button class="btn" id="retrySchalen">Erneut senden</button>`);
+  $('#retrySchalen')?.addEventListener('click', () => pushSchalen());
+}
+
 /* ================= Banner ================= */
 function showBanner(html, kind = '') {
   const b = $('#banner'); b.className = 'banner ' + kind; b.innerHTML = html; b.hidden = false;
@@ -335,7 +433,7 @@ function render() {
   }
   const sel = $('#seasonSelect');
   sel.innerHTML = seasons.map(s => `<option value="${s}" ${s === state.season ? 'selected' : ''}>${s}</option>`).join('');
-  renderTage(); renderStrecke(); renderKoenig();
+  renderTage(); renderStrecke(); renderKoenig(); renderSchalen();
 }
 
 function chipsFor(perSpecies, perHund = {}) {
@@ -434,6 +532,135 @@ function renderStrecke() {
 }
 
 const speciesName = id => species().find(w => w.id === id)?.name || id;
+
+/* ================= Reh- & Dammwild ================= */
+const SCHALEN = {
+  reh: { name: 'Rehwild', kat: [['rehbock', 'Rehbock'], ['ricke', 'Ricke'], ['schmalreh', 'Schmalreh'], ['kitz', 'Kitz']] },
+  damm: { name: 'Dammwild', kat: [['hirsch-1a', 'Hirsch 1a'], ['hirsch-1b', 'Hirsch 1b'], ['hirsch-2a', 'Hirsch 2a'], ['hirsch-2b', 'Hirsch 2b'], ['hirsch-3a', 'Hirsch 3a'], ['hirsch-3b', 'Hirsch 3b'],
+    ['alttier', 'Alttier'], ['schmaltier', 'Schmaltier'], ['spiesser', 'Spießer'], ['kalb', 'Kalb'], ['hirschkalb', 'Hirschkalb']] },
+};
+const katName = (art, k) => SCHALEN[art]?.kat.find(x => x[0] === k)?.[1] || k;
+const FALLWILD_URSACHEN = ['Verkehrsunfall', 'Mähtod', 'Krankheit', 'Hund', 'Zaun', 'Unbekannt'];
+
+function schalenStats(season) {
+  const list = (state.schalen?.eintraege || []).filter(x => seasonOf(x.datum) === season).sort((a, b) => a.datum.localeCompare(b.datum));
+  const cnt = {}; // art -> kat -> {erlegt, fallwild}
+  for (const x of list) {
+    const c = ((cnt[x.art] ||= {})[x.kat] ||= { erlegt: 0, fallwild: 0 });
+    x.fallwild ? c.fallwild++ : c.erlegt++;
+  }
+  const tot = art => Object.values(cnt[art] || {}).reduce((a, c) => ({ erlegt: a.erlegt + c.erlegt, fallwild: a.fallwild + c.fallwild }), { erlegt: 0, fallwild: 0 });
+  const perShooter = {};
+  for (const x of list.filter(x => !x.fallwild && x.schuetze)) {
+    const p = (perShooter[x.schuetze] ||= { reh: 0, damm: 0, list: [] });
+    p[x.art]++; p.list.push(x);
+  }
+  return { list, erlegt: list.filter(x => !x.fallwild), fallwild: list.filter(x => x.fallwild), cnt, tot, perShooter };
+}
+
+function renderSchalen() {
+  const el = $('#view-schalen');
+  if (!el || !state.data) return;
+  const st = schalenStats(state.season);
+  const catTable = art => {
+    const t = st.tot(art);
+    const rows = SCHALEN[art].kat.map(([k, lbl]) => { const c = st.cnt[art]?.[k] || { erlegt: 0, fallwild: 0 }; return { lbl, ...c }; });
+    return `<div class="table-wrap"><table>
+      <thead><tr><th>${SCHALEN[art].name}</th><th>Erlegt</th><th>Fallwild</th><th class="pts">Σ</th></tr></thead>
+      <tbody>${rows.map(r => `<tr><td>${esc(r.lbl)}</td><td class="${r.erlegt ? '' : 'zero'}">${r.erlegt}</td><td class="${r.fallwild ? '' : 'zero'}">${r.fallwild}</td><td class="pts ${r.erlegt + r.fallwild ? '' : 'zero'}">${r.erlegt + r.fallwild}</td></tr>`).join('')}</tbody>
+      <tfoot><tr><td>Gesamt</td><td>${t.erlegt}</td><td>${t.fallwild}</td><td>${t.erlegt + t.fallwild}</td></tr></tfoot>
+    </table></div>`;
+  };
+  const item = x => `<li${canSchalen() ? ` data-sw="${esc(x.id)}" tabindex="0" role="button"` : ''}>
+      <span class="nt-date">${dateDE(x.datum)}</span>
+      <span class="nt-what"><b>${esc(katName(x.art, x.kat))}</b> <span class="sub">${SCHALEN[x.art]?.name || ''}</span>
+        <small>${x.fallwild ? `Fallwild${x.ursache ? ` · ${esc(x.ursache)}` : ''}` : esc(shooterName(x.schuetze))}${x.bemerkung ? ` · ${esc(x.bemerkung)}` : ''}${x.von ? ` · eingetragen von ${esc(shooterName(x.von))}` : ''}</small></span>
+      ${canSchalen() ? '<span class="nt-edit" aria-hidden="true">›</span>' : ''}
+    </li>`;
+  const tr = st.tot('reh'), td = st.tot('damm');
+  const shooters = Object.entries(st.perShooter).sort((a, b) => (b[1].reh + b[1].damm) - (a[1].reh + a[1].damm) || shooterName(a[0]).localeCompare(shooterName(b[0]), 'de'));
+  el.innerHTML = `
+    <h2 class="section" style="margin-top:2px">Reh- &amp; Dammwildjagd ${esc(state.season)}</h2>
+    <div class="stats">
+      <div class="card stat"><div class="v">${tr.erlegt + tr.fallwild}</div><div class="l">Rehwild${tr.fallwild ? ` · ${tr.fallwild} Fallwild` : ''}</div></div>
+      <div class="card stat"><div class="v">${td.erlegt + td.fallwild}</div><div class="l">Dammwild${td.fallwild ? ` · ${td.fallwild} Fallwild` : ''}</div></div>
+      <div class="card stat"><div class="v">${st.fallwild.length}</div><div class="l">Fallwild gesamt</div></div>
+    </div>
+    ${canSchalen() ? '<button class="btn block" id="btnSchalen">+ Erlegung / Fallwild eintragen</button>' : ''}
+    ${state.schalenOps.length ? `<div class="alert">${state.schalenOps.length} Änderung(en) noch nicht hochgeladen.</div>` : ''}
+    <h2 class="section">Übersicht ${esc(state.season)}</h2>
+    ${catTable('reh')}
+    ${catTable('damm')}
+    <h2 class="section">Erlegt</h2>
+    ${st.erlegt.length ? `<div class="card"><ul class="nt-list">${[...st.erlegt].reverse().map(item).join('')}</ul></div>` : '<p class="sub" style="text-align:center">Noch nichts erlegt in diesem Jagdjahr.</p>'}
+    <h2 class="section">Fallwild</h2>
+    ${st.fallwild.length ? `<div class="card"><ul class="nt-list">${[...st.fallwild].reverse().map(item).join('')}</ul></div>` : '<p class="sub" style="text-align:center">Kein Fallwild in diesem Jagdjahr.</p>'}
+    ${shooters.length ? `<h2 class="section">Je Schütze</h2>
+    <div class="table-wrap"><table>
+      <thead><tr><th>Schütze</th><th>Reh</th><th>Damm</th><th>Was / wann</th></tr></thead>
+      <tbody>${shooters.map(([id, p]) => `<tr><td>${esc(shooterName(id))}</td><td class="${p.reh ? '' : 'zero'}">${p.reh}</td><td class="${p.damm ? '' : 'zero'}">${p.damm}</td><td class="wrap">${p.list.map(x => `${esc(katName(x.art, x.kat))} (${dateDE(x.datum).slice(0, 6)})`).join(', ')}</td></tr>`).join('')}</tbody>
+    </table></div>` : ''}
+    <div class="btn-row"><button class="btn secondary" id="expSchalen">⤓ Reh- &amp; Dammwild als PDF</button></div>
+    <p class="hint" style="text-align:center">Reh- und Dammwild zählt nicht zum Niederwild-Streckenbericht und nicht zum Jagdkönig.</p>`;
+  $('#btnSchalen')?.addEventListener('click', () => openSchalen(null));
+  $$('[data-sw]', el).forEach(li => li.addEventListener('click', () => openSchalen(li.dataset.sw)));
+  $('#expSchalen').addEventListener('click', () => exportSchalen(state.season));
+}
+
+function openSchalen(id) {
+  const ex = id ? state.schalen.eintraege.find(x => x.id === id) : null;
+  const ich = state.cfg.ich && shooterById(state.cfg.ich) ? state.cfg.ich : '';
+  const x = ex ? clone(ex) : { id: null, datum: todayISO(), art: 'reh', kat: 'rehbock', fallwild: false, schuetze: ich, ursache: '', bemerkung: '' };
+  const draw = () => {
+    const members = state.data.schuetzen.filter(s => isMember(s, seasonOf(x.datum || todayISO())) || s.id === x.schuetze);
+    const body = `
+      <label class="field"><span>Datum</span><input type="date" id="swDate" value="${esc(x.datum)}"></label>
+      <div class="seg seg2" role="radiogroup" aria-label="Wildart">
+        ${Object.entries(SCHALEN).map(([k, v]) => `<button type="button" role="radio" aria-checked="${x.art === k}" class="${x.art === k ? 'on' : ''}" data-swart="${k}">${v.name}</button>`).join('')}
+      </div>
+      <label class="field"><span>Kategorie</span><select id="swKat">${SCHALEN[x.art].kat.map(([k, l]) => `<option value="${k}" ${k === x.kat ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      <label class="check-row"><input type="checkbox" id="swFall" ${x.fallwild ? 'checked' : ''}> <span><b>Fallwild</b><small>z. B. Verkehrsunfall – ohne Schützen</small></span></label>
+      ${x.fallwild
+        ? `<label class="field"><span>Ursache (optional)</span><input type="text" id="swUrs" list="swUrsList" value="${esc(x.ursache || '')}" placeholder="z. B. Verkehrsunfall"><datalist id="swUrsList">${FALLWILD_URSACHEN.map(u => `<option value="${u}">`).join('')}</datalist></label>`
+        : `<label class="field"><span>Schütze</span><select id="swSchuetze"><option value="">Schütze wählen …</option>${members.map(s => `<option value="${esc(s.id)}" ${s.id === x.schuetze ? 'selected' : ''}>${esc(s.vollname || s.name)}</option>`).join('')}</select></label>`}
+      <label class="field"><span>Bemerkung (optional)</span><input type="text" id="swBem" value="${esc(x.bemerkung || '')}" placeholder="z. B. Ort, Gewicht"></label>`;
+    const foot = ex ? `<button class="btn danger" id="swDel">Löschen</button><button class="btn" id="swSave">Speichern</button>`
+                    : `<button class="btn secondary" data-close>Abbrechen</button><button class="btn" id="swSave">Speichern</button>`;
+    openSheet(ex ? 'Eintrag bearbeiten' : 'Reh- / Dammwild eintragen', body, foot);
+    const sync = () => {
+      x.datum = $('#swDate').value || x.datum; x.kat = $('#swKat').value;
+      x.bemerkung = $('#swBem').value.trim();
+      if ($('#swSchuetze')) x.schuetze = $('#swSchuetze').value;
+      if ($('#swUrs')) x.ursache = $('#swUrs').value.trim();
+    };
+    $$('[data-swart]').forEach(b => b.addEventListener('click', () => { sync(); if (x.art !== b.dataset.swart) { x.art = b.dataset.swart; x.kat = SCHALEN[x.art].kat[0][0]; } draw(); }));
+    $('#swFall').addEventListener('change', e => { sync(); x.fallwild = e.target.checked; draw(); });
+    $('#swDate').addEventListener('change', () => { sync(); draw(); });
+    $('#swSave').addEventListener('click', () => {
+      sync();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(x.datum)) { toast('Bitte ein Datum wählen.'); return; }
+      if (!x.fallwild && !x.schuetze) { toast('Bitte den Schützen wählen oder „Fallwild“ ankreuzen.'); return; }
+      const rec = { id: ex?.id || `sw-${Date.now().toString(36)}`, datum: x.datum, art: x.art, kat: x.kat, fallwild: !!x.fallwild };
+      if (x.fallwild) { if (x.ursache) rec.ursache = x.ursache; } else rec.schuetze = x.schuetze;
+      if (x.bemerkung) rec.bemerkung = x.bemerkung;
+      rec.von = ex?.von || ich || undefined;
+      if (ex && ich && ich !== ex.von) rec.geaendertVon = ich;
+      rec.zeit = new Date().toISOString();
+      queueSchalenOp({ type: 'upsert', rec });
+      state.season = seasonOf(rec.datum);
+      closeSheet(); switchTab('schalen'); render();
+      pushSchalen(`${SCHALEN[rec.art].name}: ${katName(rec.art, rec.kat)}${rec.fallwild ? ' (Fallwild)' : ''} ${dateDE(rec.datum)}${ich ? ` – eingetragen von ${shooterName(ich)}` : ''}`);
+    });
+    $('#swDel')?.addEventListener('click', e => {
+      const b = e.currentTarget;
+      if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Wirklich löschen?'; return; }
+      queueSchalenOp({ type: 'delete', id: ex.id });
+      closeSheet(); render();
+      pushSchalen(`Reh-/Dammwild-Eintrag gelöscht${ich ? ` von ${shooterName(ich)}` : ''}`);
+    });
+  };
+  draw();
+}
 
 /* ================= Nachträge ================= */
 function openNachtrag(id) {
@@ -1077,16 +1304,29 @@ function applyAiResult(res, photo) {
 function openSettings() {
   const c = state.cfg;
   const body = `
-    <div class="alert info">${isAdmin() ? '<b>Bearbeitungsmodus aktiv.</b> Du kannst Jagdtage erfassen und speichern.' : '<b>Ansichtsmodus.</b> Zum Erfassen und Speichern GitHub-Zugang eintragen. Alle anderen brauchen nur den Link.'}</div>
-    <fieldset><legend>Speicherort (GitHub)</legend>
-      <div class="grid2">
-        <label class="field"><span>Konto</span><input id="cfOwner" value="${esc(c.owner)}" autocapitalize="off" autocorrect="off"></label>
-        <label class="field"><span>Repository</span><input id="cfRepo" value="${esc(c.repo)}" autocapitalize="off" autocorrect="off"></label>
-      </div>
+    <div class="alert info">${isAdmin() ? '<b>Voller Zugang.</b> Du kannst alles erfassen und verwalten.' : canSchalen() ? '<b>Zugang Reh & Damm.</b> Du kannst Reh- und Dammwild eintragen, alles andere nur ansehen.' : '<b>Ansichtsmodus.</b> Zum Ansehen brauchst du nichts einzutragen.'}</div>
+    <fieldset><legend>Zugang</legend>
+      <label class="field"><span>Ich bin</span>
+        <select id="cfIch"><option value="">– bitte wählen –</option>${state.data.schuetzen.filter(s => isMember(s, seasonOf(todayISO())) || s.id === c.ich).map(s => `<option value="${esc(s.id)}" ${s.id === c.ich ? 'selected' : ''}>${esc(s.vollname || s.name)}</option>`).join('')}</select>
+      </label>
+      <label class="field"><span>Berechtigung</span>
+        <select id="cfMode">
+          <option value="" ${!c.mode ? 'selected' : ''}>Nur ansehen</option>
+          <option value="schalen" ${c.mode === 'schalen' ? 'selected' : ''}>Reh- & Dammwild eintragen</option>
+          <option value="voll" ${c.mode === 'voll' ? 'selected' : ''}>Voller Zugang (Verwaltung)</option>
+        </select>
+      </label>
       <label class="field"><span>Zugriffs-Token (nur auf diesem Gerät gespeichert)</span><input id="cfToken" type="password" value="${esc(c.token)}" placeholder="github_pat_…" autocomplete="off"></label>
-      <p class="hint">Fine-grained Token mit Zugriff nur auf dieses Repository, Berechtigung „Contents: Read and write“.</p>
+      <p class="hint">Den Token bekommst du von Sebastian. Er wird nur auf diesem Gerät gespeichert.</p>
+      <details><summary>Speicherort (GitHub)</summary>
+        <div class="grid2" style="margin-top:10px">
+          <label class="field"><span>Konto</span><input id="cfOwner" value="${esc(c.owner)}" autocapitalize="off" autocorrect="off"></label>
+          <label class="field"><span>Repository Hauptdaten</span><input id="cfRepo" value="${esc(c.repo)}" autocapitalize="off" autocorrect="off"></label>
+        </div>
+        <label class="field" style="margin-top:10px"><span>Repository Reh- & Dammwild</span><input id="cfRepo2" value="${esc(c.repo2)}" autocapitalize="off" autocorrect="off"></label>
+      </details>
     </fieldset>
-    <fieldset><legend>Foto-Auswertung (KI)</legend>
+    <fieldset ${c.mode === 'voll' ? '' : 'hidden'}><legend>Foto-Auswertung (KI)</legend>
       <label class="field"><span>Anthropic-API-Schlüssel (nur auf diesem Gerät gespeichert)</span><input id="cfKey" type="password" value="${esc(c.apiKey)}" placeholder="sk-ant-…" autocomplete="off"></label>
       <label class="field"><span>Modell</span>
         <select id="cfModel">${c.model ? `<option value="${esc(c.model)}" selected>${esc(c.model)}</option>` : `<option value="">Standard (${FALLBACK_MODEL})</option>`}</select>
@@ -1151,10 +1391,14 @@ function openSettings() {
   });
   $('#cfSave').addEventListener('click', async () => {
     const before = JSON.stringify({ s: state.data.schuetzen, w: state.data.wildarten });
+    const modeBefore = state.cfg.mode;
     Object.assign(state.cfg, {
-      owner: $('#cfOwner').value.trim(), repo: $('#cfRepo').value.trim(),
+      owner: $('#cfOwner').value.trim(), repo: $('#cfRepo').value.trim(), repo2: $('#cfRepo2').value.trim(),
       token: $('#cfToken').value.trim(), apiKey: $('#cfKey').value.trim(), model: $('#cfModel').value,
+      mode: $('#cfMode').value, ich: $('#cfIch').value,
     });
+    if (state.cfg.mode === 'schalen' && modeBefore !== 'schalen') setTimeout(() => switchTab('schalen'), 50);
+    loadSchalen();
     lsSet(LS_CFG, state.cfg);
     $$('.sh-cfg').forEach(row => {
       const id = row.dataset.sid;
@@ -1364,6 +1608,51 @@ async function exportKoenig(season) {
   } catch (e) { toast('Export fehlgeschlagen: ' + e.message, 4500); }
 }
 
+async function exportSchalen(season) {
+  try {
+    toast('PDF wird erstellt …');
+    const st = schalenStats(season);
+    const doc = await pdfBase('Reh- & Dammwild', season);
+    let y = 45;
+    for (const art of ['reh', 'damm']) {
+      y = sectionTitle(doc, SCHALEN[art].name, y);
+      const t = st.tot(art);
+      doc.autoTable({ ...tableStyle, startY: y, tableWidth: 120,
+        head: [['Kategorie', 'Erlegt', 'Fallwild', 'Gesamt']],
+        body: SCHALEN[art].kat.map(([k, l]) => { const c = st.cnt[art]?.[k] || { erlegt: 0, fallwild: 0 }; return [l, String(c.erlegt), String(c.fallwild), String(c.erlegt + c.fallwild)]; }),
+        foot: [['Gesamt', String(t.erlegt), String(t.fallwild), String(t.erlegt + t.fallwild)]],
+        columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right', fontStyle: 'bold' } }, didParseCell: numRight(1),
+      });
+      y = doc.lastAutoTable.finalY + 10;
+    }
+    y = sectionTitle(doc, 'Erlegt', y);
+    doc.autoTable({ ...tableStyle, startY: y,
+      head: [['Datum', 'Wildart', 'Kategorie', 'Schütze', 'Bemerkung']],
+      body: st.erlegt.length ? st.erlegt.map(x => [dateDE(x.datum), SCHALEN[x.art].name, katName(x.art, x.kat), shooterName(x.schuetze), x.bemerkung || '–']) : [[{ content: 'Keine Erlegungen', colSpan: 5 }]],
+      columnStyles: { 0: { cellWidth: 24 } },
+    });
+    y = doc.lastAutoTable.finalY + 10;
+    y = sectionTitle(doc, 'Fallwild', y);
+    doc.autoTable({ ...tableStyle, startY: y,
+      head: [['Datum', 'Wildart', 'Kategorie', 'Ursache', 'Bemerkung']],
+      body: st.fallwild.length ? st.fallwild.map(x => [dateDE(x.datum), SCHALEN[x.art].name, katName(x.art, x.kat), x.ursache || '–', x.bemerkung || '–']) : [[{ content: 'Kein Fallwild', colSpan: 5 }]],
+      columnStyles: { 0: { cellWidth: 24 } },
+    });
+    const sh = Object.entries(st.perShooter);
+    if (sh.length) {
+      y = doc.lastAutoTable.finalY + 10;
+      y = sectionTitle(doc, 'Je Schütze', y);
+      doc.autoTable({ ...tableStyle, startY: y,
+        head: [['Schütze', 'Rehwild', 'Dammwild', 'Erlegt']],
+        body: sh.sort((a, b) => (b[1].reh + b[1].damm) - (a[1].reh + a[1].damm)).map(([id, p]) => [shooterName(id), String(p.reh), String(p.damm), p.list.map(x => `${katName(x.art, x.kat)} (${dateDE(x.datum)})`).join(', ')]),
+        columnStyles: { 1: { halign: 'right', cellWidth: 20 }, 2: { halign: 'right', cellWidth: 22 } }, didParseCell: numRight(1, 2),
+      });
+    }
+    pdfFooter(doc);
+    await shareOrDownload(doc.output('blob'), `Reh-Dammwild_${safeSeason(season)}.pdf`);
+  } catch (e) { toast('Export fehlgeschlagen: ' + e.message, 4500); }
+}
+
 /* ================= Navigation ================= */
 function switchTab(tab) {
   state.tab = tab;
@@ -1372,9 +1661,13 @@ function switchTab(tab) {
   window.scrollTo({ top: 0 });
 }
 $$('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
-$('#seasonSelect').addEventListener('change', e => { state.season = e.target.value; renderTage(); renderStrecke(); renderKoenig(); });
+$('#seasonSelect').addEventListener('change', e => { state.season = e.target.value; renderTage(); renderStrecke(); renderKoenig(); renderSchalen(); });
 $('#settingsBtn').addEventListener('click', openSettings);
-document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && $('#sheet').hidden && !state.pending) load(); });
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState !== 'visible' || !$('#sheet').hidden) return;
+  if (!state.pending) load();
+  loadSchalen();
+});
 
 /* ================= Service Worker (Update-Hinweis) ================= */
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
@@ -1394,4 +1687,5 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloaded) { reloaded = true; location.reload(); } });
 }
 
-load();
+load().then(loadSchalen);
+if (state.cfg.mode === 'schalen') switchTab('schalen');
