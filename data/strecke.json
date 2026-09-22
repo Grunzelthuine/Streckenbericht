@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T20:44:08.930Z",
+  "stand": "2026-09-22T20:44:52.637Z",
   "wildarten": [
     {
       "id": "hase",
@@ -346,9 +346,6 @@
       "sonderkoenig": "Geerdes, A.",
       "bemerkung": "Jagd mit Venslage. Geerdes, J. und Brockhaus hatten je einen „Ast“ vermerkt.",
       "strecke": {
-        "dreishing-v": {
-          "kaninchen": 1
-        },
         "geerdes-h": {
           "fasan": 1
         },
@@ -363,6 +360,9 @@
         },
         "schoo": {
           "fasan": 1
+        },
+        "gebbe-w": {
+          "kaninchen": 1
         }
       },
       "hund": {},
@@ -407,7 +407,7 @@
           "name": "Geerdes, A.",
           "erlegt": {
             "fasan": 1,
-            "sonstiges": 1
+            "schnepfe": 1
           },
           "hund": {}
         }
