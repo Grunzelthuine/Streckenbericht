@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T20:56:43.473Z",
+  "stand": "2026-09-22T20:58:50.694Z",
   "wildarten": [
     {
       "id": "hase",
@@ -220,6 +220,37 @@
         }
       },
       "hund": {}
+    },
+    {
+      "id": "2024-12-07",
+      "datum": "2024-12-07",
+      "art": "treibjagd",
+      "sonderkoenig": "Kock, Peter – Schnepfenkönig",
+      "bemerkung": "Handschriftliche Notiz oben: '320 € einkassiert (20 p.P.)'. Sonderkönig laut Zettel: 'Rech Peter Schnepfkönig' – gemeint ist Peter Kock als Schnepfenkönig.",
+      "strecke": {
+        "bruns-s": {
+          "fasan": 1
+        },
+        "gebbe-kh": {
+          "fasan": 1
+        },
+        "gebbe-w": {
+          "fasan": 1
+        },
+        "geerdes-h": {
+          "fasan": 3,
+          "kaninchen": 1
+        },
+        "geerdes-w": {
+          "fasan": 2,
+          "taube": 1
+        },
+        "kock": {
+          "schnepfe": 1
+        }
+      },
+      "hund": {},
+      "gaeste": []
     },
     {
       "id": "2025-10-18",
