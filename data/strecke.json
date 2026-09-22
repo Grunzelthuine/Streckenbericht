@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T21:25:56.483Z",
+  "stand": "2026-09-22T21:27:01.357Z",
   "wildarten": [
     {
       "id": "hase",
@@ -535,6 +535,79 @@
       "hund": {}
     },
     {
+      "id": "2023-12-16",
+      "datum": "2023-12-16",
+      "art": "venslage",
+      "sonderkoenig": "",
+      "bemerkung": "",
+      "strecke": {
+        "bruns-s": {
+          "hase": 1
+        },
+        "gebbe-kh": {
+          "fasan": 3
+        },
+        "gebbe-w": {
+          "fasan": 1
+        },
+        "geerdes-w": {
+          "hase": 1,
+          "fasan": 1
+        },
+        "koelker-s": {
+          "fasan": 1
+        },
+        "schoo": {
+          "hase": 1,
+          "fasan": 1
+        }
+      },
+      "hund": {},
+      "gaeste": [
+        {
+          "name": "Geerdes, J.",
+          "erlegt": {
+            "hase": 1
+          },
+          "hund": {}
+        },
+        {
+          "name": "Wessling, S.",
+          "erlegt": {
+            "sonstiges": 1
+          },
+          "hund": {}
+        },
+        {
+          "name": "Brockhaus, A.",
+          "erlegt": {
+            "hase": 1,
+            "fasan": 2
+          },
+          "hund": {}
+        },
+        {
+          "name": "Papenbrock H.",
+          "erlegt": {
+            "fasan": 3
+          },
+          "hund": {}
+        },
+        {
+          "name": "Völkers I.",
+          "erlegt": {
+            "hase": 1
+          },
+          "hund": {}
+        }
+      ],
+      "revier": {
+        "hase": 4,
+        "fasan": 8,
+        "sonstiges": 1
+      }
+    },
+    {
       "id": "2024-10-19",
       "datum": "2024-10-19",
       "art": "normal",
@@ -941,79 +1014,6 @@
         }
       },
       "hund": {}
-    },
-    {
-      "id": "2026-09-22",
-      "datum": "2026-09-22",
-      "art": "venslage",
-      "sonderkoenig": "",
-      "bemerkung": "",
-      "strecke": {
-        "bruns-s": {
-          "hase": 1
-        },
-        "gebbe-kh": {
-          "fasan": 3
-        },
-        "gebbe-w": {
-          "fasan": 1
-        },
-        "geerdes-w": {
-          "hase": 1,
-          "fasan": 1
-        },
-        "koelker-s": {
-          "fasan": 1
-        },
-        "schoo": {
-          "hase": 1,
-          "fasan": 1
-        }
-      },
-      "hund": {},
-      "gaeste": [
-        {
-          "name": "Geerdes, J.",
-          "erlegt": {
-            "hase": 1
-          },
-          "hund": {}
-        },
-        {
-          "name": "Wessling, S.",
-          "erlegt": {
-            "sonstiges": 1
-          },
-          "hund": {}
-        },
-        {
-          "name": "Brockhaus, A.",
-          "erlegt": {
-            "hase": 1,
-            "fasan": 2
-          },
-          "hund": {}
-        },
-        {
-          "name": "Papenbrock H.",
-          "erlegt": {
-            "fasan": 3
-          },
-          "hund": {}
-        },
-        {
-          "name": "Völkers I.",
-          "erlegt": {
-            "hase": 1
-          },
-          "hund": {}
-        }
-      ],
-      "revier": {
-        "hase": 4,
-        "fasan": 8,
-        "sonstiges": 1
-      }
     }
   ],
   "nachtraege": [
