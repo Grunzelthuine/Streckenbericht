@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T18:36:19.052Z",
+  "stand": "2026-09-22T18:37:40.975Z",
   "wildarten": [
     {
       "id": "hase",
@@ -135,5 +135,37 @@
       "aktiv": true
     }
   ],
-  "jagdtage": []
+  "jagdtage": [
+    {
+      "id": "2025-10-18",
+      "datum": "2025-10-18",
+      "sonderkoenig": "",
+      "bemerkung": "Jagdkönig: Henning Geerdes (Geerdes, H.), Vizekönig: Sebastian Bruns (Bruns, S.). Gesamtstrecke: Hase 4, Fasan 7.",
+      "strecke": {
+        "bruns-s": {
+          "hase": 1,
+          "fasan": 1
+        },
+        "dreishing-v": {
+          "fasan": 2
+        },
+        "geerdes-h": {
+          "hase": 2
+        },
+        "geerdes-w": {
+          "fasan": 1
+        },
+        "kall": {
+          "fasan": 2
+        },
+        "koelker-w": {
+          "fasan": 1
+        },
+        "schoo": {
+          "hase": 1
+        }
+      },
+      "hund": {}
+    }
+  ]
 }
