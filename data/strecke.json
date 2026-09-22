@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T20:48:12.172Z",
+  "stand": "2026-09-22T20:52:42.392Z",
   "wildarten": [
     {
       "id": "hase",
@@ -160,6 +160,26 @@
     }
   ],
   "jagdtage": [
+    {
+      "id": "2024-10-19",
+      "datum": "2024-10-19",
+      "art": "normal",
+      "sonderkoenig": "",
+      "bemerkung": "Beckhuis: In der Sonstig-Spalte steht 'Henne' – interpretiert als Fasanenhenne (Sonstiges, 1 Punkt), da Fasan-Spalte bereits 1 Hahn zählt. Punkte 4 = 3 (Fasan) + 1 (Sonstiges) stimmt überein. Jagdkönig: Beckhuis. Vizekönig: Kock / Geerdes, W.",
+      "strecke": {
+        "beckhuis": {
+          "fasan": 1,
+          "schnepfe": 1
+        },
+        "geerdes-w": {
+          "fasan": 1
+        },
+        "kock": {
+          "fasan": 1
+        }
+      },
+      "hund": {}
+    },
     {
       "id": "2025-10-18",
       "datum": "2025-10-18",
