@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T18:50:44.686Z",
+  "stand": "2026-09-22T18:52:27.702Z",
   "wildarten": [
     {
       "id": "hase",
@@ -240,6 +240,21 @@
         },
         "schoo": {
           "fasan": 1
+        }
+      },
+      "hund": {}
+    },
+    {
+      "id": "2025-11-13",
+      "datum": "2025-11-13",
+      "sonderkoenig": "",
+      "bemerkung": "Jagdkönig: Hans (Röttering); Vizekönig: Martin (Bruns, M.)",
+      "strecke": {
+        "bruns-m": {
+          "fasan": 1
+        },
+        "roettering": {
+          "fasan": 2
         }
       },
       "hund": {}
