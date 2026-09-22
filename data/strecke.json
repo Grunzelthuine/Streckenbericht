@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T21:19:53.565Z",
+  "stand": "2026-09-22T21:21:39.871Z",
   "wildarten": [
     {
       "id": "hase",
@@ -490,6 +490,49 @@
           "hund": {}
         }
       ]
+    },
+    {
+      "id": "2023-12-04",
+      "datum": "2023-12-04",
+      "art": "normal",
+      "sonderkoenig": "",
+      "bemerkung": "",
+      "strecke": {
+        "bruns-m": {
+          "fasan": 1
+        },
+        "bruns-s": {
+          "hase": 2
+        },
+        "gebbe-w": {
+          "hase": 2
+        },
+        "geerdes-h": {
+          "hase": 1,
+          "fasan": 3,
+          "schnepfe": 1
+        },
+        "geerdes-w": {
+          "hase": 3,
+          "fasan": 1
+        },
+        "kall": {
+          "hase": 1,
+          "fasan": 1
+        },
+        "kock": {
+          "hase": 1,
+          "schnepfe": 1
+        },
+        "koelker-w": {
+          "fasan": 1
+        },
+        "roettering": {
+          "hase": 3,
+          "fasan": 1
+        }
+      },
+      "hund": {}
     },
     {
       "id": "2024-10-19",
