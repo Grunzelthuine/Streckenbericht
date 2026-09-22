@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T18:56:31.726Z",
+  "stand": "2026-09-22T20:00:00Z",
   "wildarten": [
     {
       "id": "hase",
@@ -285,69 +285,84 @@
       }
     },
     {
-      "id": "2025-12-06",
-      "datum": "2025-12-06",
-      "sonderkoenig": "Beckhuis (Schnepfe)",
-      "bemerkung": "Jagdtag: Nikolaustag, 6.12.25. Jagdkönig: Gebbe K-H., Vizekönig: Geerdes Henning, Sonderkönig: Beckhuis Fasan. Gesamtstrecke: 5 Hasen, 3 Fasane, 1 Schnepfe.",
+      "id": "2025-12-20",
+      "datum": "2025-12-20",
+      "art": "venslage",
+      "sonderkoenig": "Geerdes, A.",
+      "bemerkung": "Jagd mit Venslage. Geerdes, J. und Brockhaus hatten je einen „Ast“ vermerkt.",
       "strecke": {
-        "beckhuis": {
-          "fasan": 1,
-          "schnepfe": 1
-        },
-        "gebbe-kh": {
-          "hase": 2
-        },
         "dreishing-v": {
-          "hase": 1
-        },
-        "geerdes-h": {
-          "hase": 1,
-          "fasan": 1
-        },
-        "koelker-s": {
-          "fasan": 1
-        },
-        "schmees": {
-          "hase": 1
-        }
-      },
-      "hund": {}
-    },
-    {
-      "id": "2025-12-13",
-      "datum": "2025-12-13",
-      "sonderkoenig": "",
-      "bemerkung": "Jagdkönig: Hans (Röttering); Vizekönig: Martin (Bruns, M.)",
-      "strecke": {
-        "bruns-m": {
-          "fasan": 1
-        },
-        "roettering": {
-          "fasan": 2
-        }
-      },
-      "hund": {}
-    },
-    {
-      "id": "2025-12-27",
-      "datum": "2025-12-27",
-      "sonderkoenig": "",
-      "bemerkung": "",
-      "strecke": {
-        "bruns-s": {
-          "fasan": 1
+          "kaninchen": 1
         },
         "geerdes-h": {
           "fasan": 1
         },
-        "heskamp": {
+        "geerdes-w": {
           "fasan": 1
         },
         "kall": {
-          "fasan": 2
+          "fasan": 1
+        },
+        "roettering": {
+          "fasan": 1
+        },
+        "schoo": {
+          "fasan": 1
         }
       },
-      "hund": {}
+      "hund": {},
+      "gaeste": [
+        {
+          "name": "Geerdes, J.",
+          "erlegt": {
+            "fasan": 1
+          },
+          "hund": {}
+        },
+        {
+          "name": "Wessling, S.",
+          "erlegt": {
+            "fasan": 1
+          },
+          "hund": {}
+        },
+        {
+          "name": "Krieger, N.",
+          "erlegt": {
+            "fasan": 1
+          },
+          "hund": {}
+        },
+        {
+          "name": "Brockhaus, A.",
+          "erlegt": {
+            "fasan": 2
+          },
+          "hund": {}
+        },
+        {
+          "name": "Vogt, A.",
+          "erlegt": {
+            "hase": 1,
+            "fasan": 1
+          },
+          "hund": {}
+        },
+        {
+          "name": "Geerdes, A.",
+          "erlegt": {
+            "fasan": 1,
+            "sonstiges": 1
+          },
+          "hund": {}
+        }
+      ],
+      "revier": {
+        "hase": 1,
+        "fasan": 5,
+        "kaninchen": 1,
+        "sonstiges": 1
+      }
     }
   ]
 }

@@ -5,7 +5,7 @@
  */
 'use strict';
 
-const APP_VERSION = '1.1.0';
+const APP_VERSION = '1.3.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -106,26 +106,45 @@ function pointsOf(counts, pm = ptsMap()) {
   return Object.entries(counts || {}).reduce((a, [k, v]) => a + (pm[k] || 0) * (Number(v) || 0), 0);
 }
 
-/** Auswertung eines Jagdtages */
+/** Jagdtag-Arten */
+const DAY_TYPES = { normal: 'Jagdtag', venslage: 'Jagd mit Venslage', treibjagd: 'Große Treibjagd' };
+const DAY_SHORT = { normal: 'Normal', venslage: 'mit Venslage', treibjagd: 'Gr. Treibjagd' };
+const isVenslage = d => d.art === 'venslage';
+const isTreibjagd = d => d.art === 'treibjagd';
+const hasGuests = d => isVenslage(d) || isTreibjagd(d);
+const GUEST_LABEL = { venslage: 'Venslage', treibjagd: 'Gast' };
+function addCounts(target, counts) { for (const [k, v] of Object.entries(counts || {})) if (v) target[k] = (target[k] || 0) + v; return target; }
+
+/** Auswertung eines Jagdtages.
+ * rows = Thuiner Schützen (+ bei Venslage die Venslager Jäger mit gast:true).
+ * perSpecies = Strecke für UNSEREN Streckenbericht: normal = Summe unserer Schützen,
+ *              Venslage = Zeile „Erlegt in Thuine“ (Revierstrecke).
+ * perSpeciesAll = Gesamtstrecke des Tages über alle Jäger. */
 function dayStats(day) {
   const pm = ptsMap();
   const ids = new Set([...Object.keys(day.strecke || {}), ...Object.keys(day.hund || {})]);
-  const rows = [...ids].map(id => {
-    const erlegt = day.strecke?.[id] || {};
-    const hund = day.hund?.[id] || {};
-    return { id, erlegt, hund, punkte: pointsOf(erlegt, pm), stueck: sumCounts(erlegt) + sumCounts(hund) };
-  }).filter(r => r.stueck > 0);
-  const perSpecies = {}; const perSpeciesHund = {};
-  for (const r of rows) {
-    for (const [k, v] of Object.entries(r.erlegt)) perSpecies[k] = (perSpecies[k] || 0) + v;
-    for (const [k, v] of Object.entries(r.hund)) { perSpecies[k] = (perSpecies[k] || 0) + v; perSpeciesHund[k] = (perSpeciesHund[k] || 0) + v; }
-  }
+  const mk = (id, name, erlegt, hund, gast) => ({ id, name, gast, erlegt, hund, punkte: pointsOf(erlegt, pm), stueck: sumCounts(erlegt) + sumCounts(hund) });
+  const own = [...ids].map(id => mk(id, shooterName(id), day.strecke?.[id] || {}, day.hund?.[id] || {}, false)).filter(r => r.stueck > 0);
+  const guests = hasGuests(day)
+    ? (day.gaeste || []).map((g, i) => Object.assign(mk(`gast:${i}`, `${g.name} (${GUEST_LABEL[day.art]})`, g.erlegt || {}, g.hund || {}, true), { plain: g.name, gastgeber: g.gastgeber || '' })).filter(r => r.stueck > 0)
+    : [];
+  const rows = [...own, ...guests];
+  const perSpeciesAll = {}; const hundAll = {};
+  for (const r of rows) { addCounts(perSpeciesAll, r.erlegt); addCounts(perSpeciesAll, r.hund); addCounts(hundAll, r.hund); }
+  let perSpecies, perSpeciesHund;
+  if (isVenslage(day)) { perSpecies = addCounts({}, day.revier); perSpeciesHund = {}; }
+  else { perSpecies = perSpeciesAll; perSpeciesHund = hundAll; }
   const values = [...new Set(rows.map(r => r.punkte).filter(p => p > 0))].sort((a, b) => b - a);
   const koenig = values[0] != null ? rows.filter(r => r.punkte === values[0]).map(r => r.id) : [];
   const vize = values[1] != null ? rows.filter(r => r.punkte === values[1]).map(r => r.id) : [];
-  rows.sort((a, b) => b.punkte - a.punkte || b.stueck - a.stueck || shooterName(a.id).localeCompare(shooterName(b.id), 'de'));
-  return { rows, perSpecies, perSpeciesHund, total: sumCounts(perSpecies), koenig, koenigPts: values[0] || 0, vize, vizePts: values[1] || 0 };
+  const byId = Object.fromEntries(rows.map(r => [r.id, r]));
+  const label = id => byId[id]?.name || shooterName(id);
+  const sortFn = (a, b) => b.punkte - a.punkte || b.stueck - a.stueck || a.name.localeCompare(b.name, 'de');
+  own.sort(sortFn); guests.sort(sortFn); rows.sort(sortFn);
+  return { rows, own, guests, perSpecies, perSpeciesHund, total: sumCounts(perSpecies), perSpeciesAll, totalAll: sumCounts(perSpeciesAll),
+    koenig, koenigPts: values[0] || 0, vize, vizePts: values[1] || 0, label };
 }
+const dayNames = (ds, ids) => ids.map(id => esc(ds.label(id))).join(', ');
 
 function seasonDays(season) {
   return state.data.jagdtage.filter(d => seasonOf(d.datum) === season).sort((a, b) => a.datum.localeCompare(b.datum));
@@ -145,15 +164,15 @@ function seasonStats(season) {
   const perSpecies = {}; const perSpeciesHund = {};
   for (const d of days) {
     const ds = dayStats(d);
-    for (const r of ds.rows) {
+    addCounts(perSpecies, ds.perSpecies); addCounts(perSpeciesHund, ds.perSpeciesHund);
+    for (const r of ds.own) { // nur Stammmannschaft zählt für den Jahres-Jagdkönig
       const p = get(r.id);
       p.punkte += r.punkte; p.stueck += r.stueck;
-      for (const [k, v] of Object.entries(r.erlegt)) { p.erlegt[k] = (p.erlegt[k] || 0) + v; perSpecies[k] = (perSpecies[k] || 0) + v; }
-      for (const [k, v] of Object.entries(r.hund)) { p.hund[k] = (p.hund[k] || 0) + v; perSpecies[k] = (perSpecies[k] || 0) + v; perSpeciesHund[k] = (perSpeciesHund[k] || 0) + v; }
-      p.tage.push({ datum: d.datum, erlegt: r.erlegt, hund: r.hund, punkte: r.punkte });
+      addCounts(p.erlegt, r.erlegt); addCounts(p.hund, r.hund);
+      p.tage.push({ datum: d.datum, art: d.art, erlegt: r.erlegt, hund: r.hund, punkte: r.punkte });
     }
-    ds.koenig.forEach(id => get(id).siege++);
-    ds.vize.forEach(id => get(id).vize++);
+    ds.koenig.filter(id => !id.startsWith('gast:')).forEach(id => get(id).siege++);
+    ds.vize.filter(id => !id.startsWith('gast:')).forEach(id => get(id).vize++);
     const sk = (d.sonderkoenig || '').trim();
     if (sk) { const s = findShooter(sk); if (s) get(s.id).sonder++; }
   }
@@ -214,7 +233,7 @@ async function load() {
 
 function normalize(d) {
   d.wildarten ||= []; d.schuetzen ||= []; d.jagdtage ||= [];
-  d.jagdtage.forEach(t => { t.strecke ||= {}; t.hund ||= {}; t.sonderkoenig ||= ''; t.bemerkung ||= ''; t.id ||= t.datum; });
+  d.jagdtage.forEach(t => { t.art ||= 'normal'; t.strecke ||= {}; t.hund ||= {}; if (t.art !== 'normal') t.gaeste ||= []; if (t.art === 'venslage') t.revier ||= {}; t.sonderkoenig ||= ''; t.bemerkung ||= ''; t.id ||= t.datum; });
   return d;
 }
 
@@ -319,11 +338,13 @@ function renderTage() {
     html += [...st.days].reverse().map(d => {
       const ds = dayStats(d);
       return `<button class="day" data-day="${esc(d.id)}">
-        <div class="day-top"><span class="day-date">${dateDE(d.datum, true)}</span><span class="day-total">${ds.total} Stück</span></div>
+        <div class="day-top"><span class="day-date">${dateDE(d.datum, true)}</span><span class="day-total">${ds.total} Stück${isVenslage(d) ? ' in Thuine' : ''}</span></div>
+        ${isVenslage(d) ? `<div class="badge">Jagd mit Venslage · Gesamtstrecke ${ds.totalAll} Stück</div>` : ''}
+        ${isTreibjagd(d) ? `<div class="badge">Große Treibjagd · ${ds.guests.length} Gäste mit Strecke</div>` : ''}
         <div class="chips">${chipsFor(ds.perSpecies, ds.perSpeciesHund) || '<span class="sub">keine Strecke</span>'}</div>
         <div class="kings">
-          ${ds.koenig.length ? `<div><span class="k"><span class="crown">♛</span> Jagdkönig</span> ${names(ds.koenig)} · ${fmt(ds.koenigPts)} Pkt.</div>` : ''}
-          ${ds.vize.length ? `<div><span class="k">Vizekönig</span> ${names(ds.vize)} · ${fmt(ds.vizePts)} Pkt.</div>` : ''}
+          ${ds.koenig.length ? `<div><span class="k"><span class="crown">♛</span> Jagdkönig</span> ${dayNames(ds, ds.koenig)} · ${fmt(ds.koenigPts)} Pkt.</div>` : ''}
+          ${ds.vize.length ? `<div><span class="k">Vizekönig</span> ${dayNames(ds, ds.vize)} · ${fmt(ds.vizePts)} Pkt.</div>` : ''}
           ${d.sonderkoenig ? `<div><span class="k">Sonderkönig</span> ${esc(sonderName(d.sonderkoenig))}</div>` : ''}
         </div>
       </button>`;
@@ -440,21 +461,28 @@ function openDay(id) {
   const d = state.data.jagdtage.find(x => x.id === id);
   if (!d) return;
   const ds = dayStats(d);
-  const cols = species().filter(w => ds.perSpecies[w.id]);
+  const v = isVenslage(d), tj = isTreibjagd(d), g = hasGuests(d);
+  const cols = species().filter(w => ds.perSpecies[w.id] || ds.perSpeciesAll[w.id]);
+  const rowHtml = r => `<tr><td>${esc(r.gast ? r.plain : r.name)}${r.gast && r.gastgeber ? `<small class="host">Gast von ${esc(shooterName(r.gastgeber))}</small>` : ''}</td>${cols.map(w => {
+    const e = r.erlegt[w.id] || 0, h = r.hund[w.id] || 0;
+    return `<td class="${e + h ? '' : 'zero'}">${e + h}${h ? `<span class="dogmark">H</span>` : ''}</td>`;
+  }).join('')}<td class="pts">${fmt(r.punkte)}</td></tr>`;
+  const sumRow = (label, counts, total) => `<tr><td>${label}</td>${cols.map(w => `<td>${counts[w.id] || 0}</td>`).join('')}<td>${total} St.</td></tr>`;
   const body = `
+    ${g ? `<div class="badge">${DAY_TYPES[d.art]}</div>` : ''}
     <div class="chips">${chipsFor(ds.perSpecies, ds.perSpeciesHund)}</div>
+    ${v ? '<p class="hint">In den Streckenbericht geht nur die Zeile „Erlegt in Thuine“. Tageskönige werden über alle Jäger ermittelt, für den Jahres-Jagdkönig zählen nur unsere Schützen.</p>' : ''}
+    ${tj ? '<p class="hint">Das gesamte Wild (auch das der Gäste) geht in den Streckenbericht. Tageskönige werden über alle Jäger ermittelt, für den Jahres-Jagdkönig zählen nur unsere Schützen.</p>' : ''}
     <div class="table-wrap"><table>
-      <thead><tr><th>Schütze</th>${cols.map(w => `<th>${esc(w.name)}</th>`).join('')}<th class="pts">Punkte</th></tr></thead>
-      <tbody>${ds.rows.map(r => `<tr><td>${esc(shooterName(r.id))}</td>${cols.map(w => {
-        const e = r.erlegt[w.id] || 0, h = r.hund[w.id] || 0;
-        return `<td class="${e + h ? '' : 'zero'}">${e + h}${h ? `<span class="dogmark">H</span>` : ''}</td>`;
-      }).join('')}<td class="pts">${fmt(r.punkte)}</td></tr>`).join('')}</tbody>
-      <tfoot><tr><td>Gesamtstrecke</td>${cols.map(w => `<td>${ds.perSpecies[w.id]}</td>`).join('')}<td>${ds.total} St.</td></tr></tfoot>
+      <thead><tr><th>${g ? 'Thuine' : 'Schütze'}</th>${cols.map(w => `<th>${esc(w.name)}</th>`).join('')}<th class="pts">Punkte</th></tr></thead>
+      <tbody>${ds.own.map(rowHtml).join('')}
+      ${g ? `<tr class="subhead"><td colspan="${cols.length + 2}">${v ? 'Venslage' : 'Gäste'}</td></tr>${ds.guests.map(rowHtml).join('') || `<tr><td colspan="${cols.length + 2}" class="zero">–</td></tr>`}` : ''}</tbody>
+      <tfoot>${v ? sumRow('Erlegt in Thuine', ds.perSpecies, ds.total) + sumRow('Gesamtstrecke', ds.perSpeciesAll, ds.totalAll) : sumRow('Gesamtstrecke', ds.perSpecies, ds.total)}</tfoot>
     </table></div>
     ${Object.keys(ds.perSpeciesHund).length ? '<p class="hint"><span class="dogmark">H</span> = davon vom Hund gegriffen (zählt zur Strecke, ohne Punkte)</p>' : ''}
     <div class="card pad kings" style="margin-top:12px">
-      <div><span class="k"><span class="crown">♛</span> Jagdkönig</span> ${ds.koenig.length ? `${names(ds.koenig)} · ${fmt(ds.koenigPts)} Pkt.` : '–'}</div>
-      <div><span class="k">Vizekönig</span> ${ds.vize.length ? `${names(ds.vize)} · ${fmt(ds.vizePts)} Pkt.` : '–'}</div>
+      <div><span class="k"><span class="crown">♛</span> Jagdkönig</span> ${ds.koenig.length ? `${dayNames(ds, ds.koenig)} · ${fmt(ds.koenigPts)} Pkt.` : '–'}</div>
+      <div><span class="k">Vizekönig</span> ${ds.vize.length ? `${dayNames(ds, ds.vize)} · ${fmt(ds.vizePts)} Pkt.` : '–'}</div>
       <div><span class="k">Sonderkönig</span> ${esc(sonderName(d.sonderkoenig)) || '–'}</div>
     </div>
     ${d.bemerkung ? `<div class="card pad"><div class="sub">Bemerkung</div>${esc(d.bemerkung)}</div>` : ''}`;
@@ -477,7 +505,8 @@ let editor = null;
 
 function openEditor(dayId, prefill = null) {
   const existing = dayId ? state.data.jagdtage.find(x => x.id === dayId) : null;
-  const base = existing ? clone(existing) : { id: null, datum: todayISO(), strecke: {}, hund: {}, sonderkoenig: '', bemerkung: '' };
+  const base = existing ? clone(existing) : { id: null, datum: todayISO(), art: 'normal', strecke: {}, hund: {}, gaeste: [], revier: {}, sonderkoenig: '', bemerkung: '' };
+  base.art ||= 'normal'; base.gaeste ||= []; base.revier ||= {};
   editor = {
     originalId: existing?.id || null,
     day: base,
@@ -487,6 +516,7 @@ function openEditor(dayId, prefill = null) {
     open: new Set(),
     showDog: new Set(Object.keys(base.hund || {})),
     photo: null,
+    openG: new Set(),
   };
   if (prefill) Object.assign(editor, prefill);
   renderEditor();
@@ -503,8 +533,12 @@ function renderEditor() {
   const pm = ptsMap();
   const dupe = state.data.jagdtage.find(x => x.datum === d.datum && x.id !== editor.originalId);
   const shooters = editorShooters();
+  const v = d.art === 'venslage', gd = hasGuests(d);
   const totals = {};
-  for (const src of [d.strecke, d.hund]) for (const c of Object.values(src)) for (const [k, v] of Object.entries(c)) totals[k] = (totals[k] || 0) + v;
+  for (const src of [d.strecke, d.hund]) for (const c of Object.values(src)) addCounts(totals, c);
+  const allTotals = addCounts({}, totals);
+  if (gd) for (const g of d.gaeste) { addCounts(allTotals, g.erlegt); addCounts(allTotals, g.hund); }
+  const barCounts = v ? d.revier : allTotals;
 
   const alerts = [];
   if (editor.hinweise.length) alerts.push(`<div class="alert"><b>Bitte prüfen:</b><ul>${editor.hinweise.map(h => `<li>${esc(h)}</li>`).join('')}</ul></div>`);
@@ -547,17 +581,22 @@ function renderEditor() {
   }).join('');
 
   const body = `
-    <div class="ed-totals"><span>Strecke:</span>${species().filter(w => totals[w.id]).map(w => `<span><b>${totals[w.id]}</b> ${esc(w.name)}</span>`).join('') || '<span class="sub">noch leer</span>'}<span style="margin-left:auto"><b>${sumCounts(totals)}</b> Stück</span></div>
+    <div class="ed-totals"><span>${v ? 'Erlegt in Thuine:' : 'Strecke:'}</span>${species().filter(w => barCounts[w.id]).map(w => `<span><b>${barCounts[w.id]}</b> ${esc(w.name)}</span>`).join('') || '<span class="sub">noch leer</span>'}<span style="margin-left:auto"><b>${sumCounts(barCounts)}</b> Stück${v ? ` · gesamt ${sumCounts(allTotals)}` : ''}${d.art === 'treibjagd' ? ' (inkl. Gäste)' : ''}</span></div>
     ${editor.photo ? `<details class="card pad"><summary>Foto der Erlegerliste anzeigen</summary><img class="photo-preview" src="${editor.photo}" alt="Foto der Erlegerliste" style="margin-top:10px;max-height:70vh"></details>` : ''}
     ${alerts.join('')}
     <label class="field"><span>Jagdtag</span><input type="date" id="edDate" value="${esc(d.datum)}"></label>
+    <div class="seg" role="radiogroup" aria-label="Art des Jagdtages">
+      ${Object.keys(DAY_TYPES).map(k => `<button type="button" role="radio" aria-checked="${d.art === k}" class="${d.art === k ? 'on' : ''}" data-art="${k}">${DAY_SHORT[k]}</button>`).join('')}
+    </div>
     ${unassigned}
+    ${gd ? '<div class="sec-label">Thuine</div>' : ''}
     <div class="hint">Schützen antippen, um Wild einzutragen. Die Punkte werden automatisch berechnet.</div>
     <div>${rows}</div>
-    <button class="btn secondary block" id="edAddShooter">+ Gast / neuen Schützen hinzufügen</button>
+    <button class="btn secondary block" id="edAddShooter">+ ${gd ? 'Neuen Thuiner Schützen' : 'Gast / neuen Schützen'} hinzufügen</button>
+    ${gd ? guestEditorHtml(d) : ''}
     <label class="field"><span>Sonderkönig</span>
       <input type="text" id="edSonder" list="shooterList" value="${esc(sonderName(d.sonderkoenig))}" placeholder="optional">
-      <datalist id="shooterList">${state.data.schuetzen.map(s => `<option value="${esc(s.vollname || s.name)}">`).join('')}</datalist>
+      <datalist id="shooterList">${state.data.schuetzen.map(s => `<option value="${esc(s.vollname || s.name)}">`).join('')}${gd ? d.gaeste.filter(g => g.name).map(g => `<option value="${esc(g.name)}">`).join('') : ''}</datalist>
     </label>
     <label class="field"><span>Bemerkung</span><textarea id="edNote" placeholder="optional, z. B. wer gefehlt hat">${esc(d.bemerkung)}</textarea></label>`;
   const foot = `<button class="btn secondary" data-close>Abbrechen</button><button class="btn" id="edSave">Speichern</button>`;
@@ -565,6 +604,57 @@ function renderEditor() {
   openSheet(editor.originalId ? `Jagdtag bearbeiten` : 'Neuer Jagdtag', body, foot);
   $('#sheetBody').scrollTop = scroll;
   bindEditor();
+}
+
+/** Bekannte Gast-Namen aus früheren Jagdtagen derselben Art (für Vorschläge) */
+function knownGuests(art) {
+  const set = new Set();
+  state.data.jagdtage.filter(t => t.art === art).forEach(t => (t.gaeste || []).forEach(g => g.name && set.add(g.name)));
+  return [...set].sort((a, b) => a.localeCompare(b, 'de'));
+}
+
+function guestEditorHtml(d) {
+  const pm = ptsMap();
+  const v = d.art === 'venslage';
+  const hosts = state.data.schuetzen.filter(s => isMember(s, seasonOf(d.datum || todayISO())));
+  const guests = d.gaeste.map((g, i) => {
+    const e = g.erlegt || {};
+    const cnt = sumCounts(e);
+    const open = editor.openG.has(i) || !g.name;
+    const sum = species().filter(w => e[w.id]).map(w => `${e[w.id]} ${w.name}`).join(', ');
+    return `<div class="ed-row ${cnt ? 'has' : ''} ${g._flag ? 'flag' : ''}">
+      <div class="ed-head">
+        <input type="text" class="g-name" data-gname="${i}" value="${esc(g.name)}" placeholder="${v ? 'Name, z. B. „Vogt, A.“' : 'Name des Gastes'}" list="guestList" aria-label="Name ${v ? 'Venslager Jäger' : 'Gast'}">
+        <span class="ed-sum">${esc(sum)}</span>
+        <span class="ed-pts">${cnt ? fmt(pointsOf(e, pm)) : ''}</span>
+        <button type="button" class="icon-btn" data-gtoggle="${i}" aria-label="Wild eintragen">${open ? '▴' : '▾'}</button>
+      </div>
+      ${g._flag ? `<div class="ed-flag">⚠ ${esc(g._flag)}</div>` : ''}
+      ${!v ? `<div class="host-row"><label>Gast von <select data-ghost="${i}"><option value="">– unbekannt –</option>${hosts.map(s => `<option value="${esc(s.id)}" ${g.gastgeber === s.id ? 'selected' : ''}>${esc(s.vollname || s.name)}</option>`).join('')}</select></label></div>` : ''}
+      ${open ? `<div class="ed-body">
+        <div class="steppers">${species().map(w => stepper(String(i), w, 'gast', e[w.id] || 0)).join('')}</div>
+        <button type="button" class="ed-toggle" data-gdel="${i}" style="color:var(--warn)">${v ? 'Jäger' : 'Gast'} entfernen</button>
+      </div>` : ''}
+    </div>`;
+  }).join('');
+  const head = v
+    ? `<div class="sec-label">Venslage</div>
+    <div class="hint">Jäger aus Venslage mit Namen eintragen. Sie zählen für die Tageskönige, aber nicht für unseren Jahres-Jagdkönig.</div>`
+    : `<div class="sec-label">Gäste</div>
+    <div class="hint">Die Gäste aus den freien Zeilen unter unseren Namen. Ihr Wild zählt voll zur Strecke und für die Tageskönige, aber nicht für unseren Jahres-Jagdkönig.</div>`;
+  return `
+    ${head}
+    <datalist id="guestList">${knownGuests(d.art).map(n => `<option value="${esc(n)}">`).join('')}</datalist>
+    <div>${guests}</div>
+    <button class="btn secondary block" id="edAddGuest">+ ${v ? 'Venslager Jäger' : 'Gast'} hinzufügen</button>
+    ${v ? venslageRevierHtml(d) : ''}`;
+}
+
+function venslageRevierHtml(d) {
+  return `
+    <div class="sec-label">Erlegt in Thuine</div>
+    <div class="hint">Das Wild, das im Revier Thuine erlegt wurde (Zeile „Erlegt in Thuine“). Nur diese Zahlen gehen in unseren Streckenbericht.</div>
+    <div class="card pad"><div class="steppers" style="margin-top:0">${species().map(w => stepper('_', w, 'revier', d.revier[w.id] || 0)).join('')}</div></div>`;
 }
 
 function stepper(sid, w, kind, val) {
@@ -583,6 +673,8 @@ function syncEditorFields() {
   editor.day.datum = $('#edDate')?.value || editor.day.datum;
   editor.day.sonderkoenig = $('#edSonder')?.value.trim() ?? editor.day.sonderkoenig;
   editor.day.bemerkung = $('#edNote')?.value.trim() ?? editor.day.bemerkung;
+  $$('[data-gname]').forEach(i => { const g = editor.day.gaeste[Number(i.dataset.gname)]; if (g) g.name = i.value.trim(); });
+  $$('[data-ghost]').forEach(i => { const g = editor.day.gaeste[Number(i.dataset.ghost)]; if (g) g.gastgeber = i.value; });
 }
 
 function bindEditor() {
@@ -595,8 +687,29 @@ function bindEditor() {
     renderEditor();
   }));
   body.querySelectorAll('[data-dog]').forEach(b => b.addEventListener('click', () => { syncEditorFields(); editor.showDog.add(b.dataset.dog); renderEditor(); }));
+  body.querySelectorAll('[data-art]').forEach(b => b.addEventListener('click', () => { syncEditorFields(); editor.day.art = b.dataset.art; renderEditor(); }));
+  body.querySelectorAll('[data-gtoggle]').forEach(b => b.addEventListener('click', () => {
+    syncEditorFields(); const i = Number(b.dataset.gtoggle);
+    editor.openG.has(i) ? editor.openG.delete(i) : editor.openG.add(i);
+    delete editor.day.gaeste[i]._flag; renderEditor();
+  }));
+  body.querySelectorAll('[data-gdel]').forEach(b => b.addEventListener('click', () => {
+    syncEditorFields(); editor.day.gaeste.splice(Number(b.dataset.gdel), 1); editor.openG.clear(); renderEditor();
+  }));
+  $('#edAddGuest')?.addEventListener('click', () => {
+    syncEditorFields(); editor.day.gaeste.push({ name: '', erlegt: {}, hund: {} }); editor.openG.add(editor.day.gaeste.length - 1); renderEditor();
+    $$('[data-gname]').at(-1)?.focus();
+  });
   body.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
     const { sid, w, kind } = b.dataset;
+    if (kind === 'gast' || kind === 'revier') {
+      syncEditorFields();
+      const c = kind === 'gast' ? (editor.day.gaeste[Number(sid)].erlegt ||= {}) : editor.day.revier;
+      c[w] = Math.max(0, (c[w] || 0) + Number(b.dataset.step));
+      if (!c[w]) delete c[w];
+      if (kind === 'gast') editor.openG.add(Number(sid));
+      renderEditor(); return;
+    }
     const bucket = editor.day[kind];
     const c = (bucket[sid] ||= {});
     c[w] = Math.max(0, (c[w] || 0) + Number(b.dataset.step));
@@ -661,10 +774,20 @@ async function saveEditor() {
   const d = editor.day;
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d.datum)) { toast('Bitte ein gültiges Datum wählen.'); return; }
   if (editor.unassigned.length) { toast('Bitte zuerst die nicht zugeordneten Einträge zuordnen oder verwerfen.', 3500); return; }
+  const isV = d.art === 'venslage', withG = hasGuests(d);
+  const gaeste = withG ? d.gaeste.map(g => {
+    const o = { name: (g.name || '').trim(), erlegt: g.erlegt || {}, hund: g.hund || {} };
+    if (!isV && g.gastgeber) o.gastgeber = g.gastgeber;
+    return o;
+  }).filter(g => g.name || sumCounts(g.erlegt)) : [];
+  if (gaeste.some(g => !g.name)) { toast(`Bitte bei allen ${isV ? 'Venslager Jägern' : 'Gästen'} einen Namen eintragen.`, 3500); return; }
   d.id = d.datum;
   // bestehende Einträge (alter Stand + gleicher Tag) ersetzen
   state.data.jagdtage = state.data.jagdtage.filter(x => x.id !== editor.originalId && x.datum !== d.datum);
-  state.data.jagdtage.push({ id: d.id, datum: d.datum, sonderkoenig: d.sonderkoenig, bemerkung: d.bemerkung, strecke: d.strecke, hund: d.hund });
+  const rec = { id: d.id, datum: d.datum, art: DAY_TYPES[d.art] ? d.art : 'normal', sonderkoenig: d.sonderkoenig, bemerkung: d.bemerkung, strecke: d.strecke, hund: d.hund };
+  if (withG) rec.gaeste = gaeste;
+  if (isV) rec.revier = d.revier;
+  state.data.jagdtage.push(rec);
   state.data.jagdtage.sort((a, b) => a.datum.localeCompare(b.datum));
   state.season = seasonOf(d.datum);
   const msg = `Jagdtag ${dateDE(d.datum)} ${editor.originalId ? 'geändert' : 'erfasst'}`;
@@ -719,9 +842,25 @@ Regeln:
 - Datum als YYYY-MM-DD; zweistellige Jahre sind 20xx.
 - "sonderkoenig": der handschriftliche Eintrag im Feld Sonderkönig (möglichst als Name aus der Liste, z. B. "Geerdes, W."), sonst "".
 - Wenn du dir bei einer Zahl oder Zuordnung unsicher bist, schreibe es in "unsicher" der Zeile bzw. in "hinweise".
+- Durchgestrichene oder übermalte Zahlen gelten nicht, nur der zuletzt gültige Wert.
+- Spalten "Bezahlt" (Haken) und "Eingesammelt wird: … €" ignorieren.
+
+SONDERFALL "Jagdtag mit Venslage": Steht unten auf dem Zettel "Jagdtag mit Venslage" bzw. gibt es unter unserer Tabelle eine zweite Tabelle "Venslage" mit handschriftlich eingetragenen Namen, dann:
+- "art": "venslage" (sonst "normal").
+- Unsere vorgedruckten Schützen oben wie gewohnt in "eintraege".
+- Die handschriftlichen Jäger der Venslage-Tabelle in "gaeste": [{"name":"wie geschrieben, möglichst als \"Nachname, Initial\" (z. B. A. Vogt → \"Vogt, A.\")","erlegt":{...},"punkte_zettel":null,"unsicher":null}]. Nur Jäger mit Strecke aufnehmen. Namen sind Handschrift – wenn unsicher, in "unsicher" vermerken.
+- Die Zeile "Erlegt in Thuine" (gelb) als "revier": {"hase":0,...} – das ist das Wild aus dem Revier Thuine, unabhängig davon, wer es geschossen hat.
+- Einträge wie "Ast" oder andere Scherz-Vermerke sind KEIN Wild: nicht zählen, sondern in "bemerkung" erwähnen (z. B. "Brockhaus: Ast").
+- Die Zeile "Gesamtstrecke" nur zur Kontrolle nutzen; wenn unsere Zeilen + Venslage nicht zur Gesamtstrecke passen, in "hinweise" vermerken.
+
+SONDERFALL "Große Treibjagd": Steht oben "Große Treibjagd" und gibt es unter JEDEM vorgedruckten Namen eine freie Zeile, in die handschriftlich ein Jagdgast eingetragen ist, dann:
+- "art": "treibjagd".
+- Unsere vorgedruckten Schützen wie gewohnt in "eintraege".
+- Jeder handschriftlich eingetragene Gast in "gaeste": [{"name":"wie geschrieben","gastgeber":"id des Schützen, unter dessen Namen die Gastzeile steht","erlegt":{...},"punkte_zettel":null,"unsicher":null}]. Gäste ohne Strecke weglassen. Nicht lesbare Namen: "name":"" und in "unsicher" vermerken.
+- Spalten "Beitrag bez." und "Kostenbeitrag" ignorieren.
 
 Antworte ausschließlich mit JSON in genau diesem Format, ohne weiteren Text:
-{"datum":"YYYY-MM-DD","eintraege":[{"schuetze_id":"id oder null","name_zettel":"...","erlegt":{"hase":0},"hund":{},"punkte_zettel":null,"unsicher":null}],"sonderkoenig":"","bemerkung":"","hinweise":[]}`;
+{"datum":"YYYY-MM-DD","art":"normal | venslage | treibjagd","eintraege":[{"schuetze_id":"id oder null","name_zettel":"...","erlegt":{"hase":0},"hund":{},"punkte_zettel":null,"unsicher":null}],"gaeste":[],"revier":{},"sonderkoenig":"","bemerkung":"","hinweise":[]}`;
 }
 
 async function analysePhoto(file) {
@@ -803,9 +942,35 @@ function applyAiResult(res, photo) {
     const s = findShooter(day.sonderkoenig);
     if (s) day.sonderkoenig = s.vollname || s.name;
   }
+  // Venslage
+  const openG = new Set();
+  day.art = DAY_TYPES[res.art] ? res.art : ((res.gaeste || []).length ? 'venslage' : 'normal');
+  day.gaeste = []; day.revier = {};
+  if (hasGuests(day)) {
+    if (day.art === 'venslage') day.revier = cleanCounts(res.revier);
+    for (const g of res.gaeste || []) {
+      const erlegt = cleanCounts(g.erlegt);
+      if (!sumCounts(erlegt)) continue;
+      const guest = { name: String(g.name || '').trim(), erlegt, hund: {} };
+      if (day.art === 'treibjagd' && g.gastgeber && shooterById(g.gastgeber)) guest.gastgeber = g.gastgeber;
+      const notes = [];
+      const calc = pointsOf(erlegt, pm);
+      if (g.punkte_zettel != null && Number(g.punkte_zettel) !== calc) notes.push(`Zettel: ${fmt(Number(g.punkte_zettel))} Pkt., berechnet: ${fmt(calc)} Pkt.`);
+      if (g.unsicher) notes.push(`KI unsicher: ${g.unsicher}`);
+      if (!guest.name) notes.push('Name nicht lesbar – bitte eintragen');
+      if (notes.length) { guest._flag = notes.join(' · '); openG.add(day.gaeste.length); }
+      day.gaeste.push(guest);
+    }
+    if (day.art === 'venslage' && !sumCounts(day.revier)) hinweise.push('Zeile „Erlegt in Thuine“ nicht erkannt – bitte unten eintragen.');
+  }
+  // Sonderkönig ggf. Venslager Name
+  if (day.sonderkoenig && !findShooter(day.sonderkoenig)) {
+    const g = day.gaeste.find(x => x.name.toLowerCase() === day.sonderkoenig.toLowerCase());
+    if (g) day.sonderkoenig = g.name;
+  }
   const existing = state.data.jagdtage.find(x => x.datum === day.datum);
   openEditor(null);
-  Object.assign(editor, { day, flags, hinweise, unassigned, open, showDog, photo, originalId: existing ? existing.id : null });
+  Object.assign(editor, { day, flags, hinweise, unassigned, open, showDog, photo, openG, originalId: existing ? existing.id : null });
   if (existing) editor.hinweise.unshift(`Für den ${dateDE(day.datum)} ist bereits ein Jagdtag gespeichert – er wird beim Speichern ersetzt.`);
   renderEditor();
 }
@@ -1010,7 +1175,7 @@ async function exportStrecke(season) {
     y = sectionTitle(doc, 'Strecke je Jagdtag', y);
     doc.autoTable({ ...tableStyle, startY: y,
       head: [['Jagdtag', ...cols.map(w => w.name), 'Gesamt']],
-      body: st.days.map(d => { const ds = dayStats(d); return [dateDE(d.datum), ...cols.map(w => ds.perSpecies[w.id] ? String(ds.perSpecies[w.id]) + (ds.perSpeciesHund[w.id] ? ` (${ds.perSpeciesHund[w.id]} H)` : '') : '–'), String(ds.total)]; }),
+      body: st.days.map(d => { const ds = dayStats(d); return [dateDE(d.datum) + (isVenslage(d) ? '\nmit Venslage*' : isTreibjagd(d) ? '\nGr. Treibjagd**' : ''), ...cols.map(w => ds.perSpecies[w.id] ? String(ds.perSpecies[w.id]) + (ds.perSpeciesHund[w.id] ? ` (${ds.perSpeciesHund[w.id]} H)` : '') : '–'), String(ds.total)]; }),
       foot: [['Gesamt', ...cols.map(w => String(st.perSpecies[w.id] || 0)), String(st.total)]],
       columnStyles: Object.fromEntries([...cols.map((_, i) => [i + 1, { halign: 'right' }]), [cols.length + 1, { halign: 'right', fontStyle: 'bold' }]]),
       didParseCell: numRight(1),
@@ -1019,9 +1184,13 @@ async function exportStrecke(season) {
     y = sectionTitle(doc, 'Tageskönige', y);
     doc.autoTable({ ...tableStyle, startY: y,
       head: [['Jagdtag', 'Jagdkönig', 'Vizekönig', 'Sonderkönig']],
-      body: st.days.map(d => { const ds = dayStats(d); return [dateDE(d.datum), ds.koenig.length ? `${ds.koenig.map(shooterName).join(', ')} (${fmt(ds.koenigPts)})` : '–', ds.vize.length ? `${ds.vize.map(shooterName).join(', ')} (${fmt(ds.vizePts)})` : '–', sonderName(d.sonderkoenig) || '–']; }),
+      body: st.days.map(d => { const ds = dayStats(d); return [dateDE(d.datum), ds.koenig.length ? `${ds.koenig.map(ds.label).join(', ')} (${fmt(ds.koenigPts)})` : '–', ds.vize.length ? `${ds.vize.map(ds.label).join(', ')} (${fmt(ds.vizePts)})` : '–', sonderName(d.sonderkoenig) || '–']; }),
     });
-    if (hundTotal) { doc.setFontSize(8.5); doc.setTextColor(...PDF.muted); doc.text('H = vom Hund gegriffen (zählt zur Strecke, ohne Punkte)', 14, doc.lastAutoTable.finalY + 6); }
+    const notes = [];
+    if (hundTotal) notes.push('H = vom Hund gegriffen (zählt zur Strecke, ohne Punkte).');
+    if (st.days.some(isVenslage)) notes.push('* Jagd mit Venslage: In der Strecke steht nur das im Revier Thuine erlegte Wild. Die Tageskönige werden über alle Jäger ermittelt.');
+    if (st.days.some(isTreibjagd)) notes.push('** Große Treibjagd: Die Strecke enthält auch das Wild der Gäste. Die Tageskönige werden über alle Jäger ermittelt.');
+    if (notes.length) { doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...PDF.muted); doc.text(notes.join('  '), 14, doc.lastAutoTable.finalY + 6, { maxWidth: 182 }); }
     pdfFooter(doc);
     await shareOrDownload(doc.output('blob'), `Streckenbericht_${safeSeason(season)}.pdf`);
   } catch (e) { toast('Export fehlgeschlagen: ' + e.message, 4500); }
@@ -1060,7 +1229,7 @@ async function exportKoenig(season) {
           const e = t.erlegt[w.id] || 0, h = t.hund[w.id] || 0;
           return [e ? `${e}× ${w.name} (${fmt(e * pm[w.id])} P.)` : '', h ? `${h}× ${w.name} vom Hund (0 P.)` : ''].filter(Boolean).join(', ');
         });
-        body.push([dateDE(t.datum), parts.join(', '), fmt(t.punkte)]);
+        body.push([dateDE(t.datum) + (t.art === 'venslage' ? '\nmit Venslage' : t.art === 'treibjagd' ? '\nGr. Treibjagd' : ''), parts.join(', '), fmt(t.punkte)]);
       }
     }
     doc.autoTable({ ...tableStyle, startY: y, head: [['Jagdtag', 'Erlegt', 'Punkte']], body, didParseCell: numRight(2, 2),
@@ -1068,7 +1237,7 @@ async function exportKoenig(season) {
     y = doc.lastAutoTable.finalY + 6;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...PDF.muted);
     if (y > 280) { doc.addPage(); y = 20; }
-    doc.text(`Punkte: ${species().map(w => `${w.name} ${fmt(w.punkte)}`).join(', ')}. H = vom Hund gegriffen (zählt zur Strecke, ohne Punkte). Gleiche Punktzahl = gleicher Platz.`, 14, y, { maxWidth: 182 });
+    doc.text(`Punkte: ${species().map(w => `${w.name} ${fmt(w.punkte)}`).join(', ')}. H = vom Hund gegriffen (zählt zur Strecke, ohne Punkte). Gleiche Punktzahl = gleicher Platz. Gewertet wird nur die Stammmannschaft, Gäste und Venslager Jäger zählen nicht mit.`, 14, y, { maxWidth: 182 });
     pdfFooter(doc);
     await shareOrDownload(doc.output('blob'), `Jagdkoenig_${safeSeason(season)}.pdf`);
   } catch (e) { toast('Export fehlgeschlagen: ' + e.message, 4500); }

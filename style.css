@@ -291,3 +291,17 @@ details summary { cursor: pointer; font-weight: 600; color: var(--green); }
 .sh-cfg:last-child { border-bottom: 0; }
 .sh-cfg input, .sh-cfg select { width: 100%; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fbfaf0; }
 .sh-cfg label { display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: var(--muted); }
+.badge { display: inline-block; margin-top: 6px; padding: 2px 9px; border-radius: 6px; font-size: 12px; font-weight: 600; color: #5b4a1c; background: var(--brass-soft); border: 1px solid #d8c48f; }
+.sec-label { font: 600 14px var(--serif); color: var(--green); margin: 16px 0 6px; }
+tr.subhead td { background: var(--brass-soft) !important; font-weight: 700; color: #5b4a1c; text-align: left; }
+tfoot tr + tr td { border-top: 1px solid #b5c29a; }
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--paper-2); border: 1px solid var(--line); border-radius: 12px; }
+.seg button { min-height: 40px; border: 0; border-radius: 9px; background: transparent; font-weight: 600; color: var(--muted); }
+.seg button.on { background: var(--green); color: #f4f1de; }
+.g-name { flex: 1; min-width: 0; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: #fbfaf0; font-weight: 600; }
+.ed-head .icon-btn { width: 34px; height: 34px; flex: none; }
+.seg { grid-template-columns: repeat(3, 1fr); }
+.seg button { font-size: 13.5px; padding: 0 4px; }
+.host { display: block; font-size: 11.5px; color: var(--muted); font-weight: 400; }
+.host-row { padding: 0 12px 10px; font-size: 13px; color: var(--muted); }
+.host-row select { margin-left: 6px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: #fbfaf0; max-width: 70%; }

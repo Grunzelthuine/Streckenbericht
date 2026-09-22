@@ -15,6 +15,18 @@ Web-App (PWA) für die Erlegerliste. Du erfasst die Jagdtage, alle anderen sehen
 - **Vom Hund gegriffen:** Das Stück zählt zur Strecke und wird dem Schützen zugerechnet, bringt aber keine Punkte.
 - **Tageskönige:** Jagd- und Vizekönig werden aus den Punkten berechnet, bei Gleichstand gibt es mehrere. Den Sonderkönig trägst du von Hand ein.
 - **Gleiche Punktzahl bedeutet gleicher Platz.**
+- **Jagd mit Venslage:** Beim Erfassen „Jagd mit Venslage“ wählen.
+  - Unsere Schützen werden wie gewohnt eingetragen, die Venslager Jäger mit Namen darunter.
+  - In den Streckenbericht geht nur die Zeile **„Erlegt in Thuine“** (das Wild aus dem Revier Thuine).
+  - Tages-, Vize- und Sonderkönig werden über **alle** Jäger ermittelt.
+  - Für den **Jahres-Jagdkönig** zählen nur unsere Schützen.
+  - Die KI erkennt diesen Zettel automatisch. Namen, die sie nicht lesen kann, trägst du von Hand ein. Einträge wie „Ast“ zählen nicht als Wild.
+- **Große Treibjagd (mit Gästen):** Beim Erfassen „Gr. Treibjagd“ wählen.
+  - Unsere Schützen werden wie gewohnt eingetragen. Die Gäste aus den freien Zeilen unter unseren Namen kommen mit Namen und „Gast von …“ dazu.
+  - **Alles** Wild, auch das der Gäste, geht in den Streckenbericht.
+  - Tages-, Vize- und Sonderkönig werden über alle Jäger ermittelt.
+  - Für den **Jahres-Jagdkönig** zählen nur unsere Schützen.
+  - Die KI erkennt den Zettel „Große Treibjagd“. Unleserliche Gastnamen trägst du von Hand ein.
 
 ## Einrichtung (einmalig, ca. 10 Minuten)
 
@@ -27,7 +39,9 @@ Web-App (PWA) für die Erlegerliste. Du erfasst die Jagdtage, alle anderen sehen
 Diesen Link bekommen alle Jäger. Auf dem iPhone mit Safari öffnen, dann *Teilen → Zum Home-Bildschirm*.
 
 ### 2. Schreibzugang (nur für dich)
-1. Auf GitHub unter *Settings → Developer settings → Personal access tokens → Fine-grained tokens* auf **Generate new token** gehen.
+1. Im Browser (nicht in der GitHub-App) direkt **https://github.com/settings/personal-access-tokens/new** öffnen.
+   Alternativ: oben rechts auf dein **Profilbild → Settings** (die Konto-Einstellungen, nicht die Settings des Repositorys), dann links ganz unten **Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**.
+   Unter *Token name* z. B. „Streckenbericht“ eintragen und unter *Expiration* eine Laufzeit wählen (bis zu 1 Jahr).
 2. *Repository access:* „Only select repositories“ und dann `streckenbericht` wählen.
 3. *Permissions → Repository permissions → Contents:* **Read and write**.
 4. Den Token kopieren (beginnt mit `github_pat_…`).
