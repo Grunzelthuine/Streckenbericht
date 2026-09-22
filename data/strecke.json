@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T19:45:59.414Z",
+  "stand": "2026-09-22T20:00:00Z",
   "wildarten": [
     {
       "id": "hase",
@@ -35,6 +35,11 @@
     {
       "id": "fuchs",
       "name": "Fuchs",
+      "punkte": 1
+    },
+    {
+      "id": "kraehe",
+      "name": "Krähe",
       "punkte": 1
     },
     {
@@ -184,8 +189,7 @@
           "hase": 1
         }
       },
-      "hund": {},
-      "art": "normal"
+      "hund": {}
     },
     {
       "id": "2025-11-03",
@@ -212,8 +216,7 @@
           "hase": 1
         }
       },
-      "hund": {},
-      "art": "normal"
+      "hund": {}
     },
     {
       "id": "2025-11-08",
@@ -244,8 +247,7 @@
           "fasan": 1
         }
       },
-      "hund": {},
-      "art": "normal"
+      "hund": {}
     },
     {
       "id": "2025-11-29",
@@ -285,54 +287,7 @@
         "geerdes-w": {
           "hase": 1
         }
-      },
-      "art": "normal"
-    },
-    {
-      "id": "2025-12-06",
-      "datum": "2025-12-06",
-      "art": "normal",
-      "sonderkoenig": "Beckhuis, Ferdi",
-      "bemerkung": "Jagdtag war der Nikolaustag (6.12.25). Sonderkönig-Eintrag lautet 'Beckhuis Ferd' – als Ferdi Beckhuis interpretiert.",
-      "strecke": {
-        "beckhuis": {
-          "fasan": 1,
-          "schnepfe": 1
-        },
-        "gebbe-kh": {
-          "hase": 2
-        },
-        "dreishing-v": {
-          "hase": 1
-        },
-        "geerdes-h": {
-          "hase": 1,
-          "fasan": 1
-        },
-        "koelker-s": {
-          "fasan": 1
-        },
-        "schmees": {
-          "hase": 1
-        }
-      },
-      "hund": {}
-    },
-    {
-      "id": "2025-12-13",
-      "datum": "2025-12-13",
-      "art": "normal",
-      "sonderkoenig": "",
-      "bemerkung": "Jagdkönig: Hans (Röttering), Vizekönig: Martin (Bruns, M.)",
-      "strecke": {
-        "bruns-m": {
-          "fasan": 1
-        },
-        "roettering": {
-          "fasan": 2
-        }
-      },
-      "hund": {}
+      }
     },
     {
       "id": "2025-12-20",
@@ -341,6 +296,9 @@
       "sonderkoenig": "Geerdes, A.",
       "bemerkung": "Jagd mit Venslage. Geerdes, J. und Brockhaus hatten je einen „Ast“ vermerkt.",
       "strecke": {
+        "dreishing-v": {
+          "kaninchen": 1
+        },
         "geerdes-h": {
           "fasan": 1
         },
@@ -355,9 +313,6 @@
         },
         "schoo": {
           "fasan": 1
-        },
-        "gebbe-w": {
-          "kaninchen": 1
         }
       },
       "hund": {},
@@ -402,7 +357,7 @@
           "name": "Geerdes, A.",
           "erlegt": {
             "fasan": 1,
-            "schnepfe": 1
+            "sonstiges": 1
           },
           "hund": {}
         }
@@ -411,30 +366,9 @@
         "hase": 1,
         "fasan": 5,
         "kaninchen": 1,
-        "schnepfe": 1
+        "sonstiges": 1
       }
-    },
-    {
-      "id": "2025-12-27",
-      "datum": "2025-12-27",
-      "art": "normal",
-      "sonderkoenig": "",
-      "bemerkung": "",
-      "strecke": {
-        "bruns-s": {
-          "fasan": 1
-        },
-        "geerdes-h": {
-          "fasan": 1
-        },
-        "heskamp": {
-          "fasan": 1
-        },
-        "kall": {
-          "fasan": 2
-        }
-      },
-      "hund": {}
     }
-  ]
+  ],
+  "nachtraege": []
 }

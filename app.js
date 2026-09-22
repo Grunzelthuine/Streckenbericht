@@ -5,7 +5,7 @@
  */
 'use strict';
 
-const APP_VERSION = '1.3.0';
+const APP_VERSION = '1.4.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -149,8 +149,11 @@ const dayNames = (ds, ids) => ids.map(id => esc(ds.label(id))).join(', ');
 function seasonDays(season) {
   return state.data.jagdtage.filter(d => seasonOf(d.datum) === season).sort((a, b) => a.datum.localeCompare(b.datum));
 }
+function seasonNachtraege(season) {
+  return (state.data.nachtraege || []).filter(n => seasonOf(n.datum) === season).sort((a, b) => a.datum.localeCompare(b.datum));
+}
 function allSeasons() {
-  const s = new Set(state.data.jagdtage.map(d => seasonOf(d.datum)));
+  const s = new Set([...state.data.jagdtage, ...(state.data.nachtraege || [])].map(d => seasonOf(d.datum)));
   s.add(seasonOf(todayISO()));
   return [...s].sort().reverse();
 }
@@ -182,7 +185,14 @@ function seasonStats(season) {
   let lastPts = null, lastRank = 0;
   ranking.forEach((r, i) => { r.rank = r.punkte === lastPts ? lastRank : i + 1; lastPts = r.punkte; lastRank = r.rank; });
   void pm;
-  return { days, ranking, perSpecies, perSpeciesHund, total: sumCounts(perSpecies) };
+  // Nachträge (Wild außerhalb der Jagdtage): nur Strecke, keine Punkte
+  const perSpeciesTage = addCounts({}, perSpecies);
+  const nachtraege = seasonNachtraege(season);
+  const perNachtrag = {};
+  nachtraege.forEach(n => { perNachtrag[n.art] = (perNachtrag[n.art] || 0) + n.anzahl; });
+  addCounts(perSpecies, perNachtrag);
+  return { days, ranking, perSpecies, perSpeciesHund, total: sumCounts(perSpecies),
+    perSpeciesTage, totalTage: sumCounts(perSpeciesTage), nachtraege, perNachtrag, totalNachtrag: sumCounts(perNachtrag) };
 }
 
 /* ================= Daten laden / speichern ================= */
@@ -231,8 +241,28 @@ async function load() {
   }
 }
 
+/** Neue Wildart vor „Sonstiges“ einsortieren */
+function insertSpecies(d, w) {
+  const i = d.wildarten.findIndex(x => x.id === 'sonstiges');
+  i < 0 ? d.wildarten.push(w) : d.wildarten.splice(i, 0, w);
+}
+function addSpecies(name, punkte = 1) {
+  const n = name.trim();
+  const ex = species().find(w => w.name.toLowerCase() === n.toLowerCase());
+  if (ex) return ex.id;
+  let id = slug(n), i = 2;
+  while (species().some(w => w.id === id)) id = `${slug(n)}-${i++}`;
+  insertSpecies(state.data, { id, name: n, punkte: Number(punkte) || 0, eigen: true });
+  return id;
+}
+const speciesUsed = id => state.data.jagdtage.some(t =>
+    Object.values(t.strecke || {}).some(c => c[id]) || Object.values(t.hund || {}).some(c => c[id]) ||
+    (t.gaeste || []).some(g => g.erlegt?.[id]) || t.revier?.[id]) ||
+  (state.data.nachtraege || []).some(n => n.art === id);
+
 function normalize(d) {
-  d.wildarten ||= []; d.schuetzen ||= []; d.jagdtage ||= [];
+  d.wildarten ||= []; d.schuetzen ||= []; d.jagdtage ||= []; d.nachtraege ||= [];
+  if (!d.wildarten.some(w => w.id === 'kraehe')) insertSpecies(d, { id: 'kraehe', name: 'Krähe', punkte: 1 });
   d.jagdtage.forEach(t => { t.art ||= 'normal'; t.strecke ||= {}; t.hund ||= {}; if (t.art !== 'normal') t.gaeste ||= []; if (t.art === 'venslage') t.revier ||= {}; t.sonderkoenig ||= ''; t.bemerkung ||= ''; t.id ||= t.datum; });
   return d;
 }
@@ -364,18 +394,28 @@ function renderStrecke() {
   let html = `
     <div class="card hero">
       <img src="icons/logo.png" alt="">
-      <div><div class="big">${st.total}</div><div class="lbl">Stück Gesamtstrecke · Jagdjahr ${esc(state.season)}<br>${st.days.length} Jagdtage${hundTotal ? ` · davon ${hundTotal} vom Hund gegriffen` : ''}</div></div>
+      <div><div class="big">${st.total}</div><div class="lbl">Stück Gesamtstrecke · Jagdjahr ${esc(state.season)}<br>${st.days.length} Jagdtage${st.totalNachtrag ? ` · ${st.totalNachtrag} Stück nachgetragen` : ''}${hundTotal ? ` · ${hundTotal} vom Hund gegriffen` : ''}</div></div>
     </div>
     <div class="species-grid">
       ${species().map(w => {
         const n = st.perSpecies[w.id] || 0;
-        return `<div class="card sp ${n ? '' : 'zero'}"><div class="n">${n}</div><div class="t">${esc(w.name)}</div><div class="p">${fmt(w.punkte)} Pkt.</div></div>`;
+        const nt = st.perNachtrag[w.id] || 0;
+        return `<div class="card sp ${n ? '' : 'zero'}"><div class="n">${n}</div><div class="t">${esc(w.name)}</div><div class="p">${nt ? `davon ${nt} Nachtrag` : `${fmt(w.punkte)} Pkt.`}</div></div>`;
       }).join('')}
     </div>
-    <div class="btn-row"><button class="btn secondary" id="expStrecke">⤓ Streckenbericht als PDF</button></div>`;
+    <div class="btn-row"><button class="btn secondary" id="expStrecke">⤓ Streckenbericht als PDF</button></div>
+    <h2 class="section">Nachträge ${esc(state.season)}</h2>
+    <p class="hint">Wild, das außerhalb der Jagdtage erlegt wurde (z. B. Tauben, Krähen, Fuchs). Es zählt zur Strecke, aber nicht zum Jagdkönig.</p>
+    ${isAdmin() ? '<button class="btn block" id="btnNachtrag">+ Wild nachtragen</button>' : ''}
+    ${st.nachtraege.length ? `<div class="card"><ul class="nt-list">${[...st.nachtraege].reverse().map(n => `
+      <li${isAdmin() ? ` data-nt="${esc(n.id)}" tabindex="0" role="button"` : ''}>
+        <span class="nt-date">${dateDE(n.datum)}</span>
+        <span class="nt-what"><b>${n.anzahl}</b> ${esc(speciesName(n.art))}${n.text ? `<small>${esc(n.text)}</small>` : ''}</span>
+        ${isAdmin() ? '<span class="nt-edit" aria-hidden="true">›</span>' : ''}
+      </li>`).join('')}</ul></div>` : '<p class="sub" style="text-align:center">Noch keine Nachträge in diesem Jagdjahr.</p>'}`;
 
   // Vergleich über alle Jagdjahre
-  const seasons = allSeasons().filter(s => seasonDays(s).length);
+  const seasons = allSeasons().filter(s => seasonDays(s).length || seasonNachtraege(s).length);
   if (seasons.length) {
     const cols = species().filter(w => seasons.some(s => seasonStats(s).perSpecies[w.id]));
     html += `<h2 class="section">Jagdjahre im Vergleich</h2>
@@ -389,6 +429,62 @@ function renderStrecke() {
   }
   el.innerHTML = html;
   $('#expStrecke').addEventListener('click', () => exportStrecke(state.season));
+  $('#btnNachtrag')?.addEventListener('click', () => openNachtrag(null));
+  $$('[data-nt]', el).forEach(li => li.addEventListener('click', () => openNachtrag(li.dataset.nt)));
+}
+
+const speciesName = id => species().find(w => w.id === id)?.name || id;
+
+/* ================= Nachträge ================= */
+function openNachtrag(id) {
+  const ex = id ? state.data.nachtraege.find(n => n.id === id) : null;
+  const n = ex ? clone(ex) : { id: null, datum: todayISO(), art: 'taube', anzahl: 1, text: '' };
+  const body = `
+    <p class="hint">Nachträge zählen zum Streckenbericht, aber nicht zum Jagdkönig.</p>
+    <label class="field"><span>Datum</span><input type="date" id="ntDate" value="${esc(n.datum)}"></label>
+    <label class="field"><span>Wildart</span>
+      <select id="ntArt">${species().map(w => `<option value="${w.id}" ${w.id === n.art ? 'selected' : ''}>${esc(w.name)}</option>`).join('')}<option value="__neu">+ Neue Wildart …</option></select>
+    </label>
+    <div class="card pad" id="ntNew" hidden>
+      <div class="grid2">
+        <label class="field"><span>Name der neuen Wildart</span><input type="text" id="ntNewName" placeholder="z. B. Elster"></label>
+        <label class="field"><span>Punkte (falls sie mal an einem Jagdtag fällt)</span><input type="number" id="ntNewPts" step="0.5" min="0" value="1"></label>
+      </div>
+    </div>
+    <div class="stepper big-stepper"><span class="lab">Anzahl</span><span class="ctl">
+      <button type="button" id="ntMinus" aria-label="weniger">−</button><output id="ntCount">${n.anzahl}</output><button type="button" id="ntPlus" aria-label="mehr">+</button>
+    </span></div>
+    <label class="field"><span>Erlegt von / Bemerkung (optional)</span><input type="text" id="ntText" value="${esc(n.text)}" placeholder="z. B. Sebastian Bruns, Taubenjagd"></label>`;
+  const foot = ex ? `<button class="btn danger" id="ntDel">Löschen</button><button class="btn" id="ntSave">Speichern</button>`
+                  : `<button class="btn secondary" data-close>Abbrechen</button><button class="btn" id="ntSave">Speichern</button>`;
+  openSheet(ex ? 'Nachtrag bearbeiten' : 'Wild nachtragen', body, foot);
+  let count = n.anzahl;
+  const upd = () => ($('#ntCount').textContent = count);
+  $('#ntMinus').addEventListener('click', () => { count = Math.max(1, count - 1); upd(); });
+  $('#ntPlus').addEventListener('click', () => { count++; upd(); });
+  $('#ntArt').addEventListener('change', e => { $('#ntNew').hidden = e.target.value !== '__neu'; if (!$('#ntNew').hidden) $('#ntNewName').focus(); });
+  $('#ntSave').addEventListener('click', () => {
+    const datum = $('#ntDate').value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(datum)) { toast('Bitte ein Datum wählen.'); return; }
+    let art = $('#ntArt').value;
+    if (art === '__neu') {
+      const name = $('#ntNewName').value.trim();
+      if (!name) { toast('Bitte einen Namen für die neue Wildart eingeben.'); return; }
+      art = addSpecies(name, $('#ntNewPts').value);
+    }
+    const rec = { id: ex?.id || `n-${Date.now().toString(36)}`, datum, art, anzahl: count, text: $('#ntText').value.trim() };
+    state.data.nachtraege = state.data.nachtraege.filter(x => x.id !== rec.id);
+    state.data.nachtraege.push(rec);
+    state.season = seasonOf(datum);
+    closeSheet(); switchTab('strecke');
+    persist(`Nachtrag: ${count} ${speciesName(art)} (${dateDE(datum)})`);
+  });
+  $('#ntDel')?.addEventListener('click', e => {
+    const b = e.currentTarget;
+    if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Wirklich löschen?'; return; }
+    state.data.nachtraege = state.data.nachtraege.filter(x => x.id !== ex.id);
+    closeSheet(); persist('Nachtrag gelöscht');
+  });
 }
 
 function renderKoenig() {
@@ -825,7 +921,9 @@ function buildPrompt() {
   const arten = species().map(w => `${w.id} (${w.name})`).join(', ');
   return `Du liest eine handschriftlich ausgefüllte "Erlegerliste" (Streckenbericht einer Treibjagd) von einem Foto aus.
 
-Aufbau des Zettels: Oben "Jagdtag" mit Datum (z. B. 18.10.25). Darunter eine Tabelle: Spalte "Name" (vorgedruckte Schützen), dann Spalten für Wildarten (z. B. Hase, Fasan, Kanin., Taube, Schnepfe, Ente, Fuchs, Sonstig) und ganz rechts "Punkte" (handschriftlich, nur zur Kontrolle). Unten "Gesamtstrecke" und die Felder Jagdkönig, Vizekönig, Sonderkönig.
+Aufbau des Zettels: Oben "Jagdtag" mit Datum (z. B. 18.10.25). Darunter eine Tabelle: Spalte "Name" (vorgedruckte Schützen), dann Spalten für Wildarten und ganz rechts "Punkte" (handschriftlich, nur zur Kontrolle). Unten "Gesamtstrecke" und die Felder Jagdkönig, Vizekönig, Sonderkönig.
+Aktuelle Vorlage (ab 2026): Spalten "Hase", "Fasan", "Kanin.", "Taube", "Schnepf" (= schnepfe), "Sonstige". Ältere Zettel haben nur "Hase", "Fasan", "Kanin.", "Taube", "Sonstig".
+Die Spalte "Sonstige"/"Sonstig": Hier steht meist Zahl + Wildart als Wort (z. B. "1 Ente", "1 Fuchs", "1 Schnepfe"). Ordne das der passenden Wildart-ID zu (ente, fuchs, schnepfe, taube, kaninchen …). Nur wenn keine erkennbare Wildart dabeisteht, zählt es als "sonstiges". Scherz-Vermerke wie "Ast" sind kein Wild.
 
 Bekannte Schützen (id = Name auf dem Zettel (voller Name)):
 ${list}
@@ -1002,8 +1100,9 @@ function openSettings() {
       <p class="hint">„ab“/„bis“ = Jagdjahre, in denen der Schütze dabei ist. Außerhalb davon erscheint er nicht mehr beim Erfassen, seine alten Ergebnisse bleiben erhalten. Der Kurzname muss so lauten wie auf der Erlegerliste.</p>
     </fieldset>
     <fieldset><legend>Wildarten &amp; Punkte</legend>
-      ${species().map(w => `<div class="list-row"><span class="nm">${esc(w.name)}</span><input type="number" step="0.5" min="0" data-wpts="${w.id}" value="${w.punkte}"></div>`).join('')}
-      <p class="hint">Achtung: Punktänderungen gelten rückwirkend für alle Jagdjahre.</p>
+      <div id="cfSpecies">${species().map(w => `<div class="list-row" data-wrow="${w.id}"><span class="nm">${esc(w.name)}</span><input type="number" step="0.5" min="0" data-wpts="${w.id}" value="${w.punkte}">${w.eigen && !speciesUsed(w.id) ? `<button type="button" class="icon-btn" data-wdel="${w.id}" aria-label="${esc(w.name)} entfernen" title="Entfernen">✕</button>` : '<span class="icon-spacer"></span>'}</div>`).join('')}</div>
+      <div class="list-row"><input type="text" id="cfNewSpecies" placeholder="Neue Wildart, z. B. Elster"><input type="number" step="0.5" min="0" id="cfNewSpeciesPts" value="1" aria-label="Punkte"><button type="button" class="icon-btn" id="cfAddSpecies" aria-label="Wildart hinzufügen" title="Hinzufügen">＋</button></div>
+      <p class="hint">Achtung: Punktänderungen gelten rückwirkend für alle Jagdjahre. Eigene Wildarten lassen sich entfernen, solange sie nirgends eingetragen sind.</p>
     </fieldset>
     <fieldset><legend>Datensicherung</legend>
       <div class="btn-row"><button class="btn secondary" id="cfExport">JSON sichern</button><button class="btn secondary" id="cfImport">JSON einspielen</button></div>
@@ -1012,6 +1111,14 @@ function openSettings() {
     <p class="hint" style="text-align:center">Version ${APP_VERSION}</p>`;
   openSheet('Einstellungen', body, `<button class="btn secondary" data-close>Abbrechen</button><button class="btn" id="cfSave">Übernehmen</button>`);
 
+  const removed = new Set();
+  $$('[data-wdel]').forEach(b => b.addEventListener('click', () => { removed.add(b.dataset.wdel); b.closest('.list-row').remove(); }));
+  $('#cfAddSpecies')?.addEventListener('click', () => {
+    const name = $('#cfNewSpecies').value.trim(); if (!name) return;
+    if (species().some(w => w.name.toLowerCase() === name.toLowerCase()) || $$('[data-newspecies]').some(i => i.dataset.newspecies.toLowerCase() === name.toLowerCase())) { toast('Diese Wildart gibt es schon.'); return; }
+    $('#cfSpecies').insertAdjacentHTML('beforeend', `<div class="list-row"><span class="nm">${esc(name)} <small class="sub">(neu)</small></span><input type="number" step="0.5" min="0" data-newspecies="${esc(name)}" value="${esc($('#cfNewSpeciesPts').value || '1')}"><span class="icon-spacer"></span></div>`);
+    $('#cfNewSpecies').value = '';
+  });
   $('#cfAddShooter')?.addEventListener('click', () => {
     const tmp = { id: `neu-${Date.now()}`, name: '', vollname: '', ab: seasonOf(todayISO()), _neu: true };
     $('#cfShooters').insertAdjacentHTML('beforeend', shooterCfgRow(tmp));
@@ -1062,6 +1169,8 @@ function openSettings() {
       if (bis) s.bis = bis; else delete s.bis;
     });
     $$('[data-wpts]').forEach(i => { const w = species().find(x => x.id === i.dataset.wpts); const v = Number(i.value); if (w && v >= 0) w.punkte = v; });
+    if (removed.size) state.data.wildarten = state.data.wildarten.filter(w => !removed.has(w.id));
+    $$('[data-newspecies]').forEach(i => addSpecies(i.dataset.newspecies, i.value));
     closeSheet();
     if (JSON.stringify({ s: state.data.schuetzen, w: state.data.wildarten }) !== before) await persist('Schützen/Punkte geändert');
     else { render(); if (state.pending) pushRemote(); else load(); }
@@ -1161,12 +1270,13 @@ async function exportStrecke(season) {
     const cols = species().filter(w => st.perSpecies[w.id]);
     let y = sectionTitle(doc, 'Gesamtstrecke', 45);
     const hundTotal = sumCounts(st.perSpeciesHund);
+    const hasNt = st.totalNachtrag > 0;
     doc.autoTable({ ...tableStyle, startY: y,
-      head: [['Wildart', 'Stück', ...(hundTotal ? ['davon Hund'] : [])]],
-      body: species().map(w => [w.name, String(st.perSpecies[w.id] || 0), ...(hundTotal ? [String(st.perSpeciesHund[w.id] || '')] : [])]),
-      foot: [['Gesamt', String(st.total), ...(hundTotal ? [String(hundTotal)] : [])]],
-      columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' } },
-      tableWidth: 100, didParseCell: numRight(1),
+      head: [['Wildart', ...(hasNt ? ['Jagdtage', 'Nachträge'] : []), 'Stück', ...(hundTotal ? ['davon Hund'] : [])]],
+      body: species().map(w => [w.name, ...(hasNt ? [String(st.perSpeciesTage[w.id] || 0), String(st.perNachtrag[w.id] || 0)] : []), String(st.perSpecies[w.id] || 0), ...(hundTotal ? [String(st.perSpeciesHund[w.id] || '')] : [])]),
+      foot: [['Gesamt', ...(hasNt ? [String(st.totalTage), String(st.totalNachtrag)] : []), String(st.total), ...(hundTotal ? [String(hundTotal)] : [])]],
+      columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } },
+      tableWidth: hasNt ? 140 : 100, didParseCell: numRight(1),
     });
     y = doc.lastAutoTable.finalY + 6;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(...PDF.muted);
@@ -1176,11 +1286,22 @@ async function exportStrecke(season) {
     doc.autoTable({ ...tableStyle, startY: y,
       head: [['Jagdtag', ...cols.map(w => w.name), 'Gesamt']],
       body: st.days.map(d => { const ds = dayStats(d); return [dateDE(d.datum) + (isVenslage(d) ? '\nmit Venslage*' : isTreibjagd(d) ? '\nGr. Treibjagd**' : ''), ...cols.map(w => ds.perSpecies[w.id] ? String(ds.perSpecies[w.id]) + (ds.perSpeciesHund[w.id] ? ` (${ds.perSpeciesHund[w.id]} H)` : '') : '–'), String(ds.total)]; }),
-      foot: [['Gesamt', ...cols.map(w => String(st.perSpecies[w.id] || 0)), String(st.total)]],
+      foot: [
+        ...(hasNt ? [['Nachträge', ...cols.map(w => String(st.perNachtrag[w.id] || '–')), String(st.totalNachtrag)]] : []),
+        ['Gesamt', ...cols.map(w => String(st.perSpecies[w.id] || 0)), String(st.total)]],
       columnStyles: Object.fromEntries([...cols.map((_, i) => [i + 1, { halign: 'right' }]), [cols.length + 1, { halign: 'right', fontStyle: 'bold' }]]),
       didParseCell: numRight(1),
     });
     y = doc.lastAutoTable.finalY + 10;
+    if (hasNt) {
+      y = sectionTitle(doc, 'Nachträge (außerhalb der Jagdtage)', y);
+      doc.autoTable({ ...tableStyle, startY: y,
+        head: [['Datum', 'Wildart', 'Anzahl', 'Erlegt von / Bemerkung']],
+        body: st.nachtraege.map(n => [dateDE(n.datum), speciesName(n.art), String(n.anzahl), n.text || '–']),
+        columnStyles: { 0: { cellWidth: 26 }, 2: { halign: 'right', cellWidth: 18 } }, didParseCell: numRight(2, 2),
+      });
+      y = doc.lastAutoTable.finalY + 10;
+    }
     y = sectionTitle(doc, 'Tageskönige', y);
     doc.autoTable({ ...tableStyle, startY: y,
       head: [['Jagdtag', 'Jagdkönig', 'Vizekönig', 'Sonderkönig']],

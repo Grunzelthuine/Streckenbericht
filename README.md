@@ -28,6 +28,14 @@ Web-App (PWA) für die Erlegerliste. Du erfasst die Jagdtage, alle anderen sehen
   - Für den **Jahres-Jagdkönig** zählen nur unsere Schützen.
   - Die KI erkennt den Zettel „Große Treibjagd“. Unleserliche Gastnamen trägst du von Hand ein.
 
+- **Nachträge (Wild außerhalb der Jagdtage):** Auf der Seite **Strecke** unter „+ Wild nachtragen“ Datum, Wildart, Anzahl und optional „Erlegt von / Bemerkung“ eintragen.
+  - Nachträge zählen zur Gesamtstrecke und erscheinen im Streckenbericht-PDF in einer eigenen Spalte und Liste.
+  - Für den Jagdkönig zählen sie **nicht**.
+  - Einen Nachtrag antippen, um ihn zu ändern oder zu löschen.
+- **Wildarten:** Hase, Fasan, Kaninchen, Taube, Schnepfe, Ente, Fuchs, Krähe, Sonstiges.
+  - Neue Wildarten legst du direkt beim Nachtragen an („+ Neue Wildart …“) oder unter Einstellungen → Wildarten & Punkte.
+  - Eigene Wildarten lassen sich wieder entfernen, solange sie nirgends eingetragen sind.
+
 ## Einrichtung (einmalig, ca. 10 Minuten)
 
 ### 1. GitHub-Repository
