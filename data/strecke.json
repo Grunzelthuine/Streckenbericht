@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T21:08:51.296Z",
+  "stand": "2026-09-22T21:10:12.596Z",
   "wildarten": [
     {
       "id": "hase",
@@ -346,6 +346,38 @@
         },
         "schoo": {
           "fasan": 1
+        }
+      },
+      "hund": {}
+    },
+    {
+      "id": "2023-11-24",
+      "datum": "2023-11-24",
+      "art": "normal",
+      "sonderkoenig": "",
+      "bemerkung": "",
+      "strecke": {
+        "bruns-m": {
+          "hase": 1
+        },
+        "bruns-s": {
+          "fasan": 1
+        },
+        "bruendermann": {
+          "fasan": 1,
+          "kaninchen": 1
+        },
+        "gebbe-kh": {
+          "hase": 4
+        },
+        "geerdes-w": {
+          "fasan": 1
+        },
+        "kall": {
+          "kaninchen": 1
+        },
+        "kock": {
+          "hase": 1
         }
       },
       "hund": {}
