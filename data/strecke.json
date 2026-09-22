@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T20:55:51.682Z",
+  "stand": "2026-09-22T20:56:43.473Z",
   "wildarten": [
     {
       "id": "hase",
@@ -201,6 +201,22 @@
         },
         "schoo": {
           "ente": 1
+        }
+      },
+      "hund": {}
+    },
+    {
+      "id": "2024-11-30",
+      "datum": "2024-11-30",
+      "art": "normal",
+      "sonderkoenig": "",
+      "bemerkung": "Jagdkönig: Henning (Geerdes, H.); Vizekönig: Sebastian (Bruns, S.) in Abwesenheit. Jagdtag-Nummer 30 eingetragen.",
+      "strecke": {
+        "bruns-s": {
+          "fasan": 2
+        },
+        "geerdes-h": {
+          "fasan": 4
         }
       },
       "hund": {}
