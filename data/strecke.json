@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T20:47:32.741Z",
+  "stand": "2026-09-22T20:48:12.172Z",
   "wildarten": [
     {
       "id": "hase",
@@ -449,6 +449,13 @@
       "art": "taube",
       "anzahl": 13,
       "text": "Taubentage"
+    },
+    {
+      "id": "n-mud5bv61",
+      "datum": "2026-01-01",
+      "art": "kraehe",
+      "anzahl": 5,
+      "text": "Georg Bründermann mit Jungjägern"
     }
   ],
   "schalenwild": []
