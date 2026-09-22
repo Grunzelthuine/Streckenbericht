@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T19:39:44.840Z",
+  "stand": "2026-09-22T19:40:38.600Z",
   "wildarten": [
     {
       "id": "hase",
@@ -402,7 +402,7 @@
           "name": "Geerdes, A.",
           "erlegt": {
             "fasan": 1,
-            "sonstiges": 1
+            "schnepfe": 1
           },
           "hund": {}
         }
