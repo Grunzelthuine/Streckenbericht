@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T21:28:02.294Z",
+  "stand": "2026-09-22T21:29:37.513Z",
   "wildarten": [
     {
       "id": "hase",
@@ -636,6 +636,36 @@
         },
         "roettering": {
           "hase": 2
+        }
+      },
+      "hund": {}
+    },
+    {
+      "id": "2023-12-27",
+      "datum": "2023-12-27",
+      "art": "normal",
+      "sonderkoenig": "",
+      "bemerkung": "",
+      "strecke": {
+        "bruns-s": {
+          "hase": 1,
+          "fasan": 1,
+          "kaninchen": 1,
+          "ente": 1
+        },
+        "gebbe-w": {
+          "kaninchen": 1
+        },
+        "geerdes-h": {
+          "hase": 1,
+          "kaninchen": 1,
+          "gans": 1
+        },
+        "koelker-w": {
+          "hase": 1
+        },
+        "schoo": {
+          "fasan": 1
         }
       },
       "hund": {}
