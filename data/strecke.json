@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T21:03:34.595Z",
+  "stand": "2026-09-22T21:06:54.946Z",
   "wildarten": [
     {
       "id": "hase",
@@ -163,6 +163,13 @@
       "name": "Schoo",
       "vollname": "Alexander Schoo",
       "aktiv": true
+    },
+    {
+      "id": "wessling",
+      "name": "Wessling",
+      "vollname": "Sebastian Wessling",
+      "aktiv": true,
+      "ab": "2023/24"
     }
   ],
   "jagdtage": [
@@ -230,6 +237,60 @@
         },
         "schoo": {
           "hase": 1
+        }
+      },
+      "hund": {}
+    },
+    {
+      "id": "2023-11-03",
+      "datum": "2023-11-03",
+      "art": "normal",
+      "sonderkoenig": "",
+      "bemerkung": "",
+      "strecke": {
+        "beckhuis": {
+          "fasan": 1
+        },
+        "bruns-m": {
+          "hase": 1,
+          "fasan": 1
+        },
+        "bruendermann": {
+          "fasan": 1
+        },
+        "gebbe-kh": {
+          "fasan": 2,
+          "kaninchen": 2
+        },
+        "geerdes-h": {
+          "hase": 2,
+          "fasan": 1,
+          "kaninchen": 2
+        },
+        "geerdes-w": {
+          "hase": 3,
+          "fasan": 2
+        },
+        "kall": {
+          "fasan": 2
+        },
+        "koelker-s": {
+          "hase": 2
+        },
+        "koelker-w": {
+          "hase": 1
+        },
+        "roettering": {
+          "fasan": 1
+        },
+        "schmees": {
+          "kaninchen": 1
+        },
+        "schoo": {
+          "fasan": 4
+        },
+        "wessling": {
+          "kaninchen": 1
         }
       },
       "hund": {}
