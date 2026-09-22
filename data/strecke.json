@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T21:02:28.059Z",
+  "stand": "2026-09-22T21:03:34.595Z",
   "wildarten": [
     {
       "id": "hase",
@@ -194,6 +194,41 @@
           "hase": 1
         },
         "schmees": {
+          "hase": 1
+        }
+      },
+      "hund": {}
+    },
+    {
+      "id": "2023-10-28",
+      "datum": "2023-10-28",
+      "art": "normal",
+      "sonderkoenig": "",
+      "bemerkung": "",
+      "strecke": {
+        "bruns-s": {
+          "hase": 1
+        },
+        "gebbe-kh": {
+          "hase": 1
+        },
+        "geerdes-h": {
+          "hase": 1
+        },
+        "geerdes-w": {
+          "hase": 1
+        },
+        "kock": {
+          "hase": 3
+        },
+        "koelker-s": {
+          "hase": 1,
+          "fasan": 1
+        },
+        "koelker-w": {
+          "hase": 2
+        },
+        "schoo": {
           "hase": 1
         }
       },
