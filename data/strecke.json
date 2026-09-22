@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T21:10:12.596Z",
+  "stand": "2026-09-22T21:19:53.565Z",
   "wildarten": [
     {
       "id": "hase",
@@ -381,6 +381,115 @@
         }
       },
       "hund": {}
+    },
+    {
+      "id": "2023-12-02",
+      "datum": "2023-12-02",
+      "art": "treibjagd",
+      "sonderkoenig": "",
+      "bemerkung": "",
+      "strecke": {
+        "bruns-s": {
+          "fasan": 1
+        },
+        "bruendermann": {
+          "fasan": 1
+        },
+        "gebbe-kh": {
+          "fasan": 1
+        },
+        "geerdes-h": {
+          "hase": 2,
+          "kaninchen": 1
+        },
+        "kock": {
+          "hase": 1,
+          "kaninchen": 1
+        },
+        "koelker-w": {
+          "hase": 1
+        },
+        "roettering": {
+          "hase": 1
+        },
+        "schmees": {
+          "hase": 1,
+          "sonstiges": 1
+        },
+        "geerdes-w": {
+          "hase": 3
+        }
+      },
+      "hund": {},
+      "gaeste": [
+        {
+          "name": "Beerboom",
+          "erlegt": {
+            "fasan": 1,
+            "kaninchen": 1
+          },
+          "hund": {}
+        },
+        {
+          "name": "Böcker",
+          "erlegt": {
+            "fasan": 1,
+            "kaninchen": 1
+          },
+          "hund": {}
+        },
+        {
+          "name": "Aldeschulte",
+          "erlegt": {
+            "kaninchen": 2,
+            "schnepfe": 1
+          },
+          "hund": {}
+        },
+        {
+          "name": "Geerdes Jörg",
+          "erlegt": {
+            "hase": 1,
+            "fasan": 1,
+            "taube": 1
+          },
+          "hund": {}
+        },
+        {
+          "name": "TeismannTeismann",
+          "erlegt": {
+            "hase": 2,
+            "fasan": 1,
+            "kaninchen": 2,
+            "fuchs": 1
+          },
+          "hund": {}
+        },
+        {
+          "name": "Völkers",
+          "erlegt": {
+            "fasan": 1
+          },
+          "hund": {}
+        },
+        {
+          "name": "Pünt",
+          "erlegt": {
+            "hase": 2,
+            "schnepfe": 1,
+            "taube": 1
+          },
+          "hund": {}
+        },
+        {
+          "name": "Jansen",
+          "erlegt": {
+            "hase": 1,
+            "fasan": 2
+          },
+          "hund": {}
+        }
+      ]
     },
     {
       "id": "2024-10-19",
