@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T18:36:14.053Z",
+  "stand": "2026-09-22T18:36:16.603Z",
   "wildarten": [
     {
       "id": "hase",
@@ -162,33 +162,6 @@
           "fasan": 1
         },
         "schoo": {
-          "hase": 1
-        }
-      },
-      "hund": {}
-    },
-    {
-      "id": "2025-11-03",
-      "datum": "2025-11-03",
-      "sonderkoenig": "",
-      "bemerkung": "",
-      "strecke": {
-        "gebbe-kh": {
-          "fasan": 1
-        },
-        "gebbe-w": {
-          "hase": 1
-        },
-        "geerdes-h": {
-          "fasan": 1
-        },
-        "geerdes-w": {
-          "fasan": 1
-        },
-        "kock": {
-          "fasan": 2
-        },
-        "schmees": {
           "hase": 1
         }
       },
