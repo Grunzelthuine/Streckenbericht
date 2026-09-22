@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T20:00:00Z",
+  "stand": "2026-09-22T20:43:18.190Z",
   "wildarten": [
     {
       "id": "hase",
@@ -189,7 +189,8 @@
           "hase": 1
         }
       },
-      "hund": {}
+      "hund": {},
+      "art": "normal"
     },
     {
       "id": "2025-11-03",
@@ -216,7 +217,8 @@
           "hase": 1
         }
       },
-      "hund": {}
+      "hund": {},
+      "art": "normal"
     },
     {
       "id": "2025-11-08",
@@ -247,7 +249,8 @@
           "fasan": 1
         }
       },
-      "hund": {}
+      "hund": {},
+      "art": "normal"
     },
     {
       "id": "2025-11-29",
@@ -287,7 +290,38 @@
         "geerdes-w": {
           "hase": 1
         }
-      }
+      },
+      "art": "normal"
+    },
+    {
+      "id": "2025-12-06",
+      "datum": "2025-12-06",
+      "art": "normal",
+      "sonderkoenig": "Beckhuis (Ferdi Beckhuis)",
+      "bemerkung": "Sonderkönig-Feld liest sich als 'Beckhuis Fach' – vermutlich 'Beckhuis' (Sonderkönig für Schnepfe).",
+      "strecke": {
+        "beckhuis": {
+          "fasan": 1,
+          "schnepfe": 1
+        },
+        "gebbe-kh": {
+          "hase": 2
+        },
+        "dreishing-v": {
+          "hase": 1
+        },
+        "geerdes-h": {
+          "hase": 1,
+          "fasan": 1
+        },
+        "koelker-s": {
+          "fasan": 1
+        },
+        "schmees": {
+          "hase": 1
+        }
+      },
+      "hund": {}
     },
     {
       "id": "2025-12-20",
@@ -370,5 +404,6 @@
       }
     }
   ],
-  "nachtraege": []
+  "nachtraege": [],
+  "schalenwild": []
 }
