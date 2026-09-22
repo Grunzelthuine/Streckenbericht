@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T19:58:54.403Z",
+  "stand": "2026-09-22T19:59:30.604Z",
   "wildarten": [
     {
       "id": "hase",
@@ -381,6 +381,13 @@
       "art": "taube",
       "anzahl": 13,
       "text": "Taubentage"
+    },
+    {
+      "id": "n-mud3l8vc",
+      "datum": "2025-09-22",
+      "art": "kraehe",
+      "anzahl": 5,
+      "text": "Georg Bründermann mit Jungjägern"
     }
   ]
 }
