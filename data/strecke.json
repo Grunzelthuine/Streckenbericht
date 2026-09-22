@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T20:46:35.362Z",
+  "stand": "2026-09-22T20:47:32.741Z",
   "wildarten": [
     {
       "id": "hase",
@@ -442,6 +442,14 @@
       "hund": {}
     }
   ],
-  "nachtraege": [],
+  "nachtraege": [
+    {
+      "id": "n-mud5b0qr",
+      "datum": "2026-01-22",
+      "art": "taube",
+      "anzahl": 13,
+      "text": "Taubentage"
+    }
+  ],
   "schalenwild": []
 }
