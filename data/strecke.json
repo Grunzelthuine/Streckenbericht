@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T20:00:00Z",
+  "stand": "2026-09-22T18:50:44.686Z",
   "wildarten": [
     {
       "id": "hase",
@@ -283,6 +283,35 @@
           "hase": 1
         }
       }
+    },
+    {
+      "id": "2025-12-06",
+      "datum": "2025-12-06",
+      "sonderkoenig": "Beckhuis (Fasan)",
+      "bemerkung": "Jagdtag: Nikolaustag, 6.12.25. Jagdkönig: Gebbe K-H., Vizekönig: Geerdes Henning, Sonderkönig: Beckhuis Fasan. Gesamtstrecke: 5 Hasen, 3 Fasane, 1 Schnepfe.",
+      "strecke": {
+        "beckhuis": {
+          "fasan": 1,
+          "schnepfe": 1
+        },
+        "gebbe-kh": {
+          "hase": 2
+        },
+        "dreishing-v": {
+          "hase": 1
+        },
+        "geerdes-h": {
+          "hase": 1,
+          "fasan": 1
+        },
+        "koelker-s": {
+          "fasan": 1
+        },
+        "schmees": {
+          "hase": 1
+        }
+      },
+      "hund": {}
     }
   ]
 }
