@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T18:52:27.702Z",
+  "stand": "2026-09-22T18:52:54.786Z",
   "wildarten": [
     {
       "id": "hase",
@@ -245,21 +245,6 @@
       "hund": {}
     },
     {
-      "id": "2025-11-13",
-      "datum": "2025-11-13",
-      "sonderkoenig": "",
-      "bemerkung": "Jagdkönig: Hans (Röttering); Vizekönig: Martin (Bruns, M.)",
-      "strecke": {
-        "bruns-m": {
-          "fasan": 1
-        },
-        "roettering": {
-          "fasan": 2
-        }
-      },
-      "hund": {}
-    },
-    {
       "id": "2025-11-29",
       "datum": "2025-11-29",
       "sonderkoenig": "Geerdes, W.",
@@ -324,6 +309,21 @@
         },
         "schmees": {
           "hase": 1
+        }
+      },
+      "hund": {}
+    },
+    {
+      "id": "2025-12-13",
+      "datum": "2025-12-13",
+      "sonderkoenig": "",
+      "bemerkung": "Jagdkönig: Hans (Röttering); Vizekönig: Martin (Bruns, M.)",
+      "strecke": {
+        "bruns-m": {
+          "fasan": 1
+        },
+        "roettering": {
+          "fasan": 2
         }
       },
       "hund": {}
