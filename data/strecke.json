@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T21:27:01.357Z",
+  "stand": "2026-09-22T21:28:02.294Z",
   "wildarten": [
     {
       "id": "hase",
@@ -606,6 +606,39 @@
         "fasan": 8,
         "sonstiges": 1
       }
+    },
+    {
+      "id": "2023-12-23",
+      "datum": "2023-12-23",
+      "art": "normal",
+      "sonderkoenig": "",
+      "bemerkung": "Jagdkönig: Geerdes, Henning (Geerdes, H.); Vizekönig: Röttering, H. (Röttering)",
+      "strecke": {
+        "gebbe-kh": {
+          "hase": 1
+        },
+        "gebbe-w": {
+          "hase": 1
+        },
+        "geerdes-h": {
+          "hase": 3,
+          "fasan": 1,
+          "kaninchen": 1
+        },
+        "geerdes-w": {
+          "fasan": 1
+        },
+        "kock": {
+          "hase": 1
+        },
+        "koelker-s": {
+          "hase": 1
+        },
+        "roettering": {
+          "hase": 2
+        }
+      },
+      "hund": {}
     },
     {
       "id": "2024-10-19",
