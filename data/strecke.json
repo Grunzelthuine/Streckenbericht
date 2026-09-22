@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T20:43:18.190Z",
+  "stand": "2026-09-22T20:44:08.930Z",
   "wildarten": [
     {
       "id": "hase",
@@ -319,6 +319,22 @@
         },
         "schmees": {
           "hase": 1
+        }
+      },
+      "hund": {}
+    },
+    {
+      "id": "2025-12-13",
+      "datum": "2025-12-13",
+      "art": "normal",
+      "sonderkoenig": "",
+      "bemerkung": "",
+      "strecke": {
+        "bruns-m": {
+          "fasan": 1
+        },
+        "roettering": {
+          "fasan": 2
         }
       },
       "hund": {}
