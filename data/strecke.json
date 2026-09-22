@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T21:07:50.174Z",
+  "stand": "2026-09-22T21:08:51.296Z",
   "wildarten": [
     {
       "id": "hase",
@@ -317,6 +317,35 @@
         },
         "schmees": {
           "hase": 3
+        }
+      },
+      "hund": {}
+    },
+    {
+      "id": "2023-11-18",
+      "datum": "2023-11-18",
+      "art": "normal",
+      "sonderkoenig": "",
+      "bemerkung": "Jagdkönig: Beckhuis. Gesamtstrecke laut Zettel: Hase 4, Fasan 2 – stimmt nicht mit den eingetragenen Einzelstrecken überein (Hase: 4 passt, Fasan: 1+1+3+1=6 oder falls Gebbe 1 Fasan: 4). Diskrepanz bei Fasan-Anzahl Gebbe, K-H. und Gesamtstrecke.",
+      "strecke": {
+        "beckhuis": {
+          "hase": 1,
+          "fasan": 1
+        },
+        "bruendermann": {
+          "fasan": 1
+        },
+        "gebbe-kh": {
+          "hase": 1
+        },
+        "geerdes-h": {
+          "hase": 1
+        },
+        "kall": {
+          "hase": 1
+        },
+        "schoo": {
+          "fasan": 1
         }
       },
       "hund": {}
