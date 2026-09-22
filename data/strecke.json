@@ -1,0 +1,102 @@
+{
+  "version": 1,
+  "stand": "2026-09-22T20:00:00Z",
+  "wildarten": [
+    { "id": "hase", "name": "Hase", "punkte": 5 },
+    { "id": "fasan", "name": "Fasan", "punkte": 3 },
+    { "id": "kaninchen", "name": "Kaninchen", "punkte": 2.5 },
+    { "id": "taube", "name": "Taube", "punkte": 1 },
+    { "id": "schnepfe", "name": "Schnepfe", "punkte": 1 },
+    { "id": "ente", "name": "Ente", "punkte": 1 },
+    { "id": "fuchs", "name": "Fuchs", "punkte": 1 },
+    { "id": "sonstiges", "name": "Sonstiges", "punkte": 1 }
+  ],
+  "schuetzen": [
+    { "id": "beckhuis", "name": "Beckhuis", "aktiv": true },
+    { "id": "bruns-m", "name": "Bruns, M.", "aktiv": true },
+    { "id": "bruns-s", "name": "Bruns, S.", "aktiv": true },
+    { "id": "bruendermann", "name": "Bründermann", "aktiv": true },
+    { "id": "gebbe-kh", "name": "Gebbe, K-H.", "aktiv": true },
+    { "id": "dreishing-v", "name": "Dreishing, V.", "aktiv": true },
+    { "id": "gebbe-w", "name": "Gebbe, W.", "aktiv": true },
+    { "id": "geerdes-h", "name": "Geerdes, H.", "aktiv": true },
+    { "id": "geerdes-w", "name": "Geerdes, W.", "aktiv": true },
+    { "id": "heskamp", "name": "Heskamp", "aktiv": true },
+    { "id": "joerlemann", "name": "Jörlemann", "aktiv": true },
+    { "id": "kall", "name": "Kall", "aktiv": true },
+    { "id": "kock", "name": "Kock", "aktiv": true },
+    { "id": "koelker-s", "name": "Kölker, S.", "aktiv": true },
+    { "id": "koelker-w", "name": "Kölker, W.", "aktiv": true },
+    { "id": "roettering", "name": "Röttering", "aktiv": true },
+    { "id": "schmees", "name": "Schmees", "aktiv": true },
+    { "id": "schoo", "name": "Schoo", "aktiv": true }
+  ],
+  "jagdtage": [
+    {
+      "id": "2025-10-18",
+      "datum": "2025-10-18",
+      "sonderkoenig": "",
+      "bemerkung": "",
+      "strecke": {
+        "bruns-s": { "hase": 1, "fasan": 1 },
+        "dreishing-v": { "fasan": 2 },
+        "geerdes-h": { "hase": 2 },
+        "geerdes-w": { "fasan": 1 },
+        "kall": { "fasan": 2 },
+        "koelker-w": { "fasan": 1 },
+        "schoo": { "hase": 1 }
+      },
+      "hund": {}
+    },
+    {
+      "id": "2025-11-03",
+      "datum": "2025-11-03",
+      "sonderkoenig": "",
+      "bemerkung": "",
+      "strecke": {
+        "gebbe-kh": { "fasan": 1 },
+        "gebbe-w": { "hase": 1 },
+        "geerdes-h": { "fasan": 1 },
+        "geerdes-w": { "fasan": 1 },
+        "kock": { "fasan": 2 },
+        "schmees": { "hase": 1 }
+      },
+      "hund": {}
+    },
+    {
+      "id": "2025-11-08",
+      "datum": "2025-11-08",
+      "sonderkoenig": "",
+      "bemerkung": "",
+      "strecke": {
+        "bruns-s": { "hase": 1 },
+        "gebbe-kh": { "hase": 1 },
+        "gebbe-w": { "fasan": 1 },
+        "geerdes-h": { "hase": 1 },
+        "koelker-s": { "hase": 1 },
+        "koelker-w": { "hase": 1, "fasan": 1 },
+        "schoo": { "fasan": 1 }
+      },
+      "hund": {}
+    },
+    {
+      "id": "2025-11-29",
+      "datum": "2025-11-29",
+      "sonderkoenig": "Geerdes, W.",
+      "bemerkung": "Beckhuis und Bründermann fehlten.",
+      "strecke": {
+        "bruns-m": { "fasan": 2 },
+        "bruns-s": { "fasan": 1 },
+        "gebbe-kh": { "hase": 1, "fasan": 1 },
+        "gebbe-w": { "fasan": 3 },
+        "geerdes-w": { "fasan": 1, "schnepfe": 1 },
+        "kock": { "hase": 1 },
+        "koelker-w": { "fasan": 1 },
+        "roettering": { "fasan": 3, "sonstiges": 1 }
+      },
+      "hund": {
+        "geerdes-w": { "hase": 1 }
+      }
+    }
+  ]
+}

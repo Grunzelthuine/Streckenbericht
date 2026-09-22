@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Streckenbericht · JG Thuine</title>
+<meta name="theme-color" content="#1f4a24">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Strecke">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-180.png">
+<link rel="icon" type="image/png" href="icons/icon-192.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header class="topbar">
+  <img src="icons/logo.png" alt="Jagdgemeinschaft Thuine" class="topbar-logo">
+  <div class="topbar-title">
+    <span class="eyebrow">Jagdgemeinschaft Thuine</span>
+    <h1>Streckenbericht</h1>
+  </div>
+  <label class="season">
+    <span class="sr">Jagdjahr</span>
+    <select id="seasonSelect" aria-label="Jagdjahr"></select>
+  </label>
+  <button class="icon-btn" id="settingsBtn" aria-label="Einstellungen" title="Einstellungen">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+  </button>
+</header>
+
+<div id="banner" class="banner" hidden></div>
+
+<main id="main">
+  <section id="view-tage" class="view" data-view="tage"></section>
+  <section id="view-strecke" class="view" data-view="strecke" hidden></section>
+  <section id="view-koenig" class="view" data-view="koenig" hidden></section>
+</main>
+
+<nav class="tabbar" aria-label="Seiten">
+  <button class="tab active" data-tab="tage">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M7 2v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V2h-2v2H9V2Zm-2 8h14v10H5Zm2 2v2h4v-2Zm0 4v2h4v-2Zm6-4v2h4v-2Z"/></svg>
+    <span>Jagdtage</span>
+  </button>
+  <button class="tab" data-tab="strecke">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M4 20V10h3v10Zm6.5 0V4h3v16ZM17 20v-7h3v7Z"/></svg>
+    <span>Strecke</span>
+  </button>
+  <button class="tab" data-tab="koenig">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="m3 7 4.5 4L12 4l4.5 7L21 7l-2 11H5Zm2 13h14v2H5Z"/></svg>
+    <span>Jagdkönig</span>
+  </button>
+</nav>
+
+<!-- Modal-Container -->
+<div id="sheet" class="sheet" hidden>
+  <div class="sheet-backdrop" data-close></div>
+  <div class="sheet-panel" role="dialog" aria-modal="true">
+    <div class="sheet-head">
+      <h2 id="sheetTitle"></h2>
+      <button class="icon-btn" data-close aria-label="Schließen">✕</button>
+    </div>
+    <div id="sheetBody" class="sheet-body"></div>
+    <div id="sheetFoot" class="sheet-foot"></div>
+  </div>
+</div>
+
+<input type="file" id="photoInput" accept="image/*" hidden>
+<div id="toast" class="toast" hidden></div>
+
+<script src="app.js"></script>
+</body>
+</html>
