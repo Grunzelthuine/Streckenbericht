@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T21:00:33.877Z",
+  "stand": "2026-09-22T21:02:28.059Z",
   "wildarten": [
     {
       "id": "hase",
@@ -166,6 +166,39 @@
     }
   ],
   "jagdtage": [
+    {
+      "id": "2023-10-21",
+      "datum": "2023-10-21",
+      "art": "normal",
+      "sonderkoenig": "",
+      "bemerkung": "Jagdkönig: Peter Kock. Vizekönig: Heskamp, Reinhard.",
+      "strecke": {
+        "bruendermann": {
+          "hase": 1
+        },
+        "heskamp": {
+          "hase": 2
+        },
+        "kall": {
+          "hase": 1,
+          "fasan": 1
+        },
+        "kock": {
+          "hase": 3,
+          "fasan": 1
+        },
+        "koelker-s": {
+          "fasan": 1
+        },
+        "roettering": {
+          "hase": 1
+        },
+        "schmees": {
+          "hase": 1
+        }
+      },
+      "hund": {}
+    },
     {
       "id": "2024-10-19",
       "datum": "2024-10-19",
