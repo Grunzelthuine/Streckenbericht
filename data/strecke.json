@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T20:00:00Z",
+  "stand": "2026-09-22T19:58:18.604Z",
   "wildarten": [
     {
       "id": "hase",
@@ -189,7 +189,8 @@
           "hase": 1
         }
       },
-      "hund": {}
+      "hund": {},
+      "art": "normal"
     },
     {
       "id": "2025-11-03",
@@ -216,7 +217,8 @@
           "hase": 1
         }
       },
-      "hund": {}
+      "hund": {},
+      "art": "normal"
     },
     {
       "id": "2025-11-08",
@@ -247,7 +249,8 @@
           "fasan": 1
         }
       },
-      "hund": {}
+      "hund": {},
+      "art": "normal"
     },
     {
       "id": "2025-11-29",
@@ -287,7 +290,8 @@
         "geerdes-w": {
           "hase": 1
         }
-      }
+      },
+      "art": "normal"
     },
     {
       "id": "2025-12-20",
@@ -370,5 +374,13 @@
       }
     }
   ],
-  "nachtraege": []
+  "nachtraege": [
+    {
+      "id": "n-mud3jpbc",
+      "datum": "2026-09-22",
+      "art": "taube",
+      "anzahl": 13,
+      "text": "Taubentage"
+    }
+  ]
 }
