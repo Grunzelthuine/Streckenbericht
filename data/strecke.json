@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T20:58:50.694Z",
+  "stand": "2026-09-22T20:59:45.507Z",
   "wildarten": [
     {
       "id": "hase",
@@ -251,6 +251,19 @@
       },
       "hund": {},
       "gaeste": []
+    },
+    {
+      "id": "2024-12-21",
+      "datum": "2024-12-21",
+      "art": "normal",
+      "sonderkoenig": "",
+      "bemerkung": "",
+      "strecke": {
+        "geerdes-h": {
+          "fasan": 1
+        }
+      },
+      "hund": {}
     },
     {
       "id": "2025-10-18",
