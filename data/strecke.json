@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T21:06:54.946Z",
+  "stand": "2026-09-22T21:07:50.174Z",
   "wildarten": [
     {
       "id": "hase",
@@ -291,6 +291,32 @@
         },
         "wessling": {
           "kaninchen": 1
+        }
+      },
+      "hund": {}
+    },
+    {
+      "id": "2023-11-11",
+      "datum": "2023-11-11",
+      "art": "normal",
+      "sonderkoenig": "",
+      "bemerkung": "",
+      "strecke": {
+        "beckhuis": {
+          "hase": 1
+        },
+        "bruns-s": {
+          "hase": 2
+        },
+        "gebbe-kh": {
+          "hase": 1
+        },
+        "geerdes-h": {
+          "hase": 3,
+          "schnepfe": 1
+        },
+        "schmees": {
+          "hase": 3
         }
       },
       "hund": {}
