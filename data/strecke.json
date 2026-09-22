@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T20:44:52.637Z",
+  "stand": "2026-09-22T20:45:48.912Z",
   "wildarten": [
     {
       "id": "hase",
@@ -416,7 +416,7 @@
         "hase": 1,
         "fasan": 5,
         "kaninchen": 1,
-        "sonstiges": 1
+        "schnepfe": 1
       }
     }
   ],
