@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T21:30:17.412Z",
+  "stand": "2026-09-22T21:32:10.709Z",
   "wildarten": [
     {
       "id": "hase",
@@ -169,7 +169,8 @@
       "name": "Wessling",
       "vollname": "Sebastian Wessling",
       "aktiv": true,
-      "ab": "2023/24"
+      "ab": "2023/24",
+      "bis": "2023/24"
     }
   ],
   "jagdtage": [
