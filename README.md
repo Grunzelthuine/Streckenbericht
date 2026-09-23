@@ -4,12 +4,14 @@ Web-App (PWA) für die Erlegerliste. Du erfasst die Jagdtage, alle anderen sehen
 
 ## Aufbau
 
-| Seite | Inhalt |
+Beim Öffnen erscheint die **Startseite** mit dem Logo und zwei Bereichen:
+
+| Bereich | Seiten |
 |---|---|
-| **Jagdtage** | Kennzahlen, alle Jagdtage des Jagdjahres mit Tages-, Vize- und Sonderkönig. Antippen öffnet die Details. Im Bearbeitungsmodus: Foto auswerten oder manuell erfassen, bearbeiten, löschen |
-| **Strecke** | Gesamtstrecke je Wildart im Jagdjahr, Vergleich der Jagdjahre, PDF-Export |
-| **Jagdkönig** | Siegerpodest und Rangliste nach der Punktsumme im Jagdjahr, PDF-Export mit Einzelnachweis (Datum, Wild, Punkte) |
-| **Reh & Damm** | Reh- und Dammwildjagd: Übersicht nach Kategorien (erlegt/Fallwild), Liste der Erlegungen, eigene Fallwild-Liste, Übersicht je Schütze, PDF-Export |
+| **Niederwild** | **Strecke** (Gesamtstrecke je Wildart, Nachträge, PDF) → **Jagdtage** (alle Jagdtage mit Tageskönigen, Erfassen per Foto oder von Hand) → **Jagdkönig** (Rangliste, PDF mit Einzelnachweis) |
+| **Schalenwild** | **Reh & Damm** (Kategorien, Erlegungen, Fallwild, je Schütze, PDF) |
+
+Über „Start“ unten links geht es jederzeit zurück zur Startseite.
 
 - **Jagdjahr:** 1.4. bis 31.3., angezeigt als „2025/26“. Ein neues Jagdjahr entsteht automatisch mit dem ersten Jagdtag.
 - **Punkte:** Hase 5 · Fasan 3 · Kaninchen 2,5 · Taube, Schnepfe, Ente, Fuchs, Sonstiges je 1. Die Punkte lassen sich in den Einstellungen ändern.
@@ -69,6 +71,26 @@ Danach erscheinen die Schaltflächen zum Erfassen. Ohne Token ist die App nur zu
 3. **Verfügbare Modelle laden** antippen. Das prüft den Schlüssel und wählt automatisch ein aktuelles Sonnet-Modell.
 
 Token und API-Schlüssel werden **nur auf deinem Gerät** gespeichert, nicht im Repository.
+
+### 4. Reh- & Dammwild: Zugang für weitere Jäger
+Reh- und Dammwild liegt in einem **eigenen Repository**. So können weitere Jäger dort eintragen, ohne an Jagdtage, Punkte oder Einstellungen zu kommen.
+
+1. **Zweites Repository anlegen:** `streckenbericht-schalenwild`, **Public**, Haken bei „Add a README file“ setzen. Pages brauchst du hier nicht einzuschalten.
+2. **Deinen eigenen Token erweitern:** Unter github.com/settings/personal-access-tokens deinen Token öffnen, dann **Edit** und bei „Repository access“ zusätzlich `streckenbericht-schalenwild` auswählen. Alternativ erstellst du einen neuen Token für beide Repositories.
+3. **Pro Person einen Token erstellen**, aus deinem Konto: github.com/settings/personal-access-tokens/new
+   - Name z. B. „Reh-Damm Andreas Kall“
+   - Repository access: **nur** `streckenbericht-schalenwild`
+   - Permissions → Contents: **Read and write**
+   - Die Personen brauchen kein eigenes GitHub-Konto.
+4. **In der App** unter Einstellungen → Zugang:
+   - Du: „Ich bin“ Sebastian Bruns, Berechtigung „Voller Zugang“.
+   - Die anderen: ihren Namen, „Reh- & Dammwild eintragen“ und ihren Token.
+
+Vorgesehen für: Andreas Kall, Henning Geerdes, Werner Kölker, Stefan Kölker, Alexander Schoo und Bernhard Schmees.
+Jeder Eintrag merkt sich, **wer ihn eingetragen hat**. Wenn zwei Leute gleichzeitig speichern, geht nichts verloren.
+Zugang entziehen: den Token der Person auf GitHub löschen.
+
+Hattest du schon Reh-/Dammwild in Version 1.5 eingetragen, verschiebt die App diese Einträge beim ersten Öffnen mit vollem Zugang automatisch ins neue Repository.
 
 ## Ablauf am Jagdtag
 1. Die Erlegerliste wie gewohnt am Tisch ausfüllen.

@@ -255,7 +255,7 @@ legend { font: 600 15px var(--serif); color: var(--green); padding: 0 6px; }
 /* ---------- Tabbar ---------- */
 .tabbar {
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
-  display: grid; grid-template-columns: repeat(4, 1fr);
+  display: flex; gap: 4px;
   padding: 6px 8px calc(env(safe-area-inset-bottom, 0px) + 6px);
   background: rgba(242, 240, 223, .96);
   backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
@@ -325,3 +325,21 @@ tfoot tr + tr td { border-top: 1px solid #b5c29a; }
 .check-row small { display: block; font-size: 12px; color: var(--muted); }
 td.wrap { white-space: normal; text-align: left; min-width: 180px; font-size: 13px; }
 .tab span { white-space: nowrap; font-size: 11px; }
+/* ---------- Start & Bereiche ---------- */
+.tab { flex: 1 1 0; min-width: 0; }
+body.on-start { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px); }
+.start-hero { text-align: center; padding: 8px 0 4px; }
+.start-hero img { width: min(220px, 60vw); height: auto; }
+.start-hero .sub { margin: 4px 0 0; }
+.start-tile { position: relative; display: grid; gap: 4px; width: 100%; text-align: left; padding: 20px 48px 20px 20px; border: 1px solid var(--line); border-radius: 18px; background: var(--paper); box-shadow: var(--shadow); }
+.start-tile + .start-tile { margin-top: 12px; }
+.start-tile:active { background: var(--paper-2); }
+.st-title { font: 600 24px/1.15 var(--serif); color: var(--green); }
+.st-meta { font-size: 13.5px; color: var(--muted); }
+.st-go { position: absolute; right: 18px; top: 50%; transform: translateY(-50%); font-size: 30px; color: var(--green); }
+/* Gast-Zeile: Name oben, Wild darunter */
+.g-head { display: grid; gap: 6px; padding: 10px 12px; }
+.g-head .g-name { width: 100%; font-size: 16px; }
+.g-sub { display: flex; align-items: center; gap: 10px; }
+.g-sub .ed-sum { flex: 1; min-width: 0; text-align: left; }
+.g-sub .ed-pts { min-width: 0; white-space: nowrap; }

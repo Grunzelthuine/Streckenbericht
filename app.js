@@ -5,7 +5,7 @@
  */
 'use strict';
 
-const APP_VERSION = '1.6.0';
+const APP_VERSION = '1.7.1';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -65,7 +65,7 @@ const b64decodeUtf8 = b64 => new TextDecoder().decode(Uint8Array.from(atob(b64.r
 const state = {
   data: null,
   season: null,
-  tab: 'tage',
+  tab: 'start',
   sha: null,
   pending: !!lsGet(LS_PENDING, false),
   cfg: Object.assign(defaultCfg(), lsGet(LS_CFG, {})),
@@ -433,7 +433,7 @@ function render() {
   }
   const sel = $('#seasonSelect');
   sel.innerHTML = seasons.map(s => `<option value="${s}" ${s === state.season ? 'selected' : ''}>${s}</option>`).join('');
-  renderTage(); renderStrecke(); renderKoenig(); renderSchalen();
+  renderTage(); renderStrecke(); renderKoenig(); renderSchalen(); renderStart();
 }
 
 function chipsFor(perSpecies, perHund = {}) {
@@ -492,13 +492,13 @@ function renderStrecke() {
   let html = `
     <div class="card hero">
       <img src="icons/logo.png" alt="">
-      <div><div class="big">${st.total}</div><div class="lbl">Stück Gesamtstrecke · Jagdjahr ${esc(state.season)}<br>${st.days.length} Jagdtage${st.totalNachtrag ? ` · ${st.totalNachtrag} Stück nachgetragen` : ''}${hundTotal ? ` · ${hundTotal} vom Hund gegriffen` : ''}</div></div>
+      <div><div class="big">${st.total}</div><div class="lbl">Stück Gesamtstrecke<br>Jagdjahr ${esc(state.season)}</div></div>
     </div>
     <div class="species-grid">
       ${species().map(w => {
         const n = st.perSpecies[w.id] || 0;
         const nt = st.perNachtrag[w.id] || 0;
-        return `<div class="card sp ${n ? '' : 'zero'}"><div class="n">${n}</div><div class="t">${esc(w.name)}</div><div class="p">${nt ? `davon ${nt} Nachtrag` : `${fmt(w.punkte)} Pkt.`}</div></div>`;
+        return `<div class="card sp ${n ? '' : 'zero'}"><div class="n">${n}</div><div class="t">${esc(w.name)}</div>${nt ? `<div class="p">davon ${nt} Nachtrag</div>` : ''}</div>`;
       }).join('')}
     </div>
     <div class="btn-row"><button class="btn secondary" id="expStrecke">⤓ Streckenbericht als PDF</button></div>
@@ -946,11 +946,13 @@ function guestEditorHtml(d) {
     const open = editor.openG.has(i) || !g.name;
     const sum = species().filter(w => e[w.id]).map(w => `${e[w.id]} ${w.name}`).join(', ');
     return `<div class="ed-row ${cnt ? 'has' : ''} ${g._flag ? 'flag' : ''}">
-      <div class="ed-head">
+      <div class="g-head">
         <input type="text" class="g-name" data-gname="${i}" value="${esc(g.name)}" placeholder="${v ? 'Name, z. B. „Vogt, A.“' : 'Name des Gastes'}" list="guestList" aria-label="Name ${v ? 'Venslager Jäger' : 'Gast'}">
-        <span class="ed-sum">${esc(sum)}</span>
-        <span class="ed-pts">${cnt ? fmt(pointsOf(e, pm)) : ''}</span>
-        <button type="button" class="icon-btn" data-gtoggle="${i}" aria-label="Wild eintragen">${open ? '▴' : '▾'}</button>
+        <div class="g-sub">
+          <span class="ed-sum">${esc(sum) || '<span class="sub">noch kein Wild</span>'}</span>
+          <span class="ed-pts">${cnt ? fmt(pointsOf(e, pm)) + ' Pkt.' : ''}</span>
+          <button type="button" class="icon-btn" data-gtoggle="${i}" aria-label="Wild eintragen">${open ? '▴' : '▾'}</button>
+        </div>
       </div>
       ${g._flag ? `<div class="ed-flag">⚠ ${esc(g._flag)}</div>` : ''}
       ${!v ? `<div class="host-row"><label>Gast von <select data-ghost="${i}"><option value="">– unbekannt –</option>${hosts.map(s => `<option value="${esc(s.id)}" ${g.gastgeber === s.id ? 'selected' : ''}>${esc(s.vollname || s.name)}</option>`).join('')}</select></label></div>` : ''}
@@ -1397,7 +1399,6 @@ function openSettings() {
       token: $('#cfToken').value.trim(), apiKey: $('#cfKey').value.trim(), model: $('#cfModel').value,
       mode: $('#cfMode').value, ich: $('#cfIch').value,
     });
-    if (state.cfg.mode === 'schalen' && modeBefore !== 'schalen') setTimeout(() => switchTab('schalen'), 50);
     loadSchalen();
     lsSet(LS_CFG, state.cfg);
     $$('.sh-cfg').forEach(row => {
@@ -1654,14 +1655,44 @@ async function exportSchalen(season) {
 }
 
 /* ================= Navigation ================= */
+/** Bereiche: Start → Niederwild (Strecke, Jagdtage, Jagdkönig) oder Schalenwild (Reh & Damm) */
+const sectionOf = tab => tab === 'start' ? 'start' : tab === 'schalen' ? 'schalen' : 'nieder';
 function switchTab(tab) {
   state.tab = tab;
-  $$('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tab));
+  const sec = sectionOf(tab);
+  $('.tabbar').hidden = sec === 'start';
+  $$('.tab').forEach(t => { t.classList.toggle('active', t.dataset.tab === tab); t.hidden = !!t.dataset.sec && t.dataset.sec !== sec; });
   $$('.view').forEach(v => (v.hidden = v.dataset.view !== tab));
+  document.body.classList.toggle('on-start', sec === 'start');
+  if (tab === 'start') renderStart();
   window.scrollTo({ top: 0 });
 }
+
+function renderStart() {
+  const el = $('#view-start');
+  if (!el || !state.data) return;
+  const st = seasonStats(state.season);
+  const sw = schalenStats(state.season);
+  const reh = sw.tot('reh'), damm = sw.tot('damm');
+  el.innerHTML = `
+    <div class="start-hero">
+      <img src="icons/logo.png" alt="Jagdgemeinschaft Thuine">
+      <p class="sub">Jagdjahr ${esc(state.season)}</p>
+    </div>
+    <button class="start-tile" data-go="strecke">
+      <span class="st-title">Niederwild</span>
+      <span class="st-meta">${st.total} Stück Strecke · ${st.days.length} Jagdtage</span>
+      <span class="st-go" aria-hidden="true">›</span>
+    </button>
+    <button class="start-tile" data-go="schalen">
+      <span class="st-title">Schalenwild</span>
+      <span class="st-meta">Rehwild ${reh.erlegt + reh.fallwild} · Dammwild ${damm.erlegt + damm.fallwild}${sw.fallwild.length ? ` · davon ${sw.fallwild.length} Fallwild` : ''}</span>
+      <span class="st-go" aria-hidden="true">›</span>
+    </button>`;
+  $$('[data-go]', el).forEach(b => b.addEventListener('click', () => switchTab(b.dataset.go)));
+}
 $$('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
-$('#seasonSelect').addEventListener('change', e => { state.season = e.target.value; renderTage(); renderStrecke(); renderKoenig(); renderSchalen(); });
+$('#seasonSelect').addEventListener('change', e => { state.season = e.target.value; renderTage(); renderStrecke(); renderKoenig(); renderSchalen(); renderStart(); });
 $('#settingsBtn').addEventListener('click', openSettings);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible' || !$('#sheet').hidden) return;
@@ -1688,4 +1719,4 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 }
 
 load().then(loadSchalen);
-if (state.cfg.mode === 'schalen') switchTab('schalen');
+switchTab('start');
