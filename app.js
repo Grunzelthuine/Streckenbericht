@@ -5,7 +5,7 @@
  */
 'use strict';
 
-const APP_VERSION = '1.7.1';
+const APP_VERSION = '1.8.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -59,6 +59,61 @@ const b64encodeUtf8 = str => {
   let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
   return btoa(bin);
 };
+/* ================= Verschlüsselung (AES-GCM, Schlüssel aus Passwort via PBKDF2) ================= */
+const LS_PW = 'sb.pw.v1';
+class NeedPassword extends Error {}
+const bytesToB64 = bytes => { let bin = ''; for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000)); return btoa(bin); };
+const b64ToBytes = b64 => Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+async function deriveKey(pw, salt, iter) {
+  const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(pw), 'PBKDF2', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'PBKDF2', salt, iterations: iter, hash: 'SHA-256' }, base, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+async function encryptJSON(obj, pw) {
+  const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12)), iter = 150000;
+  const key = await deriveKey(pw, salt, iter);
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, new TextEncoder().encode(JSON.stringify(obj))));
+  return { enc: 'aes-gcm-v1', hinweis: 'Verschlüsselte Daten', iter, salt: bytesToB64(salt), iv: bytesToB64(iv), data: bytesToB64(ct) };
+}
+async function decryptJSON(env, pw) {
+  const key = await deriveKey(pw, b64ToBytes(env.salt), env.iter || 150000);
+  const pt = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64ToBytes(env.iv) }, key, b64ToBytes(env.data));
+  return JSON.parse(new TextDecoder().decode(pt));
+}
+/** Entschlüsselt, falls nötig. Wirft NeedPassword, wenn Passwort fehlt oder falsch ist. */
+async function openData(raw) {
+  if (!raw || !raw.enc) return raw;
+  if (!state.pw) throw new NeedPassword('fehlt');
+  try { return await decryptJSON(raw, state.pw); } catch { /* evtl. noch mit altem Passwort verschlüsselt (während eines Passwortwechsels) */ }
+  if (state.pwOld) { try { return await decryptJSON(raw, state.pwOld); } catch { /* weiter */ } }
+  throw new NeedPassword('falsch');
+}
+/** Zum Speichern: verschlüsselt, sobald ein Passwort gesetzt ist */
+const sealData = obj => (state.pw ? encryptJSON(obj, state.pw) : obj);
+
+function showLock(reason) {
+  const el = $('#lock');
+  if (!el) return;
+  if (!el.hidden && reason !== 'falsch') return; // bereits gesperrt – Hinweis nicht überschreiben
+  el.hidden = false;
+  $('#lockMsg').textContent = reason === 'falsch' ? 'Passwort falsch oder geändert – bitte (neu) eingeben.' : 'Bitte das Passwort der Jagdgemeinschaft eingeben.';
+  $('#lockMsg').classList.toggle('err', reason === 'falsch');
+  $('#lockPw').value = '';
+  setTimeout(() => $('#lockPw').focus(), 50);
+}
+async function unlock(e) {
+  e?.preventDefault();
+  const pw = $('#lockPw').value;
+  if (!pw) return;
+  state.pw = pw;
+  $('#lockBtn').disabled = true;
+  try {
+    await load(true);
+    if (!$('#lock').hidden) return; // weiterhin gesperrt → Passwort falsch
+    lsSet(LS_PW, pw);
+    loadSchalen();
+  } finally { $('#lockBtn').disabled = false; }
+}
+
 const b64decodeUtf8 = b64 => new TextDecoder().decode(Uint8Array.from(atob(b64.replace(/\s/g, '')), c => c.charCodeAt(0)));
 
 /* ================= Zustand ================= */
@@ -71,6 +126,7 @@ const state = {
   cfg: Object.assign(defaultCfg(), lsGet(LS_CFG, {})),
   schalen: normalizeSchalen(lsGet(LS_SCHALEN, null)),
   schalenOps: lsGet(LS_SCHALEN_OPS, []),
+  pw: lsGet('sb.pw.v1', ''),
 };
 function normalizeSchalen(d) { d = d && typeof d === 'object' ? d : {}; d.version ||= 1; d.eintraege = Array.isArray(d.eintraege) ? d.eintraege : []; return d; }
 
@@ -235,16 +291,18 @@ async function fetchRemote() {
   return r.json();
 }
 
-async function load() {
+async function load(fromUnlock = false) {
   const cached = lsGet(LS_DATA, null);
-  if (cached) { state.data = normalize(cached); render(); }
+  if (cached && !fromUnlock) { state.data = normalize(cached); render(); }
   if (state.pending && cached) { showPendingBanner(); return; }
   try {
-    const remote = normalize(await fetchRemote());
+    const remote = normalize(await openData(await fetchRemote()));
+    $('#lock').hidden = true;
     state.data = remote; lsSet(LS_DATA, remote);
     render();
     if (state.schalenFresh) migrateSchalen();
   } catch (e) {
+    if (e instanceof NeedPassword) { if (!fromUnlock && state.pw) { state.pw = ''; lsSet(LS_PW, undefined); } showLock(e.message); return; }
     if (!cached) {
       $('#view-tage').innerHTML = `<div class="card pad empty"><img src="icons/logo.png" alt=""><p>Keine Daten erreichbar. Bitte Internetverbindung prüfen.</p></div>`;
     } else toast('Offline – zeige zuletzt geladenen Stand.');
@@ -297,7 +355,7 @@ async function pushRemote(message = 'Streckenbericht aktualisiert') {
       const g = await fetch(ghUrl() + `&t=${Date.now()}`, { headers: ghHeaders(true), cache: 'no-store' });
       let sha;
       if (g.ok) sha = (await g.json()).sha; else if (g.status !== 404) throw new Error(`GitHub ${g.status}`);
-      const body = { message, content: b64encodeUtf8(JSON.stringify(state.data, null, 2) + '\n'), branch: state.cfg.branch || 'main' };
+      const body = { message, content: b64encodeUtf8(JSON.stringify(await sealData(state.data), null, 2) + '\n'), branch: state.cfg.branch || 'main' };
       if (sha) body.sha = sha;
       const { owner, repo, path } = state.cfg;
       const r = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${path.split('/').map(encodeURIComponent).join('/')}`, {
@@ -332,14 +390,14 @@ async function fetchSchalenRemote(auth) {
   try {
     const r = await fetch(ghFileUrl(repo2, SCHALEN_PATH) + `&t=${Date.now()}`, { headers: ghHeaders(auth), cache: 'no-store' });
     if (r.status === 404) return { data: normalizeSchalen(null), sha: undefined };
-    if (r.ok) { const j = await r.json(); return { data: normalizeSchalen(JSON.parse(b64decodeUtf8(j.content))), sha: j.sha }; }
+    if (r.ok) { const j = await r.json(); return { data: normalizeSchalen(await openData(JSON.parse(b64decodeUtf8(j.content)))), sha: j.sha }; }
     if (auth) throw new Error(`GitHub ${r.status}`);
-  } catch (e) { if (auth) throw e; }
+  } catch (e) { if (auth || e instanceof NeedPassword) throw e; }
   // Fallback ohne API-Limit (kann bis zu 5 Min. verzögert sein)
   const r = await fetch(`https://raw.githubusercontent.com/${owner}/${repo2}/${branch || 'main'}/${SCHALEN_PATH}?t=${Date.now()}`, { cache: 'no-store' });
   if (r.status === 404) return { data: normalizeSchalen(null) };
   if (!r.ok) throw new Error('Reh-/Dammwild-Daten nicht erreichbar');
-  return { data: normalizeSchalen(await r.json()) };
+  return { data: normalizeSchalen(await openData(await r.json())) };
 }
 function applySchalenOp(d, op) {
   d.eintraege = d.eintraege.filter(x => x.id !== (op.rec?.id || op.id));
@@ -356,7 +414,7 @@ async function loadSchalen() {
     if (state.data) render();
     if (state.schalenOps.length) pushSchalen();
     else migrateSchalen();
-  } catch { /* offline: Cache bleibt */ }
+  } catch (e) { if (e instanceof NeedPassword) showLock(e.message); /* sonst offline: Cache bleibt */ }
 }
 /** Einmalige Übernahme alter Reh-/Dammwild-Einträge aus der Hauptdatei (Version 1.5) */
 async function migrateSchalen() {
@@ -372,8 +430,8 @@ function queueSchalenOp(op) {
   applySchalenOp(state.schalen, op); lsSet(LS_SCHALEN, state.schalen);
 }
 let savingSchalen = false;
-async function pushSchalen(message = 'Reh-/Dammwild aktualisiert') {
-  if (!state.schalenOps.length) return true;
+async function pushSchalen(message = 'Reh-/Dammwild aktualisiert', force = false) {
+  if (!state.schalenOps.length && !force) return true;
   if (!canSchalen()) { showSchalenBanner('Zugang fehlt – bitte in den Einstellungen eintragen.'); return false; }
   if (savingSchalen) return false;
   savingSchalen = true;
@@ -384,7 +442,7 @@ async function pushSchalen(message = 'Reh-/Dammwild aktualisiert') {
       const ops = [...state.schalenOps];
       ops.forEach(op => applySchalenOp(data, op));
       data.stand = new Date().toISOString();
-      const body = { message, content: b64encodeUtf8(JSON.stringify(data, null, 2) + '\n'), branch: state.cfg.branch || 'main' };
+      const body = { message, content: b64encodeUtf8(JSON.stringify(await sealData(data), null, 2) + '\n'), branch: state.cfg.branch || 'main' };
       if (sha) body.sha = sha;
       const r = await fetch(ghFileUrl(state.cfg.repo2, SCHALEN_PATH, false), { method: 'PUT', headers: { ...ghHeaders(true), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (r.ok) {
@@ -1328,6 +1386,10 @@ function openSettings() {
         <label class="field" style="margin-top:10px"><span>Repository Reh- & Dammwild</span><input id="cfRepo2" value="${esc(c.repo2)}" autocapitalize="off" autocorrect="off"></label>
       </details>
     </fieldset>
+    ${isAdmin() ? `<fieldset><legend>Datenschutz</legend>
+      <label class="field"><span>Passwort der Jagdgemeinschaft</span><input id="cfPw" type="text" value="${esc(state.pw)}" placeholder="mind. 6 Zeichen" autocomplete="off" autocapitalize="off" autocorrect="off"></label>
+      <p class="hint">${state.pw ? 'Die Daten werden verschlüsselt gespeichert. Alle Jäger brauchen dieses Passwort zum Ansehen.' : '<b>Noch kein Passwort gesetzt – die Daten sind im Klartext lesbar.</b>'} Ändern: neues Passwort eintragen und übernehmen, danach müssen alle Jäger das neue Passwort einmal eingeben. <b>Passwort gut aufbewahren – ohne es sind die Daten nicht mehr lesbar.</b></p>
+    </fieldset>` : ''}
     <fieldset ${c.mode === 'voll' ? '' : 'hidden'}><legend>Foto-Auswertung (KI)</legend>
       <label class="field"><span>Anthropic-API-Schlüssel (nur auf diesem Gerät gespeichert)</span><input id="cfKey" type="password" value="${esc(c.apiKey)}" placeholder="sk-ant-…" autocomplete="off"></label>
       <label class="field"><span>Modell</span>
@@ -1394,12 +1456,16 @@ function openSettings() {
   $('#cfSave').addEventListener('click', async () => {
     const before = JSON.stringify({ s: state.data.schuetzen, w: state.data.wildarten });
     const modeBefore = state.cfg.mode;
+    const newPw = $('#cfPw') ? $('#cfPw').value.trim() : state.pw;
+    if (newPw !== state.pw && newPw.length < 6) { toast('Das Passwort muss mindestens 6 Zeichen haben.', 3500); return; }
+    const pwChanged = newPw !== state.pw;
     Object.assign(state.cfg, {
       owner: $('#cfOwner').value.trim(), repo: $('#cfRepo').value.trim(), repo2: $('#cfRepo2').value.trim(),
       token: $('#cfToken').value.trim(), apiKey: $('#cfKey').value.trim(), model: $('#cfModel').value,
       mode: $('#cfMode').value, ich: $('#cfIch').value,
     });
-    loadSchalen();
+    if (pwChanged) { state.pwOld = state.pw; state.pw = newPw; lsSet(LS_PW, newPw); }
+    if (!pwChanged) loadSchalen();
     lsSet(LS_CFG, state.cfg);
     $$('.sh-cfg').forEach(row => {
       const id = row.dataset.sid;
@@ -1417,7 +1483,12 @@ function openSettings() {
     if (removed.size) state.data.wildarten = state.data.wildarten.filter(w => !removed.has(w.id));
     $$('[data-newspecies]').forEach(i => addSpecies(i.dataset.newspecies, i.value));
     closeSheet();
-    if (JSON.stringify({ s: state.data.schuetzen, w: state.data.wildarten }) !== before) await persist('Schützen/Punkte geändert');
+    if (pwChanged) {
+      await persist('Daten verschlüsselt');
+      await pushSchalen('Reh-/Dammwild verschlüsselt', true);
+      state.pwOld = '';
+      toast('Daten sind jetzt mit dem Passwort verschlüsselt.', 4000);
+    } else if (JSON.stringify({ s: state.data.schuetzen, w: state.data.wildarten }) !== before) await persist('Schützen/Punkte geändert');
     else { render(); if (state.pending) pushRemote(); else load(); }
   });
 }
@@ -1694,6 +1765,7 @@ function renderStart() {
 $$('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
 $('#seasonSelect').addEventListener('change', e => { state.season = e.target.value; renderTage(); renderStrecke(); renderKoenig(); renderSchalen(); renderStart(); });
 $('#settingsBtn').addEventListener('click', openSettings);
+$('#lockForm').addEventListener('submit', unlock);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible' || !$('#sheet').hidden) return;
   if (!state.pending) load();

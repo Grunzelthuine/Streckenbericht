@@ -343,3 +343,9 @@ body.on-start { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px); }
 .g-sub { display: flex; align-items: center; gap: 10px; }
 .g-sub .ed-sum { flex: 1; min-width: 0; text-align: left; }
 .g-sub .ed-pts { min-width: 0; white-space: nowrap; }
+.lock { position: fixed; inset: 0; z-index: 80; display: grid; place-items: center; padding: 24px 16px; background: var(--bg); background-image: radial-gradient(ellipse at 20% 0%, rgba(255,255,240,.6), transparent 60%); }
+.lock-box { width: 100%; max-width: 360px; text-align: center; display: grid; gap: 12px; }
+.lock-box img { width: 180px; margin: 0 auto; }
+.lock-box h2 { margin: 0; font: 600 24px var(--serif); color: var(--green); }
+.lock-box input { width: 100%; min-height: 48px; padding: 10px 14px; font-size: 17px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); text-align: center; }
+.lock-box .err { color: var(--warn); font-weight: 600; }

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Streckenbericht · JG Thuine</title>
 <meta name="theme-color" content="#1f4a24">
+<meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Strecke">
@@ -73,6 +74,17 @@
     <div id="sheetBody" class="sheet-body"></div>
     <div id="sheetFoot" class="sheet-foot"></div>
   </div>
+</div>
+
+<div id="lock" class="lock" hidden>
+  <form class="lock-box" id="lockForm" autocomplete="off">
+    <img src="icons/logo.png" alt="Jagdgemeinschaft Thuine">
+    <h2>Streckenbericht</h2>
+    <p id="lockMsg" class="sub">Bitte das Passwort der Jagdgemeinschaft eingeben.</p>
+    <input type="password" id="lockPw" placeholder="Passwort" autocomplete="current-password" aria-label="Passwort">
+    <button class="btn block" id="lockBtn" type="submit">Öffnen</button>
+    <p class="hint">Das Passwort wird nur einmal pro Gerät abgefragt.</p>
+  </form>
 </div>
 
 <input type="file" id="photoInput" accept="image/*" hidden>
