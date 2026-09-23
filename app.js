@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '1.9.7';
+const APP_VERSION = '1.9.8';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -871,7 +871,20 @@ function renderKoenig() {
 }
 
 /* ================= Sheet ================= */
+/* ================= Zurück-Taste (Android) =================
+   Verlauf: Start (Ebene 0) → Bereich (Ebene 1) → offenes Fenster (Ebene 2).
+   „Zurück“ schließt erst ein Fenster, dann geht es zur Startseite, erst dort wird die App verlassen. */
+let ignorePops = 0;
+const histLvl = () => (history.state && history.state.sb) || 0;
+function histBack() { ignorePops++; history.back(); }
+window.addEventListener('popstate', () => {
+  if (ignorePops > 0) { ignorePops--; return; }
+  if (!$('#sheet').hidden) { closeSheet(true); return; }
+  if (state.tab !== 'start') { switchTab('start', true); }
+});
+
 function openSheet(title, body, foot = '') {
+  if ($('#sheet').hidden) history.pushState({ sb: histLvl() + 1, sheet: true }, '');
   $('#sheetTitle').textContent = title;
   $('#sheetBody').innerHTML = body;
   $('#sheetFoot').innerHTML = foot;
@@ -879,7 +892,8 @@ function openSheet(title, body, foot = '') {
   $('#sheetBody').scrollTop = 0;
   document.body.style.overflow = 'hidden';
 }
-function closeSheet() {
+function closeSheet(fromPop = false) {
+  if (!fromPop && !$('#sheet').hidden && history.state && history.state.sheet) histBack();
   $('#sheet').hidden = true; document.body.style.overflow = '';
   editor = null;
 }
@@ -1453,7 +1467,7 @@ function openSettings() {
     </fieldset>
     <fieldset><legend>Wildarten &amp; Punkte</legend>
       <div id="cfSpecies">${species().map(w => `<div class="list-row" data-wrow="${w.id}"><span class="nm">${esc(w.name)}</span><input type="number" step="0.5" min="0" data-wpts="${w.id}" value="${w.punkte}">${w.eigen && !speciesUsed(w.id) ? `<button type="button" class="icon-btn" data-wdel="${w.id}" aria-label="${esc(w.name)} entfernen" title="Entfernen">✕</button>` : '<span class="icon-spacer"></span>'}</div>`).join('')}</div>
-      <div class="list-row"><input type="text" id="cfNewSpecies" placeholder="Neue Wildart, z. B. Elster"><input type="number" step="0.5" min="0" id="cfNewSpeciesPts" value="1" aria-label="Punkte"><button type="button" class="icon-btn" id="cfAddSpecies" aria-label="Wildart hinzufügen" title="Hinzufügen">＋</button></div>
+      <div class="list-row"><input type="text" id="cfNewSpecies" placeholder="Neue Wildart"><input type="number" step="0.5" min="0" id="cfNewSpeciesPts" value="1" aria-label="Punkte"><button type="button" class="icon-btn" id="cfAddSpecies" aria-label="Wildart hinzufügen" title="Hinzufügen">＋</button></div>
       <p class="hint">Achtung: Punktänderungen gelten rückwirkend für alle Jagdjahre. Eigene Wildarten lassen sich entfernen, solange sie nirgends eingetragen sind.</p>
     </fieldset>
     <fieldset><legend>Datensicherung</legend>
@@ -1895,9 +1909,13 @@ async function exportGesamt(season) {
 /* ================= Navigation ================= */
 /** Bereiche: Start → Niederwild (Strecke, Jagdtage, Jagdkönig) oder Schalenwild (Reh & Damm) */
 const sectionOf = tab => tab === 'start' ? 'start' : tab === 'schalen' ? 'schalen' : 'nieder';
-function switchTab(tab) {
-  state.tab = tab;
+function switchTab(tab, fromPop = false) {
   const sec = sectionOf(tab);
+  if (!fromPop) {
+    if (sec !== 'start' && histLvl() < 1) history.pushState({ sb: 1 }, '');
+    else if (sec === 'start' && histLvl() === 1 && !(history.state && history.state.sheet)) histBack();
+  }
+  state.tab = tab;
   $('.tabbar').hidden = sec === 'start';
   $$('.tab').forEach(t => { t.classList.toggle('active', t.dataset.tab === tab); t.hidden = !!t.dataset.sec && t.dataset.sec !== sec; });
   $$('.view').forEach(v => (v.hidden = v.dataset.view !== tab));
@@ -1969,5 +1987,6 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
   navigator.serviceWorker.addEventListener('controllerchange', reloadOnce);
 }
 
+try { history.replaceState({ sb: 0 }, ''); } catch { /* egal */ }
 load().then(loadSchalen);
 switchTab('start');
