@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '1.9.6';
+const APP_VERSION = '1.9.7';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';

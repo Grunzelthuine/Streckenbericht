@@ -357,3 +357,13 @@ body.on-start { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px); }
 #resetBox .field input { text-align: left; font-size: 16px; }
 #resetBox input[type=file] { font-size: 14px; max-width: 100%; }
 #resetBox h2 { margin-bottom: 0; }
+/* Einstellungen: nichts breiter als der Bildschirm */
+fieldset { min-width: 0; max-width: 100%; }
+.sheet-body { overflow-x: hidden; }
+.list-row { min-width: 0; }
+.list-row input[type=text] { width: 0; flex: 1 1 auto; min-width: 0; }
+.list-row input[type=number] { width: 72px; flex: 0 0 72px; }
+.list-row .nm { min-width: 0; overflow-wrap: anywhere; }
+.list-row .icon-btn, .icon-spacer { flex: 0 0 38px; }
+.sh-cfg > * { min-width: 0; }
+.sh-cfg select { max-width: 100%; }
