@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-22T21:34:10.752Z",
+  "stand": "2026-09-23T07:26:42.232Z",
   "wildarten": [
     {
       "id": "hase",
@@ -457,7 +457,7 @@
           "hund": {}
         },
         {
-          "name": "TeismannTeismann",
+          "name": "Teismann",
           "erlegt": {
             "hase": 2,
             "fasan": 1,
