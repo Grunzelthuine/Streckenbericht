@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '1.9.3';
+const APP_VERSION = '1.9.4';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -535,10 +535,8 @@ function showPendingBanner(err) {
 function render() {
   if (!state.data) return;
   const seasons = allSeasons();
-  if (!state.season || !seasons.includes(state.season)) {
-    const latest = [...state.data.jagdtage].sort((a, b) => b.datum.localeCompare(a.datum))[0];
-    state.season = latest ? seasonOf(latest.datum) : seasons[0];
-  }
+  // Beim Öffnen immer das aktuelle Jagdjahr (1.4.–31.3.) – ältere Jahre über die Auswahl oben
+  if (!state.season || !seasons.includes(state.season)) state.season = seasonOf(todayISO());
   const sel = $('#seasonSelect');
   sel.innerHTML = seasons.map(s => `<option value="${s}" ${s === state.season ? 'selected' : ''}>${s}</option>`).join('');
   renderTage(); renderStrecke(); renderKoenig(); renderSchalen(); renderStart();
