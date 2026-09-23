@@ -5,7 +5,28 @@
  */
 'use strict';
 
-const APP_VERSION = '1.9.1';
+/* Notfall: Falls beim Start etwas schiefgeht (z. B. alte index.html aus dem Zwischenspeicher),
+   wird ein Hinweis mit „App reparieren“ angezeigt statt einer leeren Seite. */
+function showRescue(msg) {
+  if (document.getElementById('rescue')) return;
+  // Nur zeigen, wenn die App nicht sichtbar gestartet ist (keine Fehlalarme im laufenden Betrieb)
+  try { if (document.querySelector('.start-tile, .day, .hero, #lock:not([hidden])')) return; } catch { /* egal */ }
+  const d = document.createElement('div');
+  d.id = 'rescue';
+  d.setAttribute('style', 'position:fixed;left:12px;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 90px);z-index:99;padding:14px 16px;border-radius:14px;background:#f3dcc6;border:1px solid #e3bc9a;color:#5a2c10;font:14px/1.4 -apple-system,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.2)');
+  d.innerHTML = '<b>Die App konnte nicht richtig starten.</b><br>Meist hilft es, die App-Dateien neu zu laden.<br><small style="opacity:.7">' + String(msg || '').replace(/[<>&]/g, '') + '</small><br><button id="rescueBtn" style="margin-top:10px;min-height:42px;padding:8px 16px;border-radius:10px;border:0;background:#1f4a24;color:#f4f1de;font-weight:600">App reparieren &amp; neu laden</button>';
+  document.body.appendChild(d);
+  document.getElementById('rescueBtn').onclick = repairApp;
+}
+async function repairApp() {
+  try { const regs = await navigator.serviceWorker?.getRegistrations?.(); await Promise.all((regs || []).map(r => r.unregister())); } catch { /* egal */ }
+  try { const keys = await caches.keys(); await Promise.all(keys.map(k => caches.delete(k))); } catch { /* egal */ }
+  location.replace(location.pathname + '?r=' + Date.now()); // Daten & Einstellungen auf dem Gerät bleiben erhalten
+}
+window.addEventListener('error', e => showRescue(e.message));
+window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
+
+const APP_VERSION = '1.9.2';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -90,6 +111,22 @@ async function openData(raw) {
 /** Zum Speichern: verschlüsselt, sobald ein Passwort gesetzt ist */
 const sealData = obj => (state.pw ? encryptJSON(obj, state.pw) : obj);
 
+/** Sperrbildschirm anlegen, falls die (evtl. ältere) index.html ihn nicht enthält */
+function ensureLockDom() {
+  if ($('#lock')) return;
+  document.body.insertAdjacentHTML('beforeend', `<div id="lock" class="lock" hidden>
+    <form class="lock-box" id="lockForm" autocomplete="off">
+      <img src="icons/logo.png" alt="Jagdgemeinschaft Thuine">
+      <h2>Streckenbericht</h2>
+      <p id="lockMsg" class="sub">Bitte das Passwort der Jagdgemeinschaft eingeben.</p>
+      <input type="password" id="lockPw" placeholder="Passwort" autocomplete="current-password" aria-label="Passwort">
+      <button class="btn block" id="lockBtn" type="submit">Öffnen</button>
+      <p class="hint">Das Passwort wird nur einmal pro Gerät abgefragt.</p>
+      <button type="button" class="btn ghost" id="forgotPw">Passwort vergessen?</button>
+    </form>
+    <div class="lock-box" id="resetBox" hidden></div>
+  </div>`);
+}
 function showLock(reason) {
   const el = $('#lock');
   if (!el) return;
@@ -297,7 +334,7 @@ async function load(fromUnlock = false) {
   if (state.pending && cached) { showPendingBanner(); return; }
   try {
     const remote = normalize(await openData(await fetchRemote()));
-      $('#lock').hidden = true;
+      if ($('#lock')) $('#lock').hidden = true;
     state.data = remote; lsSet(LS_DATA, remote);
     render();
     if (state.schalenFresh) migrateSchalen();
@@ -1856,8 +1893,9 @@ function renderStart() {
 $$('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
 $('#seasonSelect').addEventListener('change', e => { state.season = e.target.value; renderTage(); renderStrecke(); renderKoenig(); renderSchalen(); renderStart(); });
 $('#settingsBtn').addEventListener('click', openSettings);
-$('#lockForm').addEventListener('submit', unlock);
-$('#forgotPw').addEventListener('click', openReset);
+ensureLockDom();
+$('#lockForm')?.addEventListener('submit', unlock);
+$('#forgotPw')?.addEventListener('click', openReset);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible' || !$('#sheet').hidden) return;
   if (!state.pending) load();
