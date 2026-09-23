@@ -5,7 +5,7 @@
  */
 'use strict';
 
-const APP_VERSION = '1.8.0';
+const APP_VERSION = '1.9.1';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -297,7 +297,7 @@ async function load(fromUnlock = false) {
   if (state.pending && cached) { showPendingBanner(); return; }
   try {
     const remote = normalize(await openData(await fetchRemote()));
-    $('#lock').hidden = true;
+      $('#lock').hidden = true;
     state.data = remote; lsSet(LS_DATA, remote);
     render();
     if (state.schalenFresh) migrateSchalen();
@@ -400,6 +400,7 @@ async function fetchSchalenRemote(auth) {
   return { data: normalizeSchalen(await openData(await r.json())) };
 }
 function applySchalenOp(d, op) {
+  if (op.type === 'replace') { d.eintraege = clone(op.eintraege || []); return d; }
   d.eintraege = d.eintraege.filter(x => x.id !== (op.rec?.id || op.id));
   if (op.type === 'upsert') d.eintraege.push(op.rec);
   return d;
@@ -437,9 +438,17 @@ async function pushSchalen(message = 'Reh-/Dammwild aktualisiert', force = false
   savingSchalen = true;
   try {
     for (let attempt = 0; attempt < 3; attempt++) {
-      // immer den neuesten Stand holen und nur die eigenen Änderungen darauf anwenden
-      const { data, sha } = await fetchSchalenRemote(true);
       const ops = [...state.schalenOps];
+      let data, sha;
+      if (ops.some(op => op.type === 'replace')) {
+        // Wiederherstellung: kompletter Stand wird ersetzt – alten Inhalt nicht lesen (evtl. altes Passwort)
+        const g = await fetch(ghFileUrl(state.cfg.repo2, SCHALEN_PATH) + `&t=${Date.now()}`, { headers: ghHeaders(true), cache: 'no-store' });
+        if (g.ok) sha = (await g.json()).sha; else if (g.status !== 404) throw new Error(`GitHub ${g.status}`);
+        data = normalizeSchalen(null);
+      } else {
+        // immer den neuesten Stand holen und nur die eigenen Änderungen darauf anwenden
+        ({ data, sha } = await fetchSchalenRemote(true));
+      }
       ops.forEach(op => applySchalenOp(data, op));
       data.stand = new Date().toISOString();
       const body = { message, content: b64encodeUtf8(JSON.stringify(await sealData(data), null, 2) + '\n'), branch: state.cfg.branch || 'main' };
@@ -1409,7 +1418,8 @@ function openSettings() {
       <p class="hint">Achtung: Punktänderungen gelten rückwirkend für alle Jagdjahre. Eigene Wildarten lassen sich entfernen, solange sie nirgends eingetragen sind.</p>
     </fieldset>
     <fieldset><legend>Datensicherung</legend>
-      <div class="btn-row"><button class="btn secondary" id="cfExport">JSON sichern</button><button class="btn secondary" id="cfImport">JSON einspielen</button></div>
+      <div class="btn-row"><button class="btn secondary" id="cfExport">Sicherung speichern</button><button class="btn secondary" id="cfImport">Sicherung einspielen</button></div>
+      <p class="hint">Die Sicherung enthält Niederwild <b>und</b> Reh- &amp; Dammwild – <b>unverschlüsselt</b>. Nur im eigenen Ordner aufbewahren (z. B. OneDrive), nicht weitergeben. Mit ihr lässt sich auch ein vergessenes Passwort zurücksetzen.</p>
       <input type="file" id="cfImportFile" accept="application/json,.json" hidden>
     </fieldset>` : ''}
     <p class="hint" style="text-align:center">Version ${APP_VERSION}</p>`;
@@ -1441,16 +1451,14 @@ function openSettings() {
       toast('Schlüssel gültig ✓ – Modelle geladen.');
     } catch (e) { toast('Schlüssel/Modelle: ' + e.message, 4500); }
   });
-  $('#cfExport')?.addEventListener('click', () => {
-    const blob = new Blob([JSON.stringify(state.data, null, 2)], { type: 'application/json' });
-    shareOrDownload(blob, `strecke_${todayISO()}.json`);
-  });
+  $('#cfExport')?.addEventListener('click', saveBackup);
   $('#cfImport')?.addEventListener('click', () => $('#cfImportFile').click());
   $('#cfImportFile')?.addEventListener('change', async e => {
     try {
-      const d = normalize(JSON.parse(await e.target.files[0].text()));
-      if (!Array.isArray(d.jagdtage) || !Array.isArray(d.schuetzen)) throw new Error('Unbekanntes Format');
-      state.data = d; closeSheet(); persist('Daten aus Sicherung eingespielt');
+      const src = parseBackup(JSON.parse(await e.target.files[0].text()));
+      closeSheet();
+      await restoreData(src);
+      toast(src.schalen ? 'Sicherung eingespielt (Niederwild + Reh & Damm).' : 'Sicherung eingespielt (nur Niederwild).', 4000);
     } catch (err) { toast('Import fehlgeschlagen: ' + err.message, 4000); }
   });
   $('#cfSave').addEventListener('click', async () => {
@@ -1503,11 +1511,94 @@ function shooterCfgRow(s) {
   </div>`;
 }
 
+/* ================= Sicherung & Wiederherstellung ================= */
+function makeBackup() {
+  return { typ: 'streckenbericht-sicherung', version: 1, erstellt: new Date().toISOString(), niederwild: state.data, schalenwild: state.schalen };
+}
+function saveBackup() {
+  const blob = new Blob([JSON.stringify(makeBackup(), null, 2)], { type: 'application/json' });
+  shareOrDownload(blob, `Streckenbericht_Sicherung_${todayISO()}.json`);
+}
+/** Liest Sicherung (neues Format oder alte reine Niederwild-Datei) */
+function parseBackup(obj) {
+  if (obj?.enc) throw new Error('Diese Datei ist verschlüsselt – bitte eine Sicherung aus „Sicherung speichern“ verwenden.');
+  const main = obj?.typ === 'streckenbericht-sicherung' ? obj.niederwild : obj;
+  if (!main || !Array.isArray(main.jagdtage) || !Array.isArray(main.schuetzen)) throw new Error('Unbekanntes Dateiformat');
+  const sw = obj?.typ === 'streckenbericht-sicherung' ? obj.schalenwild : null;
+  return { main: normalize(clone(main)), schalen: sw ? normalizeSchalen(clone(sw)) : null, erstellt: obj?.erstellt };
+}
+/** Spielt einen Stand ein und speichert ihn (mit aktuellem Passwort verschlüsselt) */
+async function restoreData({ main, schalen }, label = 'Daten aus Sicherung eingespielt') {
+  state.data = main;
+  lsSet(LS_DATA, main);
+  await persist(label);
+  if (schalen) {
+    state.schalenOps = [];
+    queueSchalenOp({ type: 'replace', eintraege: schalen.eintraege });
+    await pushSchalen(label);
+  }
+  render();
+}
+
+/* „Passwort vergessen?“ auf dem Sperrbildschirm – nur mit vollem Zugang */
+function openReset() {
+  const cachedMain = lsGet(LS_DATA, null), cachedSch = lsGet(LS_SCHALEN, null);
+  const hasCache = !!(cachedMain && Array.isArray(cachedMain.jagdtage));
+  const box = $('#resetBox');
+  box.hidden = false; $('#lockForm').hidden = true;
+  box.innerHTML = `
+    <h2>Passwort vergessen</h2>
+    <p class="sub" style="text-align:left">Nur für den vollen Zugang (Verwaltung). Du spielst einen bekannten Stand ein und vergibst ein neues Passwort. Danach müssen alle Jäger das neue Passwort einmal eingeben.</p>
+    ${isAdmin() ? '' : `<label class="field" style="text-align:left"><span>Dein GitHub-Token (voller Zugang)</span><input type="password" id="rsToken" placeholder="github_pat_…" autocomplete="off"></label>`}
+    <fieldset style="text-align:left"><legend>Welcher Stand?</legend>
+      ${hasCache ? `<label class="check-row"><input type="radio" name="rsSrc" value="cache" checked> <span><b>Stand auf diesem Gerät</b><small>zuletzt geladen: ${cachedMain.stand ? new Date(cachedMain.stand).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) : 'unbekannt'}${cachedSch?.eintraege ? ` · ${cachedSch.eintraege.length} Reh-/Dammwild-Einträge` : ''}</small></span></label>` : ''}
+      <label class="check-row"><input type="radio" name="rsSrc" value="file" ${hasCache ? '' : 'checked'}> <span><b>Sicherungsdatei einspielen</b><small>aus „Sicherung speichern“</small></span></label>
+      <input type="file" id="rsFile" accept="application/json,.json">
+    </fieldset>
+    <label class="field" style="text-align:left"><span>Neues Passwort (mind. 6 Zeichen)</span><input type="text" id="rsPw" autocomplete="off" autocapitalize="off" autocorrect="off"></label>
+    <label class="field" style="text-align:left"><span>Neues Passwort wiederholen</span><input type="text" id="rsPw2" autocomplete="off" autocapitalize="off" autocorrect="off"></label>
+    <p id="rsMsg" class="err"></p>
+    <button type="button" class="btn block" id="rsGo">Wiederherstellen & neu verschlüsseln</button>
+    <button type="button" class="btn ghost block" id="rsBack">Zurück</button>`;
+  $('#rsBack').addEventListener('click', () => { box.hidden = true; $('#lockForm').hidden = false; });
+  $('#rsGo').addEventListener('click', async () => {
+    const msg = t => { $('#rsMsg').textContent = t; };
+    const pw = $('#rsPw').value.trim();
+    if (pw.length < 6) return msg('Das Passwort muss mindestens 6 Zeichen haben.');
+    if (pw !== $('#rsPw2').value.trim()) return msg('Die beiden Passwörter stimmen nicht überein.');
+    if (!isAdmin()) {
+      const t = $('#rsToken')?.value.trim();
+      if (!t) return msg('Bitte deinen GitHub-Token eintragen.');
+      Object.assign(state.cfg, { token: t, mode: 'voll' }); lsSet(LS_CFG, state.cfg);
+    }
+    let src;
+    try {
+      const mode = $('input[name=rsSrc]:checked')?.value;
+      if (mode === 'cache') src = { main: normalize(clone(cachedMain)), schalen: cachedSch ? normalizeSchalen(clone(cachedSch)) : null };
+      else {
+        const f = $('#rsFile').files[0];
+        if (!f) return msg('Bitte eine Sicherungsdatei auswählen.');
+        src = parseBackup(JSON.parse(await f.text()));
+      }
+    } catch (err) { return msg(err.message); }
+    $('#rsGo').disabled = true; msg('');
+    try {
+      state.pw = pw; state.pwOld = ''; lsSet(LS_PW, pw);
+      state.pending = false; lsSet(LS_PENDING, undefined);
+      await restoreData(src, 'Wiederherstellung mit neuem Passwort');
+      if (state.pending || state.schalenOps.length) throw new Error('Speichern auf GitHub fehlgeschlagen – Token prüfen.');
+      box.hidden = true; $('#lockForm').hidden = false; $('#lock').hidden = true;
+      toast('Wiederhergestellt ✓ – neues Passwort ist aktiv.', 4500);
+    } catch (err) { msg(err.message); }
+    finally { $('#rsGo').disabled = false; }
+  });
+}
+
 /* ================= Teilen / Download ================= */
 async function shareOrDownload(blob, filename) {
   const file = new File([blob], filename, { type: blob.type });
   if (navigator.canShare?.({ files: [file] })) {
-    try { await navigator.share({ files: [file], title: filename }); return; }
+    try { await navigator.share({ files: [file] }); return; } // nur die Datei teilen – ein Titel/Text erzeugt auf dem iPhone eine zusätzliche „Text.txt“
     catch (e) { if (e.name === 'AbortError') return; }
   }
   const a = document.createElement('a');
@@ -1766,6 +1857,7 @@ $$('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.ta
 $('#seasonSelect').addEventListener('change', e => { state.season = e.target.value; renderTage(); renderStrecke(); renderKoenig(); renderSchalen(); renderStart(); });
 $('#settingsBtn').addEventListener('click', openSettings);
 $('#lockForm').addEventListener('submit', unlock);
+$('#forgotPw').addEventListener('click', openReset);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible' || !$('#sheet').hidden) return;
   if (!state.pending) load();
@@ -1774,10 +1866,18 @@ document.addEventListener('visibilitychange', () => {
 
 /* ================= Service Worker (Update-Hinweis) ================= */
 if ('serviceWorker' in navigator && location.protocol !== 'file:') {
-  navigator.serviceWorker.register('sw.js').then(reg => {
+  let reloaded = false;
+  const reloadOnce = () => { if (!reloaded) { reloaded = true; location.reload(); } };
+  navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
     const offer = w => {
       showBanner(`<span>Neue Version verfügbar.</span><button class="btn" id="swReload">Neu laden</button>`, 'info');
-      $('#swReload').addEventListener('click', () => w.postMessage('skipWaiting'));
+      $('#swReload').addEventListener('click', () => {
+        showBanner('<span>Neue Version wird geladen …</span>', 'info');
+        // iPhone-Web-Apps melden den Wechsel nicht immer zuverlässig → mehrere Wege zum Neuladen
+        w.addEventListener('statechange', () => { if (w.state === 'activated') reloadOnce(); });
+        w.postMessage('skipWaiting');
+        setTimeout(reloadOnce, 1500);
+      });
     };
     if (reg.waiting && navigator.serviceWorker.controller) offer(reg.waiting);
     reg.addEventListener('updatefound', () => {
@@ -1786,8 +1886,7 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
     });
     setInterval(() => reg.update().catch(() => {}), 30 * 60 * 1000);
   }).catch(() => {});
-  let reloaded = false;
-  navigator.serviceWorker.addEventListener('controllerchange', () => { if (!reloaded) { reloaded = true; location.reload(); } });
+  navigator.serviceWorker.addEventListener('controllerchange', reloadOnce);
 }
 
 load().then(loadSchalen);

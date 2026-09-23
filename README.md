@@ -86,11 +86,32 @@ Reh- und Dammwild liegt in einem **eigenen Repository**. So können weitere Jäg
    - Du: „Ich bin“ Sebastian Bruns, Berechtigung „Voller Zugang“.
    - Die anderen: ihren Namen, „Reh- & Dammwild eintragen“ und ihren Token.
 
-Vorgesehen für: Andreas Kall, Henning Geerdes, Werner Kölker, Stefan Kölker, Alexander Schoo und Bernhard Schmees.
 Jeder Eintrag merkt sich, **wer ihn eingetragen hat**. Wenn zwei Leute gleichzeitig speichern, geht nichts verloren.
 Zugang entziehen: den Token der Person auf GitHub löschen.
 
 Hattest du schon Reh-/Dammwild in Version 1.5 eingetragen, verschiebt die App diese Einträge beim ersten Öffnen mit vollem Zugang automatisch ins neue Repository.
+
+### 5. Datenschutz: Passwort der Jagdgemeinschaft
+1. Die neuen App-Dateien hochladen.
+2. In der App unter Einstellungen → **Datenschutz** ein Passwort festlegen (mind. 6 Zeichen) und auf **Übernehmen** tippen.
+   Beide Daten-Dateien (Niederwild und Reh/Damm) werden sofort verschlüsselt gespeichert. Auf GitHub steht danach nur noch unlesbarer Zeichensalat.
+3. Das Passwort an die Jäger weitergeben. Jeder gibt es **einmal pro Gerät** ein.
+4. **Passwort gut aufbewahren.** Ohne das Passwort lassen sich die Daten nicht mehr lesen.
+
+**Passwort vergessen?** Auf dem Sperrbildschirm „Passwort vergessen?“ antippen (nur mit vollem Zugang). Als Stand wählst du „Stand auf diesem Gerät“ oder deine Sicherungsdatei, dann vergibst du ein neues Passwort. Beide Dateien werden neu verschlüsselt. Auf einem fremden Gerät fragt die App zusätzlich nach deinem GitHub-Token.
+**Tipp:** Regelmäßig (z. B. nach jedem Jagdtag) unter Einstellungen → Datensicherung „Sicherung speichern“ in deinen OneDrive-Ordner.
+
+Passwort ändern: Neues Passwort eintragen und übernehmen. Alle Geräte fragen dann einmal nach dem neuen Passwort.
+Die Seite ist außerdem für Suchmaschinen gesperrt („noindex“).
+
+**Wichtig:** Die Datei `data/strecke.json` in diesem Ordner ist der alte Startstand im Klartext. **Nicht mehr hochladen**, sonst werden die aktuellen Daten überschrieben und sind wieder lesbar.
+
+**Alte Klartext-Versionen entfernen (einmalig, empfohlen):** GitHub speichert alle früheren Versionen einer Datei. Die unverschlüsselten Stände vor Schritt 2 sind deshalb in der Versionsgeschichte noch abrufbar. So wirst du sie los:
+1. Im Repository `streckenbericht` die verschlüsselte Datei `data/strecke.json` öffnen und über **Download raw file** herunterladen.
+2. *Settings → General* öffnen, das Repository in `streckenbericht-alt` umbenennen und ganz unten unter „Danger Zone“ auf **Private** stellen. Private Repositories sind kostenlos.
+3. Ein neues, öffentliches Repository `streckenbericht` anlegen. Die App-Dateien aus diesem Ordner hochladen, aber **nicht** `data/strecke.json` von hier, sondern die heruntergeladene verschlüsselte Datei in den Ordner `data/`. Danach GitHub Pages wieder einschalten wie in Schritt 1.
+4. **Deinen Token bearbeiten** und bei Repository access das neue `streckenbericht` auswählen. Tokens sind an das konkrete Repository gebunden, nicht an den Namen.
+5. Für `streckenbericht-schalenwild` gilt dasselbe nur, wenn dort schon vor dem Passwort Einträge gespeichert wurden. Dann müssten allerdings auch die sechs Reh-&-Damm-Tokens auf das neue Repository umgestellt werden.
 
 ## Ablauf am Jagdtag
 1. Die Erlegerliste wie gewohnt am Tisch ausfüllen.
@@ -104,6 +125,6 @@ Beim Speichern ohne Netz bleiben die Daten auf dem Gerät, und oben erscheint �
 Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-1.0.0'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
 
 ## Daten
-Alle Daten liegen in `data/strecke.json`. Jede Speicherung ist ein Commit in GitHub, dadurch gibt es automatisch eine Versionshistorie. Zusätzlich gibt es in den Einstellungen **JSON sichern / einspielen**.
+Alle Daten liegen in `data/strecke.json`. Jede Speicherung ist ein Commit in GitHub, dadurch gibt es automatisch eine Versionshistorie. Zusätzlich gibt es in den Einstellungen **„Sicherung speichern“ / „Sicherung einspielen“**. Die Sicherung enthält Niederwild und Reh- & Dammwild **unverschlüsselt**, gehört also nur in deinen eigenen Ordner.
 
 Enthalten sind die Jagdtage 18.10., 03.11., 08.11. und 29.11.2025, übernommen von den Erlegerlisten.
