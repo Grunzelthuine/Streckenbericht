@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-23T07:26:42.232Z",
+  "stand": "2026-09-23T07:28:04.216Z",
   "wildarten": [
     {
       "id": "hase",
@@ -1107,6 +1107,13 @@
       "art": "kraehe",
       "anzahl": 5,
       "text": "Georg Bründermann mit Jungjägern"
+    },
+    {
+      "id": "n-muds6qnp",
+      "datum": "2026-07-17",
+      "art": "gans",
+      "anzahl": 3,
+      "text": "Gänsejagd mit Venslage"
     }
   ],
   "schalenwild": []
