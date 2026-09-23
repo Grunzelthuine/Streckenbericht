@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '1.9.2';
+const APP_VERSION = '1.9.3';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -177,6 +177,10 @@ function defaultCfg() {
 }
 // Rollen: 'voll' = alles bearbeiten (Sebastian), 'schalen' = nur Reh- & Dammwild eintragen, '' = nur ansehen
 if (state.cfg.token && !state.cfg.mode) state.cfg.mode = 'voll';
+// Ohne vollen Zugang gilt immer der Standard-Speicherort (aus dem Link) – versehentliche Änderungen werden so repariert
+if (state.cfg.mode !== 'voll' && location.hostname.endsWith('.github.io')) {
+  const d = defaultCfg(); Object.assign(state.cfg, { owner: d.owner, repo: d.repo, repo2: d.repo2 });
+}
 const isAdmin = () => !!(state.cfg.mode === 'voll' && state.cfg.token && state.cfg.owner && state.cfg.repo);
 const canSchalen = () => !!((state.cfg.mode === 'voll' || state.cfg.mode === 'schalen') && state.cfg.token && state.cfg.owner && state.cfg.repo2);
 
@@ -1424,13 +1428,13 @@ function openSettings() {
       </label>
       <label class="field"><span>Zugriffs-Token (nur auf diesem Gerät gespeichert)</span><input id="cfToken" type="password" value="${esc(c.token)}" placeholder="github_pat_…" autocomplete="off"></label>
       <p class="hint">Den Token bekommst du von Sebastian. Er wird nur auf diesem Gerät gespeichert.</p>
-      <details><summary>Speicherort (GitHub)</summary>
+      ${c.mode === 'voll' ? `<details><summary>Speicherort (GitHub)</summary>
         <div class="grid2" style="margin-top:10px">
           <label class="field"><span>Konto</span><input id="cfOwner" value="${esc(c.owner)}" autocapitalize="off" autocorrect="off"></label>
           <label class="field"><span>Repository Hauptdaten</span><input id="cfRepo" value="${esc(c.repo)}" autocapitalize="off" autocorrect="off"></label>
         </div>
         <label class="field" style="margin-top:10px"><span>Repository Reh- & Dammwild</span><input id="cfRepo2" value="${esc(c.repo2)}" autocapitalize="off" autocorrect="off"></label>
-      </details>
+      </details>` : ''}
     </fieldset>
     ${isAdmin() ? `<fieldset><legend>Datenschutz</legend>
       <label class="field"><span>Passwort der Jagdgemeinschaft</span><input id="cfPw" type="text" value="${esc(state.pw)}" placeholder="mind. 6 Zeichen" autocomplete="off" autocapitalize="off" autocorrect="off"></label>
@@ -1505,7 +1509,7 @@ function openSettings() {
     if (newPw !== state.pw && newPw.length < 6) { toast('Das Passwort muss mindestens 6 Zeichen haben.', 3500); return; }
     const pwChanged = newPw !== state.pw;
     Object.assign(state.cfg, {
-      owner: $('#cfOwner').value.trim(), repo: $('#cfRepo').value.trim(), repo2: $('#cfRepo2').value.trim(),
+      owner: $('#cfOwner')?.value.trim() ?? state.cfg.owner, repo: $('#cfRepo')?.value.trim() ?? state.cfg.repo, repo2: $('#cfRepo2')?.value.trim() ?? state.cfg.repo2,
       token: $('#cfToken').value.trim(), apiKey: $('#cfKey').value.trim(), model: $('#cfModel').value,
       mode: $('#cfMode').value, ich: $('#cfIch').value,
     });
