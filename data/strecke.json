@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "stand": "2026-09-23T07:29:30.741Z",
+  "stand": "2026-09-23T07:29:39.228Z",
   "wildarten": [
     {
       "id": "hase",
@@ -1117,7 +1117,7 @@
     {
       "id": "n-muds6qnp",
       "datum": "2026-07-17",
-      "art": "gans",
+      "art": "nilgans",
       "anzahl": 3,
       "text": "Gänsejagd mit Venslage"
     }
