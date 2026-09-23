@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '1.9.4';
+const APP_VERSION = '1.9.6';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -1748,15 +1748,10 @@ async function exportStrecke(season) {
       });
       y = doc.lastAutoTable.finalY + 10;
     }
-    y = sectionTitle(doc, 'Tageskönige', y);
-    doc.autoTable({ ...tableStyle, startY: y,
-      head: [['Jagdtag', 'Jagdkönig', 'Vizekönig', 'Sonderkönig']],
-      body: st.days.map(d => { const ds = dayStats(d); return [dateDE(d.datum), ds.koenig.length ? `${ds.koenig.map(ds.label).join(', ')} (${fmt(ds.koenigPts)})` : '–', ds.vize.length ? `${ds.vize.map(ds.label).join(', ')} (${fmt(ds.vizePts)})` : '–', sonderName(d.sonderkoenig) || '–']; }),
-    });
     const notes = [];
     if (hundTotal) notes.push('H = vom Hund gegriffen (zählt zur Strecke, ohne Punkte).');
-    if (st.days.some(isVenslage)) notes.push('* Jagd mit Venslage: In der Strecke steht nur das im Revier Thuine erlegte Wild. Die Tageskönige werden über alle Jäger ermittelt.');
-    if (st.days.some(isTreibjagd)) notes.push('** Große Treibjagd: Die Strecke enthält auch das Wild der Gäste. Die Tageskönige werden über alle Jäger ermittelt.');
+    if (st.days.some(isVenslage)) notes.push('* Jagd mit Venslage: In der Strecke steht nur das im Revier Thuine erlegte Wild.');
+    if (st.days.some(isTreibjagd)) notes.push('** Große Treibjagd: Die Strecke enthält auch das Wild der Gäste.');
     if (notes.length) { doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...PDF.muted); doc.text(notes.join('  '), 14, doc.lastAutoTable.finalY + 6, { maxWidth: 182 }); }
     pdfFooter(doc);
     await shareOrDownload(doc.output('blob'), `Streckenbericht_${safeSeason(season)}.pdf`);
@@ -1855,6 +1850,48 @@ async function exportSchalen(season) {
   } catch (e) { toast('Export fehlgeschlagen: ' + e.message, 4500); }
 }
 
+async function exportGesamt(season) {
+  try {
+    toast('PDF wird erstellt …');
+    const st = seasonStats(season);
+    const sw = schalenStats(season);
+    const doc = await pdfBase('Gesamtstreckenbericht', season);
+    // Niederwild
+    let y = sectionTitle(doc, 'Niederwild', 45);
+    const rows = species().filter(w => st.perSpecies[w.id]).map(w => [w.name, String(st.perSpecies[w.id])]);
+    doc.autoTable({ ...tableStyle, startY: y, tableWidth: 100,
+      head: [['Wildart', 'Stück']],
+      body: rows.length ? rows : [[{ content: 'Keine Strecke', colSpan: 2 }]],
+      foot: [['Gesamt Niederwild', String(st.total)]],
+      columnStyles: { 1: { halign: 'right' } }, didParseCell: numRight(1),
+    });
+    y = doc.lastAutoTable.finalY + 12;
+    // Schalenwild
+    y = sectionTitle(doc, 'Schalenwild', y);
+    const body = [];
+    for (const art of ['reh', 'damm']) {
+      const t = sw.tot(art);
+      body.push([{ content: SCHALEN[art].name, colSpan: 4, styles: { fillColor: PDF.soft, fontStyle: 'bold' } }]);
+      const cats = SCHALEN[art].kat.filter(([k]) => { const c = sw.cnt[art]?.[k]; return c && (c.erlegt || c.fallwild); });
+      if (!cats.length) body.push([{ content: 'Keine Strecke', colSpan: 4 }]);
+      cats.forEach(([k, l]) => { const c = sw.cnt[art][k]; body.push([l, String(c.erlegt), String(c.fallwild), String(c.erlegt + c.fallwild)]); });
+      body.push([{ content: `Summe ${SCHALEN[art].name}`, styles: { fontStyle: 'bold' } }, String(t.erlegt), String(t.fallwild), { content: String(t.erlegt + t.fallwild), styles: { fontStyle: 'bold' } }]);
+    }
+    const tr = sw.tot('reh'), td = sw.tot('damm');
+    doc.autoTable({ ...tableStyle, startY: y, tableWidth: 140, alternateRowStyles: {},
+      head: [['Kategorie', 'Erlegt', 'Fallwild', 'Gesamt']],
+      body,
+      foot: [['Gesamt Schalenwild', String(tr.erlegt + td.erlegt), String(tr.fallwild + td.fallwild), String(tr.erlegt + tr.fallwild + td.erlegt + td.fallwild)]],
+      columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' } }, didParseCell: numRight(1),
+    });
+    y = doc.lastAutoTable.finalY + 8;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...PDF.muted);
+    doc.text('Niederwild inkl. Nachträge außerhalb der Jagdtage. Bei der Jagd mit Venslage zählt nur das im Revier Thuine erlegte Wild.', 14, y, { maxWidth: 182 });
+    pdfFooter(doc);
+    await shareOrDownload(doc.output('blob'), `Gesamtstrecke_${safeSeason(season)}.pdf`);
+  } catch (e) { toast('Export fehlgeschlagen: ' + e.message, 4500); }
+}
+
 /* ================= Navigation ================= */
 /** Bereiche: Start → Niederwild (Strecke, Jagdtage, Jagdkönig) oder Schalenwild (Reh & Damm) */
 const sectionOf = tab => tab === 'start' ? 'start' : tab === 'schalen' ? 'schalen' : 'nieder';
@@ -1889,7 +1926,10 @@ function renderStart() {
       <span class="st-title">Schalenwild</span>
       <span class="st-meta">Rehwild ${reh.erlegt + reh.fallwild} · Dammwild ${damm.erlegt + damm.fallwild}${sw.fallwild.length ? ` · davon ${sw.fallwild.length} Fallwild` : ''}</span>
       <span class="st-go" aria-hidden="true">›</span>
-    </button>`;
+    </button>
+    <button class="btn secondary block" id="expGesamt" style="margin-top:16px">⤓ Gesamtstreckenbericht ${esc(state.season)} (PDF)</button>
+    <p class="hint" style="text-align:center">Niederwild und Schalenwild – jeweils nur die Gesamtstrecke.</p>`;
+  $('#expGesamt').addEventListener('click', () => exportGesamt(state.season));
   $$('[data-go]', el).forEach(b => b.addEventListener('click', () => switchTab(b.dataset.go)));
 }
 $$('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
