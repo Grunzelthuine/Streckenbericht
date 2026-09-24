@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.4.0';
+const APP_VERSION = '2.5.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -260,6 +260,7 @@ function seasonNachtraege(season) {
 }
 function allSeasons() {
   const s = new Set([...state.data.jagdtage, ...(state.data.nachtraege || []), ...(state.schalen?.eintraege || [])].map(d => seasonOf(d.datum)));
+  (state.data.dokumente || []).forEach(d => s.add(d.season));
   s.add(seasonOf(todayISO()));
   return [...s].sort().reverse();
 }
@@ -370,7 +371,7 @@ const speciesUsed = id => state.data.jagdtage.some(t =>
   (state.data.nachtraege || []).some(n => n.art === id);
 
 function normalize(d) {
-  d.wildarten ||= []; d.schuetzen ||= []; d.jagdtage ||= []; d.nachtraege ||= []; d.schalenwild ||= [];
+  d.wildarten ||= []; d.dokumente ||= []; d.schuetzen ||= []; d.jagdtage ||= []; d.nachtraege ||= []; d.schalenwild ||= [];
   if (!d.wildarten.some(w => w.id === 'kraehe')) insertSpecies(d, { id: 'kraehe', name: 'Krähe', punkte: 1 });
   d.jagdtage.forEach(t => { t.art ||= 'normal'; t.strecke ||= {}; t.hund ||= {}; if (t.art !== 'normal') t.gaeste ||= []; if (t.art === 'venslage') t.revier ||= {}; t.sonderkoenig ||= ''; t.bemerkung ||= ''; t.id ||= t.datum; });
   return d;
@@ -1740,6 +1741,7 @@ function openSettings() {
       await persist('Daten verschlüsselt');
       await pushSchalen('Reh-/Dammwild verschlüsselt', true);
       if (canMelden()) { try { await changeMeldungen(l => l, 'Meldungen neu verschlüsselt'); } catch { /* egal */ } }
+      await reencryptDocs();
       state.pwOld = '';
       toast('Daten sind jetzt mit dem Passwort verschlüsselt.', 4000);
     } else if (meldChanged || JSON.stringify({ s: state.data.schuetzen, w: state.data.wildarten }) !== before) { await persist(meldChanged ? 'Melde-Zugang geändert' : 'Schützen/Punkte geändert'); loadMeldungen(); }
@@ -2118,6 +2120,115 @@ function switchTab(tab, fromPop = false) {
   window.scrollTo({ top: 0 });
 }
 
+/* ================= Dokumente (z. B. Protokoll der Hauptversammlung) =================
+   PDFs liegen im Haupt-Repository unter data/dokumente/, mit dem Passwort verschlüsselt
+   (Format: "SBE1" + Salt 16 + IV 12 + AES-GCM-Chiffrat). Die Liste steht in den (verschlüsselten) Hauptdaten. */
+const DOC_DIR = 'data/dokumente';
+const DOC_MAX = 20 * 1024 * 1024;
+const DOC_MAGIC = [83, 66, 69, 49]; // "SBE1"
+async function encryptBytes(bytes, pw) {
+  const salt = crypto.getRandomValues(new Uint8Array(16)), iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await deriveKey(pw, salt, 150000);
+  const ct = new Uint8Array(await crypto.subtle.encrypt({ name: 'AES-GCM', iv }, key, bytes));
+  const out = new Uint8Array(4 + 16 + 12 + ct.length);
+  out.set(DOC_MAGIC, 0); out.set(salt, 4); out.set(iv, 20); out.set(ct, 32);
+  return out;
+}
+const isEncDoc = b => b.length > 32 && DOC_MAGIC.every((v, i) => b[i] === v);
+async function decryptBytes(b) {
+  if (!isEncDoc(b)) return b; // unverschlüsselt (Zeit ohne Passwort)
+  for (const pw of [state.pw, state.pwOld].filter(Boolean)) {
+    try { const key = await deriveKey(pw, b.subarray(4, 20), 150000); return new Uint8Array(await crypto.subtle.decrypt({ name: 'AES-GCM', iv: b.subarray(20, 32) }, key, b.subarray(32))); } catch { /* nächstes */ }
+  }
+  throw new Error('Dokument lässt sich nicht entschlüsseln (Passwort geändert?).');
+}
+const docsOf = season => (state.data?.dokumente || []).filter(d => d.season === season);
+/** Dokument holen: Admin direkt über die API (sofort aktuell), sonst über GitHub Pages bzw. raw */
+async function fetchDocBytes(d) {
+  const { owner, repo, branch } = state.cfg;
+  const tries = [];
+  if (isAdmin()) tries.push(() => fetch(ghFileUrl(repo, d.datei) + `&t=${Date.now()}`, { headers: { ...ghHeaders(true), Accept: 'application/vnd.github.raw+json' }, cache: 'no-store' }));
+  tries.push(() => fetch(`${d.datei}?t=${Date.now()}`, { cache: 'no-store' }));
+  if (owner && repo) tries.push(() => fetch(`https://raw.githubusercontent.com/${owner}/${repo}/${branch || 'main'}/${d.datei}?t=${Date.now()}`, { cache: 'no-store' }));
+  for (const t of tries) {
+    try { const r = await t(); if (r.ok) { const b = new Uint8Array(await r.arrayBuffer()); if (b.length) return b; } } catch { /* nächster Weg */ }
+  }
+  throw new Error('Dokument nicht erreichbar – nach dem Hochladen kann es 1–2 Minuten dauern.');
+}
+async function downloadDoc(d) {
+  toast('Lade Dokument …', 2000);
+  try {
+    const pdf = await decryptBytes(await fetchDocBytes(d));
+    const name = `${d.titel} ${d.season.replace('/', '-')}`.replace(/[^\wäöüÄÖÜß .-]+/g, '').trim() + '.pdf';
+    await shareOrDownload(new Blob([pdf], { type: 'application/pdf' }), name);
+  } catch (e) { toast(e.message, 4500); }
+}
+async function putDocFile(path, bytes, message, sha) {
+  const body = { message, content: bytesToB64(bytes), branch: state.cfg.branch || 'main' };
+  if (sha) body.sha = sha;
+  const r = await fetch(ghFileUrl(state.cfg.repo, path, false), { method: 'PUT', headers: { ...ghHeaders(true), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error(r.status === 401 || r.status === 403 ? 'Keine Schreibrechte (Token prüfen)' : `Hochladen fehlgeschlagen (GitHub ${r.status})`);
+  return (await r.json()).content?.sha;
+}
+function openDocUpload(season) {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'application/pdf,.pdf';
+  inp.addEventListener('change', () => {
+    const f = inp.files[0]; if (!f) return;
+    if (!/\.pdf$/i.test(f.name) && f.type !== 'application/pdf') { toast('Bitte eine PDF-Datei wählen.'); return; }
+    if (f.size > DOC_MAX) { toast('Die Datei ist größer als 20 MB.', 4000); return; }
+    openSheet(`Dokument ${season}`, `
+      <p class="hint">Datei: <b>${esc(f.name)}</b> (${(f.size / 1024 / 1024).toFixed(1).replace('.', ',')} MB)</p>
+      <label class="field"><span>Bezeichnung</span><input id="docTitel" value="Protokoll Hauptversammlung" autocomplete="off"></label>
+      <p class="hint">Das Dokument wird mit dem Passwort der Jagdgemeinschaft verschlüsselt und ist danach für alle auf der Seite Streckenberichte beim Jagdjahr ${esc(season)} abrufbar.</p>`,
+      `<button class="btn secondary" data-close>Abbrechen</button><button class="btn" id="docSave">Hochladen</button>`);
+    $('#docSave').addEventListener('click', async e => {
+      const titel = $('#docTitel').value.trim() || 'Dokument';
+      const btn = e.currentTarget; btn.disabled = true; btn.textContent = 'Wird hochgeladen …';
+      try {
+        const raw = new Uint8Array(await f.arrayBuffer());
+        const bytes = state.pw ? await encryptBytes(raw, state.pw) : raw;
+        const id = `d-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`;
+        const datei = `${DOC_DIR}/${id}.bin`;
+        const sha = await putDocFile(datei, bytes, `Dokument hochgeladen: ${titel} ${season}`);
+        state.data.dokumente = [...(state.data.dokumente || []), { id, season, titel, datei, sha, bytes: f.size, datum: todayISO() }];
+        closeSheet();
+        await persist(`Dokument: ${titel} ${season}`);
+        if (state.tab === 'berichte') renderBerichte();
+      } catch (err) { btn.disabled = false; btn.textContent = 'Hochladen'; toast(err.message, 4500); }
+    });
+  });
+  inp.click();
+}
+async function deleteDoc(id) {
+  const d = (state.data.dokumente || []).find(x => x.id === id); if (!d) return;
+  try {
+    let sha = d.sha;
+    if (!sha) { const g = await fetch(ghFileUrl(state.cfg.repo, d.datei) + `&t=${Date.now()}`, { headers: ghHeaders(true), cache: 'no-store' }); if (g.ok) sha = (await g.json()).sha; }
+    if (sha) {
+      const r = await fetch(ghFileUrl(state.cfg.repo, d.datei, false), { method: 'DELETE', headers: { ...ghHeaders(true), 'Content-Type': 'application/json' }, body: JSON.stringify({ message: `Dokument gelöscht: ${d.titel} ${d.season}`, sha, branch: state.cfg.branch || 'main' }) });
+      if (!r.ok && r.status !== 404) throw new Error(`Löschen fehlgeschlagen (GitHub ${r.status})`);
+    }
+    state.data.dokumente = state.data.dokumente.filter(x => x.id !== id);
+    await persist(`Dokument gelöscht: ${d.titel} ${d.season}`);
+    if (state.tab === 'berichte') renderBerichte();
+  } catch (e) { toast(e.message, 4500); }
+}
+/** Nach Passwortwechsel: alle Dokumente mit dem neuen Passwort neu verschlüsseln */
+async function reencryptDocs() {
+  const docs = state.data.dokumente || [];
+  if (!docs.length || !state.pw) return;
+  let ok = 0;
+  for (const d of docs) {
+    try {
+      const pdf = await decryptBytes(await fetchDocBytes(d));
+      d.sha = await putDocFile(d.datei, await encryptBytes(pdf, state.pw), `Dokument neu verschlüsselt: ${d.titel} ${d.season}`, d.sha);
+      ok++;
+    } catch { /* bleibt mit altem Passwort – Hinweis unten */ }
+  }
+  await persist('Dokumente neu verschlüsselt');
+  if (ok < docs.length) toast(`${docs.length - ok} Dokument(e) konnten nicht neu verschlüsselt werden – bitte neu hochladen.`, 6000);
+}
+
 /* ================= Seite Streckenberichte (alle PDF-Downloads) ================= */
 function renderBerichte() {
   const el = $('#view-berichte');
@@ -2140,10 +2251,24 @@ function renderBerichte() {
           <span class="rep-ico" aria-hidden="true">⤓</span>
           <span class="rep-txt"><b>${esc(t)}${k === 'koenig' && season === aktuell ? ' <small>(nur für dich)</small>' : ''}</b><small>${esc(d)}</small></span>
         </button>`).join('')}
+        ${docsOf(season).map(d => `<div class="rep-doc">
+          <button class="rep-row" data-doc="${esc(d.id)}">
+            <span class="rep-ico doc" aria-hidden="true">📄</span>
+            <span class="rep-txt"><b>${esc(d.titel)}</b><small>Dokument · ${(d.bytes / 1024 / 1024).toFixed(1).replace('.', ',')} MB</small></span>
+          </button>
+          ${isAdmin() ? `<button class="rep-del" data-docdel="${esc(d.id)}" aria-label="Dokument löschen" title="Löschen">✕</button>` : ''}
+        </div>`).join('')}
+        ${isAdmin() ? `<button class="rep-row rep-add" data-docadd="${esc(season)}"><span class="rep-ico" aria-hidden="true">+</span><span class="rep-txt"><b>Dokument hinzufügen</b><small>z. B. Protokoll der Hauptversammlung (PDF)</small></span></button>` : ''}
       </div>`;
     }).join('')}`;
   const fns = { gesamt: exportGesamt, strecke: exportStrecke, schalen: exportSchalen, koenig: exportKoenig };
   $$('[data-rep]', el).forEach(b => b.addEventListener('click', () => fns[b.dataset.rep](b.dataset.season)));
+  $$('[data-doc]', el).forEach(b => b.addEventListener('click', () => { const d = state.data.dokumente.find(x => x.id === b.dataset.doc); if (d) downloadDoc(d); }));
+  $$('[data-docadd]', el).forEach(b => b.addEventListener('click', () => openDocUpload(b.dataset.docadd)));
+  $$('[data-docdel]', el).forEach(b => b.addEventListener('click', () => {
+    if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Löschen?'; b.classList.add('armed'); setTimeout(() => { if (b.isConnected) { delete b.dataset.armed; b.textContent = '✕'; b.classList.remove('armed'); } }, 4000); return; }
+    deleteDoc(b.dataset.docdel);
+  }));
 }
 
 function renderStart() {

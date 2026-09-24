@@ -391,3 +391,11 @@ fieldset { min-width: 0; max-width: 100%; }
 .rep-txt b { color: var(--ink, inherit); }
 .rep-txt b small { font-weight: 500; color: #9a6b3c; }
 .rep-txt > small { color: var(--muted, #66694f); font-size: .85em; margin-top: 2px; }
+
+.rep-doc { display: flex; align-items: stretch; border-top: 1px solid var(--line); }
+.rep-doc .rep-row { border-top: 0; flex: 1; min-width: 0; }
+.rep-ico.doc { font-size: 17px; }
+.rep-del { flex: none; border: 0; background: transparent; color: var(--muted); padding: 0 18px; font: 600 14px/1 var(--sans); cursor: pointer; }
+.rep-del.armed { color: #fff; background: #a3452f; }
+.rep-add .rep-ico { background: transparent; border: 1.5px dashed var(--line); }
+.rep-add b { color: var(--green); }
