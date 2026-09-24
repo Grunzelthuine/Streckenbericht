@@ -126,6 +126,9 @@ Auf der Startseite kann jeder mit dem Passwort ein erlegtes Stück melden. Die M
 ## Streckenberichte (PDF)
 Alle PDF-Downloads liegen auf der Startseite unter **Streckenberichte**, nach Jagdjahren absteigend: Gesamtstreckenbericht, Niederwild, Reh- & Dammwild und Jagdkönig. Den Jagdkönig gibt es dort nur für vergangene Jagdjahre. Das laufende Jahr kann nur der Admin herunterladen.
 
+## Wildbret-Verteilung Dammwild
+Erlegtes Dammwild (kein Fallwild) geht der Reihe nach an 9 feste Gruppen, fortlaufend über das Jagdjahr hinaus. Die Seite Reh & Damm zeigt im laufenden Jagdjahr die Gruppen und wer als Nächstes dran ist; bei jedem Stück steht „🥩 Wildbret: …“. Beim Eintragen schlägt die App die nächste Gruppe vor (änderbar, auch „keine Verteilung“). Gruppen ändert der Admin über „Gruppen bearbeiten“ (Gruppe 7: Schmees / N. N. – Nachfolge Röttering). Startpunkt: das letzte vor dem Update erfasste Stück = Gruppe 4 (Geerdes W. / Heskamp).
+
 ## Termine
 Startseite → **Termine** (direkt unter „Wild melden“) zeigt den nächsten Termin in einer Zeile. Der Admin trägt Termine auf der Seite Termine ein („+ Termin eintragen“): Datum, Uhrzeit, Art, Treffpunkt, Jagdleitung (Schütze) oder Organisation (Freitext), Besonderheit. Antippen von „Bearbeiten“ zum Ändern oder Löschen. Alle können einen Termin mit **„📅 In Kalender“** in den Handy-Kalender übernehmen (.ics-Datei, Dauer pauschal 4 Stunden). Vergangene Termine stehen eingeklappt darunter. Mit **„Aus .ics importieren“** lassen sich Termine aus einer Kalenderdatei (Google, Outlook, iPhone) übernehmen: Vorschau mit Haken, vergangene und schon vorhandene Termine sind nicht angehakt, die Art wird aus dem Titel erraten, „Jagdleitung: Name“ in der Beschreibung wird dem Schützen zugeordnet. Serientermine: nur der erste Termin.
 
@@ -147,7 +150,7 @@ Beim Speichern ohne Netz bleiben die Daten auf dem Gerät, und oben erscheint �
 `index.html` enthält eine CSP als `<meta>`-Tag (GitHub Pages kann keine eigenen Header setzen). Erlaubt sind nur die eigene Seite sowie Verbindungen zu api.github.com, raw.githubusercontent.com, api.anthropic.com und ntfy.sh. Inline-Skripte und fremde Skripte werden blockiert. **Wird ein neuer externer Dienst eingebaut, muss er in `connect-src` ergänzt werden**, sonst blockiert der Browser ihn.
 
 ## Neue Version einspielen
-Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-2.8.0'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
+Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-2.9.0'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
 
 ## Daten
 Alle Daten liegen in `data/strecke.json`. Jede Speicherung ist ein Commit in GitHub, dadurch gibt es automatisch eine Versionshistorie. Zusätzlich gibt es in den Einstellungen **„Sicherung speichern“ / „Sicherung einspielen“**. Die Sicherung enthält Niederwild und Reh- & Dammwild **unverschlüsselt**, gehört also nur in deinen eigenen Ordner.

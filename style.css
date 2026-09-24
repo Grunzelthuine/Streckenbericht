@@ -435,3 +435,20 @@ fieldset { min-width: 0; max-width: 100%; }
 .ics-list .check-row { align-items: flex-start; }
 .ics-list .check-row small { display: block; color: var(--muted); font-size: 12.5px; }
 .ics-list .check-row { border: 0; padding: 0; background: transparent; }
+
+/* Wildbret-Verteilung */
+.wb-card { padding: 14px 16px; }
+.wb-next { display: grid; gap: 2px; padding: 12px 14px; border-radius: 12px; background: var(--green); color: #fff; margin-bottom: 10px; }
+.wb-next .sub { color: rgba(255,255,255,.8); font-size: 12.5px; text-transform: uppercase; letter-spacing: .04em; }
+.wb-next b { font: 600 19px/1.25 var(--serif); }
+.wb-list { list-style: none; margin: 0 0 10px; padding: 0; }
+.wb-list li { display: grid; gap: 1px; padding: 8px 10px; border-bottom: 1px solid var(--line); }
+.wb-list li:last-child { border-bottom: 0; }
+.wb-list li small { color: var(--muted); font-size: 12.5px; }
+.wb-list li.next { background: var(--green-soft); border-radius: 10px; }
+.wb-list li.next .wb-names { font-weight: 700; color: var(--green); }
+.wb-tag { display: block; color: var(--brass) !important; }
+.wb-edit { display: grid; grid-template-columns: 26px 1fr 1fr; gap: 8px; align-items: center; margin-bottom: 8px; }
+.wb-edit select { min-width: 0; width: 100%; }
+.wb-no { font-weight: 700; color: var(--green); text-align: right; }
+.wb-field select { font-weight: 600; }

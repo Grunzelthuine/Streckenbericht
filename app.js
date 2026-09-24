@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.8.0';
+const APP_VERSION = '2.9.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -457,6 +457,7 @@ async function loadSchalen() {
     if (state.data) render();
     if (state.schalenOps.length) pushSchalen();
     else migrateSchalen();
+    migrateWildverteilung();
   } catch (e) { if (e instanceof NeedPassword) showLock(e.message); /* sonst offline: Cache bleibt */ }
 }
 /** Einmalige Übernahme alter Reh-/Dammwild-Einträge aus der Hauptdatei (Version 1.5) */
@@ -792,6 +793,104 @@ const SCHALEN = {
 const katName = (art, k) => SCHALEN[art]?.kat.find(x => x[0] === k)?.[1] || k;
 const FALLWILD_URSACHEN = ['Verkehrsunfall', 'Mähtod', 'Krankheit', 'Hund', 'Zaun', 'Unbekannt'];
 
+/* ================= Wildbret-Verteilung Dammwild =================
+   Erlegtes Dammwild (kein Fallwild) geht der Reihe nach an feste Gruppen – fortlaufend über Jagdjahre.
+   Jeder Eintrag speichert seine Gruppe (rec.wildbret); ältere Einträge ohne Angabe werden aus der
+   Reihenfolge berechnet (Anker: data.wildverteilung.anker). 'keine' = Stück ohne Verteilung (zählt nicht). */
+const DEFAULT_GRUPPEN = [
+  ['bruendermann', 'dreishing-v'], ['bruns-m', 'koelker-w'], ['geerdes-h', 'gebbe-w'], ['geerdes-w', 'heskamp'], ['kall', 'kock'],
+  ['beckhuis', 'koelker-s'], ['schmees', 'N. N.'], ['schoo', 'gebbe-kh'], ['joerlemann', 'bruns-s'],
+].map((m, i) => ({ id: `g${i + 1}`, mitglieder: m }));
+const wv = () => state.data?.wildverteilung || { gruppen: DEFAULT_GRUPPEN };
+const wvGruppen = () => wv().gruppen?.length ? wv().gruppen : DEFAULT_GRUPPEN;
+const mitgliedName = m => shooterById(m) ? (shooterById(m).vollname || shooterById(m).name) : m;
+function gruppeLabel(gid, kurz = false) {
+  if (gid === 'keine') return 'keine Verteilung';
+  const gs = wvGruppen(), i = gs.findIndex(g => g.id === gid);
+  if (i < 0) return 'Gruppe (gelöscht)';
+  const names = gs[i].mitglieder.filter(Boolean).map(m => kurz && shooterById(m) ? shooterById(m).name : mitgliedName(m));
+  return `${i + 1}. ${names.join(' / ')}`;
+}
+const createdKey = x => { const m = /^sw-([0-9a-z]+)$/.exec(x.id || ''); return m ? parseInt(m[1], 36) : Date.parse(x.zeit || '') || 0; };
+const dammVerteilt = () => (state.schalen?.eintraege || []).filter(x => x.art === 'damm' && !x.fallwild)
+  .sort((a, b) => a.datum.localeCompare(b.datum) || createdKey(a) - createdKey(b));
+/** Map Eintrag-ID → Gruppen-ID, dazu die als Nächstes dran befindliche Gruppe */
+function wildbretPlan() {
+  const gs = wvGruppen(), n = gs.length, list = dammVerteilt();
+  const idx = gid => gs.findIndex(g => g.id === gid);
+  const anker = wv().anker;
+  const fixed = list.map(x => x.wildbret || (anker && anker.id === x.id ? anker.gruppe : null));
+  const map = {};
+  const firstKnown = fixed.findIndex(f => f && f !== 'keine' && idx(f) >= 0);
+  if (firstKnown < 0) {
+    // noch nichts festgelegt: bei Gruppe 1 beginnen
+    let cur = -1;
+    list.forEach((x, i) => { if (fixed[i] === 'keine') { map[x.id] = 'keine'; return; } cur = (cur + 1) % n; map[x.id] = gs[cur].id; });
+    return { map, next: gs[(cur + 1) % n]?.id, list };
+  }
+  // rückwärts vor dem ersten bekannten Stück
+  let cur = idx(fixed[firstKnown]);
+  for (let i = firstKnown - 1; i >= 0; i--) {
+    if (fixed[i] === 'keine') { map[list[i].id] = 'keine'; continue; }
+    if (fixed[i] && idx(fixed[i]) >= 0) { cur = idx(fixed[i]); map[list[i].id] = fixed[i]; continue; }
+    cur = (cur - 1 + n) % n; map[list[i].id] = gs[cur].id;
+  }
+  // vorwärts ab dem ersten bekannten Stück
+  cur = idx(fixed[firstKnown]) - 1;
+  for (let i = firstKnown; i < list.length; i++) {
+    if (fixed[i] === 'keine') { map[list[i].id] = 'keine'; continue; }
+    if (fixed[i] && idx(fixed[i]) >= 0) cur = idx(fixed[i]); else cur = (cur + 1) % n;
+    map[list[i].id] = gs[cur].id;
+  }
+  return { map, next: gs[(cur + 1) % n].id, list };
+}
+/** Einmalig: letztes vorhandenes Stück Dammwild = Gruppe 4 (Geerdes W. / Heskamp) – Vorgabe Sebastian */
+async function migrateWildverteilung() {
+  if (!isAdmin() || !state.data || state.data.wildverteilung || !state.schalenFresh) return;
+  const list = dammVerteilt();
+  state.data.wildverteilung = { gruppen: clone(DEFAULT_GRUPPEN) };
+  if (list.length && !list.some(x => x.wildbret)) state.data.wildverteilung.anker = { id: list[list.length - 1].id, gruppe: 'g4' };
+  await persist('Wildbret-Verteilung Dammwild eingerichtet');
+}
+function wildbretCard() {
+  const gs = wvGruppen(), plan = wildbretPlan();
+  const last = {}; // Gruppe → letztes Stück
+  plan.list.forEach(x => { const g = plan.map[x.id]; if (g && g !== 'keine') last[g] = x; });
+  return `<h2 class="section">Wildbret-Verteilung Dammwild</h2>
+    <div class="card wb-card">
+      <div class="wb-next"><span class="sub">Als Nächstes dran</span><b>${esc(gruppeLabel(plan.next))}</b></div>
+      <ol class="wb-list">${gs.map(g => `<li class="${g.id === plan.next ? 'next' : ''}">
+        <span class="wb-names">${esc(gruppeLabel(g.id))}</span>
+        <small>${last[g.id] ? `zuletzt ${dateDE(last[g.id].datum)} · ${esc(katName('damm', last[g.id].kat))}` : '–'}</small></li>`).join('')}</ol>
+      ${isAdmin() ? '<button class="btn secondary block" id="wbEdit">Gruppen bearbeiten</button>' : ''}
+    </div>
+    <p class="hint">Erlegtes Dammwild geht der Reihe nach an die Gruppen – unabhängig vom Schützen und über das Jagdjahr hinaus. Fallwild wird nicht verteilt.</p>`;
+}
+function openGruppen() {
+  const gs = clone(wvGruppen());
+  const opts = sel => `<option value="">–</option><option value="N. N." ${sel === 'N. N.' ? 'selected' : ''}>N. N. (noch offen)</option>` +
+    state.data.schuetzen.filter(s => isMember(s, seasonOf(todayISO())) || s.id === sel).map(s => `<option value="${esc(s.id)}" ${s.id === sel ? 'selected' : ''}>${esc(s.vollname || s.name)}</option>`).join('');
+  const draw = () => {
+    openSheet('Gruppen Wildbret-Verteilung', `
+      <p class="hint">Reihenfolge = Nummer. Die Verteilung läuft von der letzten bis zur ersten Gruppe im Kreis.</p>
+      ${gs.map((g, i) => `<div class="wb-edit"><span class="wb-no">${i + 1}.</span>
+        <select data-gm="${i}:0">${opts(g.mitglieder[0] || '')}</select><select data-gm="${i}:1">${opts(g.mitglieder[1] || '')}</select></div>`).join('')}
+      <div class="btn-row"><button class="btn secondary" id="gAdd">+ Gruppe</button>${gs.length > 1 ? '<button class="btn danger" id="gDel">Letzte entfernen</button>' : ''}</div>`,
+      `<button class="btn secondary" data-close>Abbrechen</button><button class="btn" id="gSave">Speichern</button>`);
+    const sync = () => $$('[data-gm]').forEach(s => { const [i, j] = s.dataset.gm.split(':').map(Number); gs[i].mitglieder[j] = s.value; });
+    $('#gAdd').addEventListener('click', () => { sync(); const max = Math.max(0, ...gs.map(g => +g.id.slice(1) || 0)); gs.push({ id: `g${max + 1}`, mitglieder: ['', ''] }); draw(); });
+    $('#gDel')?.addEventListener('click', () => { sync(); gs.pop(); draw(); });
+    $('#gSave').addEventListener('click', () => {
+      sync();
+      gs.forEach(g => { g.mitglieder = g.mitglieder.filter(Boolean); });
+      if (gs.some(g => !g.mitglieder.length)) { toast('Jede Gruppe braucht mindestens einen Namen.'); return; }
+      state.data.wildverteilung = Object.assign({}, state.data.wildverteilung, { gruppen: gs });
+      closeSheet(); persist('Gruppen Wildbret-Verteilung geändert'); renderSchalen();
+    });
+  };
+  draw();
+}
+
 function schalenStats(season) {
   const list = (state.schalen?.eintraege || []).filter(x => seasonOf(x.datum) === season).sort((a, b) => a.datum.localeCompare(b.datum));
   const cnt = {}; // art -> kat -> {erlegt, fallwild}
@@ -821,10 +920,12 @@ function renderSchalen() {
       <tfoot><tr><td>Gesamt</td><td>${t.erlegt}</td><td>${t.fallwild}</td><td>${t.erlegt + t.fallwild}</td></tr></tfoot>
     </table></div>`;
   };
+  const plan = wildbretPlan();
   const item = x => `<li${canSchalen() ? ` data-sw="${esc(x.id)}" tabindex="0" role="button"` : ''}>
       <span class="nt-date">${dateDE(x.datum)}</span>
       <span class="nt-what"><b>${esc(katName(x.art, x.kat))}</b> <span class="sub">${SCHALEN[x.art]?.name || ''}</span>
-        <small>${x.fallwild ? `Fallwild${x.ursache ? ` · ${esc(x.ursache)}` : ''}` : esc(shooterName(x.schuetze))}${x.bemerkung ? ` · ${esc(x.bemerkung)}` : ''}${x.von ? ` · eingetragen von ${esc(shooterName(x.von))}` : ''}</small></span>
+        <small>${x.fallwild ? `Fallwild${x.ursache ? ` · ${esc(x.ursache)}` : ''}` : esc(shooterName(x.schuetze))}${x.bemerkung ? ` · ${esc(x.bemerkung)}` : ''}${x.von ? ` · eingetragen von ${esc(shooterName(x.von))}` : ''}</small>
+        ${plan.map[x.id] ? `<small class="wb-tag">🥩 Wildbret: ${esc(gruppeLabel(plan.map[x.id], true))}</small>` : ''}</span>
       ${canSchalen() ? '<span class="nt-edit" aria-hidden="true">›</span>' : ''}
     </li>`;
   const tr = st.tot('reh'), td = st.tot('damm');
@@ -838,6 +939,7 @@ function renderSchalen() {
     </div>
     ${canSchalen() ? '<button class="btn block" id="btnSchalen">+ Erlegung / Fallwild eintragen</button>' : ''}
     ${state.schalenOps.length ? `<div class="alert">${state.schalenOps.length} Änderung(en) noch nicht hochgeladen.</div>` : ''}
+    ${state.season === seasonOf(todayISO()) ? wildbretCard() : ''}
     <h2 class="section">Übersicht ${esc(state.season)}</h2>
     ${catTable('reh')}
     ${catTable('damm')}
@@ -852,6 +954,7 @@ function renderSchalen() {
     </table></div>` : ''}
     <p class="hint" style="text-align:center">Reh- und Dammwild zählt nicht zum Niederwild-Streckenbericht und nicht zum Jagdkönig.</p>`;
   $('#btnSchalen')?.addEventListener('click', () => openSchalen(null));
+  $('#wbEdit')?.addEventListener('click', openGruppen);
   $$('[data-sw]', el).forEach(li => li.addEventListener('click', () => openSchalen(li.dataset.sw)));
 }
 
@@ -859,6 +962,8 @@ function openSchalen(id, prefill = null) {
   const ex = id ? state.schalen.eintraege.find(x => x.id === id) : null;
   const ich = state.cfg.ich && shooterById(state.cfg.ich) ? state.cfg.ich : '';
   const x = ex ? clone(ex) : Object.assign({ id: null, datum: todayISO(), art: 'reh', kat: 'rehbock', fallwild: false, schuetze: ich, ursache: '', bemerkung: '' }, prefill || {});
+  const planAtOpen = wildbretPlan();
+  if (!x.wildbret) x.wildbret = (ex && planAtOpen.map[ex.id]) || planAtOpen.next;
   const draw = () => {
     const members = state.data.schuetzen.filter(s => isMember(s, seasonOf(x.datum || todayISO())) || s.id === x.schuetze);
     const body = `
@@ -871,6 +976,9 @@ function openSchalen(id, prefill = null) {
       ${x.fallwild
         ? `<label class="field"><span>Ursache (optional)</span><input type="text" id="swUrs" list="swUrsList" value="${esc(x.ursache || '')}" placeholder="z. B. Verkehrsunfall"><datalist id="swUrsList">${FALLWILD_URSACHEN.map(u => `<option value="${u}">`).join('')}</datalist></label>`
         : `<label class="field"><span>Schütze</span><select id="swSchuetze"><option value="">Schütze wählen …</option>${members.map(s => `<option value="${esc(s.id)}" ${s.id === x.schuetze ? 'selected' : ''}>${esc(s.vollname || s.name)}</option>`).join('')}</select></label>`}
+      ${x.art === 'damm' && !x.fallwild ? `<label class="field wb-field"><span>🥩 Wildbret geht an${!ex ? ' (der Reihe nach)' : ''}</span><select id="swWb">
+        ${wvGruppen().map(g => `<option value="${g.id}" ${g.id === x.wildbret ? 'selected' : ''}>${esc(gruppeLabel(g.id))}${g.id === planAtOpen.next && !ex ? ' – ist dran' : ''}</option>`).join('')}
+        <option value="keine" ${x.wildbret === 'keine' ? 'selected' : ''}>– keine Verteilung (z. B. nicht verwertbar) –</option></select></label>` : ''}
       <label class="field"><span>Bemerkung (optional)</span><input type="text" id="swBem" value="${esc(x.bemerkung || '')}" placeholder="z. B. Ort, Gewicht"></label>`;
     const foot = ex ? `<button class="btn danger" id="swDel">Löschen</button><button class="btn" id="swSave">Speichern</button>`
                     : `<button class="btn secondary" data-close>Abbrechen</button><button class="btn" id="swSave">Speichern</button>`;
@@ -880,6 +988,7 @@ function openSchalen(id, prefill = null) {
       x.bemerkung = $('#swBem').value.trim();
       if ($('#swSchuetze')) x.schuetze = $('#swSchuetze').value;
       if ($('#swUrs')) x.ursache = $('#swUrs').value.trim();
+      if ($('#swWb')) x.wildbret = $('#swWb').value;
     };
     $$('[data-swart]').forEach(b => b.addEventListener('click', () => { sync(); if (x.art !== b.dataset.swart) { x.art = b.dataset.swart; x.kat = SCHALEN[x.art].kat[0][0]; } draw(); }));
     $('#swFall').addEventListener('change', e => { sync(); x.fallwild = e.target.checked; draw(); });
@@ -891,6 +1000,7 @@ function openSchalen(id, prefill = null) {
       const rec = { id: ex?.id || `sw-${Date.now().toString(36)}`, datum: x.datum, art: x.art, kat: x.kat, fallwild: !!x.fallwild };
       if (x.fallwild) { if (x.ursache) rec.ursache = x.ursache; } else rec.schuetze = x.schuetze;
       if (x.bemerkung) rec.bemerkung = x.bemerkung;
+      if (rec.art === 'damm' && !rec.fallwild && x.wildbret) rec.wildbret = x.wildbret;
       rec.von = ex?.von || ich || undefined;
       if (ex && ich && ich !== ex.von) rec.geaendertVon = ich;
       rec.zeit = new Date().toISOString();
@@ -2021,6 +2131,7 @@ async function exportSchalen(season) {
   try {
     toast('PDF wird erstellt …');
     const st = schalenStats(season);
+    const plan = wildbretPlan();
     const doc = await pdfBase('Reh- & Dammwild', season);
     let y = 45;
     for (const art of ['reh', 'damm']) {
@@ -2036,8 +2147,8 @@ async function exportSchalen(season) {
     }
     y = sectionTitle(doc, 'Erlegt', y);
     doc.autoTable({ ...tableStyle, startY: y,
-      head: [['Datum', 'Wildart', 'Kategorie', 'Schütze', 'Bemerkung']],
-      body: st.erlegt.length ? st.erlegt.map(x => [dateDE(x.datum), SCHALEN[x.art].name, katName(x.art, x.kat), shooterName(x.schuetze), x.bemerkung || '–']) : [[{ content: 'Keine Erlegungen', colSpan: 5 }]],
+      head: [['Datum', 'Wildart', 'Kategorie', 'Schütze', 'Wildbret an', 'Bemerkung']],
+      body: st.erlegt.length ? st.erlegt.map(x => [dateDE(x.datum), SCHALEN[x.art].name, katName(x.art, x.kat), shooterName(x.schuetze), plan.map[x.id] ? gruppeLabel(plan.map[x.id], true) : '–', x.bemerkung || '–']) : [[{ content: 'Keine Erlegungen', colSpan: 6 }]],
       columnStyles: { 0: { cellWidth: 24 } },
     });
     y = doc.lastAutoTable.finalY + 10;
