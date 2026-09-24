@@ -125,7 +125,7 @@ Auf der Startseite kann jeder mit dem Passwort ein erlegtes Stück melden. Die M
 Alle PDF-Downloads liegen auf der Startseite unter **Streckenberichte**, nach Jagdjahren absteigend: Gesamtstreckenbericht, Niederwild, Reh- & Dammwild und Jagdkönig. Den Jagdkönig gibt es dort nur für vergangene Jagdjahre. Das laufende Jahr kann nur der Admin herunterladen.
 
 ## Termine
-Startseite → **Termine** (direkt unter „Wild melden“) zeigt den nächsten Termin in einer Zeile. Der Admin trägt Termine auf der Seite Termine ein („+ Termin eintragen“): Datum, Uhrzeit, Art, Treffpunkt, Jagdleitung (Schütze) oder Organisation (Freitext), Besonderheit. Antippen von „Bearbeiten“ zum Ändern oder Löschen. Alle können einen Termin mit **„📅 In Kalender“** in den Handy-Kalender übernehmen (.ics-Datei, Dauer pauschal 4 Stunden). Vergangene Termine stehen eingeklappt darunter.
+Startseite → **Termine** (direkt unter „Wild melden“) zeigt den nächsten Termin in einer Zeile. Der Admin trägt Termine auf der Seite Termine ein („+ Termin eintragen“): Datum, Uhrzeit, Art, Treffpunkt, Jagdleitung (Schütze) oder Organisation (Freitext), Besonderheit. Antippen von „Bearbeiten“ zum Ändern oder Löschen. Alle können einen Termin mit **„📅 In Kalender“** in den Handy-Kalender übernehmen (.ics-Datei, Dauer pauschal 4 Stunden). Vergangene Termine stehen eingeklappt darunter. Mit **„Aus .ics importieren“** lassen sich Termine aus einer Kalenderdatei (Google, Outlook, iPhone) übernehmen: Vorschau mit Haken, vergangene und schon vorhandene Termine sind nicht angehakt, die Art wird aus dem Titel erraten, „Jagdleitung: Name“ in der Beschreibung wird dem Schützen zugeordnet. Serientermine: nur der erste Termin.
 
 ## Dokumente (z. B. Protokoll der Hauptversammlung)
 Auf der Seite **Streckenberichte** gibt es beim Admin in jedem Jagdjahr „+ Dokument hinzufügen“ (PDF, max. 20 MB). Die Datei wird mit dem Passwort verschlüsselt im Haupt-Repository unter `data/dokumente/` abgelegt; alle mit Passwort können sie dort herunterladen. Löschen über das ✕ (zweimal tippen). Beim Passwortwechsel werden die Dokumente automatisch neu verschlüsselt. Nach dem Hochladen kann es 1–2 Minuten dauern, bis andere das Dokument laden können (GitHub Pages). Die Sicherungsdatei enthält nur die Liste, nicht die PDFs selbst.
@@ -145,7 +145,7 @@ Beim Speichern ohne Netz bleiben die Daten auf dem Gerät, und oben erscheint �
 `index.html` enthält eine CSP als `<meta>`-Tag (GitHub Pages kann keine eigenen Header setzen). Erlaubt sind nur die eigene Seite sowie Verbindungen zu api.github.com, raw.githubusercontent.com, api.anthropic.com und ntfy.sh. Inline-Skripte und fremde Skripte werden blockiert. **Wird ein neuer externer Dienst eingebaut, muss er in `connect-src` ergänzt werden**, sonst blockiert der Browser ihn.
 
 ## Neue Version einspielen
-Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-2.6.1'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
+Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-2.7.0'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
 
 ## Daten
 Alle Daten liegen in `data/strecke.json`. Jede Speicherung ist ein Commit in GitHub, dadurch gibt es automatisch eine Versionshistorie. Zusätzlich gibt es in den Einstellungen **„Sicherung speichern“ / „Sicherung einspielen“**. Die Sicherung enthält Niederwild und Reh- & Dammwild **unverschlüsselt**, gehört also nur in deinen eigenen Ordner.

@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.6.1';
+const APP_VERSION = '2.7.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -2271,10 +2271,11 @@ function renderTermine() {
   const vergangen = sortTermine(state.data.termine.filter(t => t.datum < todayISO())).reverse().slice(0, 30);
   el.innerHTML = `
     <h2 class="section" style="margin-top:4px">Termine</h2>
-    ${admin ? '<button class="btn block" id="tmNew">+ Termin eintragen</button>' : ''}
+    ${admin ? '<div class="btn-row tm-admin"><button class="btn" id="tmNew">+ Termin eintragen</button><button class="btn secondary" id="tmImport">Aus .ics importieren</button></div>' : ''}
     ${kommend.length ? kommend.map(t => terminCard(t, admin)).join('') : '<div class="card pad empty"><img src="icons/logo.png" alt=""><p>Zurzeit sind keine Termine eingetragen.</p></div>'}
     ${vergangen.length ? `<details class="tm-past"><summary>Vergangene Termine (${vergangen.length})</summary>${vergangen.map(t => terminCard(t, admin)).join('')}</details>` : ''}`;
   $('#tmNew')?.addEventListener('click', () => openTermin(null));
+  $('#tmImport')?.addEventListener('click', pickIcs);
   $$('[data-tmedit]', el).forEach(b => b.addEventListener('click', () => openTermin(b.dataset.tmedit)));
   $$('[data-ics]', el).forEach(b => b.addEventListener('click', () => { const t = state.data.termine.find(x => x.id === b.dataset.ics); if (t) terminToCalendar(t); }));
 }
@@ -2315,6 +2316,93 @@ function openTermin(id) {
     closeSheet(); persist(`Termin gelöscht: ${terminTitel(ex)} ${dateDE(ex.datum)}`); renderTermine();
   });
 }
+/* ---------- Import aus Kalenderdatei (.ics) ---------- */
+function parseIcs(text) {
+  const lines = text.replace(/\r\n?/g, '\n').replace(/\n[ \t]/g, '').split('\n'); // gefaltete Zeilen zusammenführen
+  const unesc = v => v.replace(/\\n/gi, '\n').replace(/\\([,;\\])/g, '$1').trim();
+  const events = []; let ev = null, depth = 0;
+  for (const line of lines) {
+    if (line === 'BEGIN:VEVENT') { ev = {}; depth = 0; continue; }
+    if (!ev) continue;
+    if (line.startsWith('BEGIN:')) { depth++; continue; } // z. B. VALARM überspringen
+    if (line.startsWith('END:') && depth) { depth--; continue; }
+    if (line === 'END:VEVENT') { events.push(ev); ev = null; continue; }
+    if (depth) continue;
+    const i = line.indexOf(':'); if (i < 0) continue;
+    const [name, ...params] = line.slice(0, i).split(';');
+    ev[name.toUpperCase()] = { value: line.slice(i + 1), params: params.join(';') };
+  }
+  return events.map(e => {
+    const ds = e.DTSTART?.value; if (!ds) return null;
+    let datum, zeit = '';
+    const m = ds.match(/^(\d{4})(\d{2})(\d{2})(?:T(\d{2})(\d{2})\d{0,2}(Z)?)?$/);
+    if (!m) return null;
+    if (m[4] && m[6]) { // UTC → Ortszeit
+      const d = new Date(Date.UTC(+m[1], m[2] - 1, +m[3], +m[4], +m[5]));
+      datum = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      zeit = `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    } else { datum = `${m[1]}-${m[2]}-${m[3]}`; if (m[4]) zeit = `${m[4]}:${m[5]}`; }
+    const titel = unesc(e.SUMMARY?.value || '').replace(/^JG Thuine:\s*/i, '') || 'Termin';
+    let desc = unesc(e.DESCRIPTION?.value || '');
+    const t = { uid: e.UID?.value || '', datum, zeit, titel, ort: unesc(e.LOCATION?.value || ''), wiederholt: !!e.RRULE };
+    const low = titel.toLowerCase();
+    t.art = /venslage/.test(low) ? 'venslage' : /treibjagd/.test(low) ? 'treibjagd' : /drück|drueck|ansitz/.test(low) ? 'drueckjagd'
+      : /hauptversammlung|jahreshauptversammlung|\bhv\b|\bjhv\b/.test(low) ? 'hv' : /arbeit|einsatz|hochsitz/.test(low) ? 'arbeit'
+      : /schieß|schiess|schießstand/.test(low) ? 'schiessen' : /jagd|niederwild/.test(low) ? 'jagdtag' : 'sonst';
+    // „Jagdleitung: Name“ / „Organisation: …“ aus der Beschreibung übernehmen
+    const lm = desc.match(/^(?:jagdleitung|jagdleiter|leitung|organisation)\s*:\s*(.+)$/im);
+    if (lm) {
+      const name = lm[1].trim(), nl = name.toLowerCase();
+      const s = state.data.schuetzen.find(x => [x.vollname, x.name].filter(Boolean).some(n => n.toLowerCase() === nl) || (x.vollname && x.vollname.toLowerCase().includes(nl)));
+      if (s) t.leitungId = s.id; else t.leitung = name;
+      desc = desc.replace(lm[0], '').trim();
+    }
+    if (desc) t.besonderheit = desc;
+    if (t.titel.toLowerCase() === (TERMIN_ARTEN[t.art] || '').toLowerCase()) t.titel = '';
+    return t;
+  }).filter(Boolean);
+}
+function pickIcs() {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = '.ics,text/calendar';
+  inp.addEventListener('change', async () => {
+    const f = inp.files[0]; if (!f) return;
+    let list;
+    try { list = parseIcs(await f.text()); } catch { list = []; }
+    if (!list.length) { toast('In der Datei wurden keine Termine gefunden.', 4000); return; }
+    openIcsImport(sortTermine(list));
+  });
+  inp.click();
+}
+function openIcsImport(list) {
+  const heute = todayISO();
+  const vorhanden = t => state.data.termine.some(x => (t.uid && x.uid === t.uid) || (x.datum === t.datum && terminTitel(x).toLowerCase() === terminTitel(t).toLowerCase()));
+  list.forEach((t, i) => { t._i = i; t._dup = vorhanden(t); t._past = t.datum < heute; });
+  const zukunft = list.filter(t => !t._past).length;
+  openSheet(`Termine importieren (${list.length})`, `
+    <p class="hint">Gefunden: ${list.length} Termin${list.length === 1 ? '' : 'e'}${zukunft < list.length ? `, davon ${list.length - zukunft} vergangen (nicht angehakt)` : ''}. Vorhandene Termine sind ebenfalls nicht angehakt. Die Art wird aus dem Titel erraten – nach dem Import über „Bearbeiten“ anpassbar.</p>
+    <div class="card"><ul class="nt-list ics-list">${list.map(t => `
+      <li><label class="check-row">
+        <input type="checkbox" data-icsi="${t._i}" ${!t._past && !t._dup ? 'checked' : ''}>
+        <span><b>${esc(dateDE(t.datum))}${t.zeit ? ` · ${esc(t.zeit)} Uhr` : ''} – ${esc(terminTitel(t))}</b>
+        <small>${esc([TERMIN_ARTEN[t.art], t.ort, terminLeitung(t)].filter(Boolean).join(' · '))}${t._dup ? ' · <b>schon vorhanden</b>' : ''}${t._past ? ' · vergangen' : ''}${t.wiederholt ? ' · Serientermin: nur erster Termin' : ''}</small></span>
+      </label></li>`).join('')}</ul></div>`,
+    `<button class="btn secondary" data-close>Abbrechen</button><button class="btn" id="icsOk">Übernehmen</button>`);
+  const upd = () => { const n = $$('[data-icsi]:checked').length; $('#icsOk').textContent = n ? `${n} übernehmen` : 'Übernehmen'; $('#icsOk').disabled = !n; };
+  $$('[data-icsi]').forEach(c => c.addEventListener('change', upd)); upd();
+  $('#icsOk').addEventListener('click', () => {
+    const pick = $$('[data-icsi]:checked').map(c => list[+c.dataset.icsi]);
+    const stamp = Date.now().toString(36);
+    const neu = pick.map((t, i) => {
+      const rec = { id: `t-${stamp}${i}`, uid: t.uid, datum: t.datum, zeit: t.zeit, art: t.art, titel: t.titel, ort: t.ort, leitungId: t.leitungId, leitung: t.leitung, besonderheit: t.besonderheit };
+      Object.keys(rec).forEach(k => { if (!rec[k]) delete rec[k]; });
+      return rec;
+    });
+    state.data.termine = [...state.data.termine, ...neu];
+    closeSheet(); persist(`${neu.length} Termin(e) aus Kalenderdatei importiert`); renderTermine();
+    toast(`${neu.length} Termin${neu.length === 1 ? '' : 'e'} übernommen ✓`);
+  });
+}
+
 /** Termin als .ics – iPhone öffnet direkt „Zum Kalender hinzufügen“, Android/PC laden die Datei */
 function terminToCalendar(t) {
   const icsEsc = v => String(v || '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/([,;])/g, '\\$1');
@@ -2332,7 +2420,7 @@ function terminToCalendar(t) {
   const lei = terminLeitung(t);
   const desc = [lei ? `${t.leitungId ? 'Jagdleitung' : 'Organisation'}: ${lei}` : '', t.besonderheit].filter(Boolean).join('\n');
   const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//JG Thuine//Streckenbericht//DE', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
-    `UID:${t.id}@jg-thuine`, `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '')}`, start, end,
+    `UID:${t.uid || t.id + '@jg-thuine'}`, `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '')}`, start, end,
     `SUMMARY:${icsEsc('JG Thuine: ' + terminTitel(t))}`, t.ort ? `LOCATION:${icsEsc(t.ort)}` : '', desc ? `DESCRIPTION:${icsEsc(desc)}` : '',
     'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n');
   const blob = new Blob([ics], { type: 'text/calendar' });

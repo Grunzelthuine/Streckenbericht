@@ -429,3 +429,9 @@ fieldset { min-width: 0; max-width: 100%; }
 .st-one { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #view-start .start-tile .st-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .mt-plus { width: 22px; height: 22px; font-size: 17px; vertical-align: 2px; }
+.tm-admin { margin: 0 0 6px; }
+.tm-admin .btn { flex: 1; }
+.ics-list li { padding: 8px 12px; }
+.ics-list .check-row { align-items: flex-start; }
+.ics-list .check-row small { display: block; color: var(--muted); font-size: 12.5px; }
+.ics-list .check-row { border: 0; padding: 0; background: transparent; }
