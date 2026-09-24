@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.10.0';
+const APP_VERSION = '2.10.1';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -643,7 +643,7 @@ function openMeldungen() {
     const m = list.find(x => x.id === b.dataset.mlok); if (!m) return;
     state.pendingMeldung = m.id;
     closeSheet();
-    if (m.typ === 'schalen') openSchalen(null, { datum: m.datum, art: m.art, kat: m.kat, fallwild: !!m.fallwild, schuetze: m.fallwild ? '' : m.von, ursache: m.fallwild ? (m.bemerkung || '') : '', bemerkung: m.fallwild ? '' : (m.bemerkung || '') });
+    if (m.typ === 'schalen') openSchalen(null, { datum: m.datum, art: m.art, kat: m.kat, fallwild: !!m.fallwild, schuetze: m.fallwild ? '' : m.von, ursache: m.fallwild ? (m.bemerkung || '') : '', bemerkung: m.fallwild ? '' : (m.bemerkung || ''), gemeldetVon: m.von });
     else openNachtrag(null, { datum: m.datum, art: m.art, anzahl: m.anzahl, text: [shooterName(m.von), m.bemerkung].filter(Boolean).join(', ') });
   }));
   $$('[data-mlno]').forEach(b => b.addEventListener('click', async () => {
@@ -963,7 +963,7 @@ function renderSchalen() {
   const item = x => `<li${canSchalen() ? ` data-sw="${esc(x.id)}" tabindex="0" role="button"` : ''}>
       <span class="nt-date">${dateDE(x.datum)}</span>
       <span class="nt-what"><b>${esc(katName(x.art, x.kat))}</b> <span class="sub">${SCHALEN[x.art]?.name || ''}</span>
-        <small>${x.fallwild ? `Fallwild${x.ursache ? ` · ${esc(x.ursache)}` : ''}` : esc(shooterName(x.schuetze))}${x.bemerkung ? ` · ${esc(x.bemerkung)}` : ''}${x.von ? ` · eingetragen von ${esc(shooterName(x.von))}` : ''}</small>
+        <small>${x.fallwild ? `Fallwild${x.ursache ? ` · ${esc(x.ursache)}` : ''}` : esc(shooterName(x.schuetze))}${x.bemerkung ? ` · ${esc(x.bemerkung)}` : ''}${x.gemeldetVon ? ` · gemeldet von ${esc(shooterName(x.gemeldetVon))}` : ''}</small>
         ${plan.map[x.id] ? `<small class="wb-tag">🥩 Wildbret: ${esc(gruppeLabel(plan.map[x.id]))}</small>` : ''}</span>
       ${canSchalen() ? '<span class="nt-edit" aria-hidden="true">›</span>' : ''}
     </li>`;
@@ -1043,6 +1043,7 @@ function openSchalen(id, prefill = null) {
       if (x.fallwild) { if (x.ursache) rec.ursache = x.ursache; } else rec.schuetze = x.schuetze;
       if (x.bemerkung) rec.bemerkung = x.bemerkung;
       if (rec.art === 'damm' && !rec.fallwild && x.wildbret) rec.wildbret = x.wildbret;
+      if (x.gemeldetVon) rec.gemeldetVon = x.gemeldetVon;
       rec.von = ex?.von || ich || undefined;
       if (ex && ich && ich !== ex.von) rec.geaendertVon = ich;
       rec.zeit = new Date().toISOString();
