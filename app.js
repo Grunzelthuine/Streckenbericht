@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.9.0';
+const APP_VERSION = '2.10.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -852,6 +852,44 @@ async function migrateWildverteilung() {
   if (list.length && !list.some(x => x.wildbret)) state.data.wildverteilung.anker = { id: list[list.length - 1].id, gruppe: 'g4' };
   await persist('Wildbret-Verteilung Dammwild eingerichtet');
 }
+/* ---------- Sperre Hirschjagd (nach Fehlabschuss, i. d. R. 4 Wochen) ---------- */
+const hirschSperre = () => { const sp = state.data?.hirschSperre; return sp?.bis && sp.bis >= todayISO() ? sp : null; };
+function addDaysISO(iso, n) { const [y, m, d] = iso.split('-').map(Number); const t = new Date(y, m - 1, d + n); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; }
+function sperreBanner() {
+  const sp = hirschSperre(); if (!sp) return '';
+  const [y, m, d] = sp.bis.split('-').map(Number), [ty, tm, td] = todayISO().split('-').map(Number);
+  const rest = Math.round((new Date(y, m - 1, d) - new Date(ty, tm - 1, td)) / 864e5) + 1;
+  return `<div class="sperre" role="alert">
+    <div class="sp-icon" aria-hidden="true">⛔</div>
+    <div><b class="sp-title">Hirschjagd gesperrt</b>
+      <span>bis einschließlich <b>${esc(dateDE(sp.bis, true))}</b> · noch ${rest} Tag${rest === 1 ? '' : 'e'}</span>
+      ${sp.grund ? `<small>${esc(sp.grund)}</small>` : ''}</div>
+  </div>`;
+}
+function openSperre() {
+  const sp = hirschSperre();
+  openSheet('Sperre Hirschjagd', `
+    <p class="hint">Bei einem Fehlabschuss ist die Hirschjagd gesperrt. Der Hinweis erscheint groß auf der Startseite und auf der Seite Reh &amp; Damm und verschwindet nach dem eingestellten Tag von selbst.</p>
+    <label class="field"><span>Gesperrt bis einschließlich</span><input type="date" id="spBis" value="${esc(sp?.bis || addDaysISO(todayISO(), 28))}"></label>
+    <div class="btn-row"><button type="button" class="btn secondary" id="sp4w">Ab heute 4 Wochen</button></div>
+    <label class="field"><span>Hinweis (optional)</span><input id="spGrund" value="${esc(sp?.grund || '')}" placeholder="z. B. Fehlabschuss am 12.10."></label>`,
+    `${sp ? '<button class="btn danger" id="spOff">Sperre aufheben</button>' : '<button class="btn secondary" data-close>Abbrechen</button>'}<button class="btn" id="spOk">${sp ? 'Speichern' : 'Sperre aktivieren'}</button>`);
+  $('#sp4w').addEventListener('click', () => { $('#spBis').value = addDaysISO(todayISO(), 28); });
+  $('#spOk').addEventListener('click', () => {
+    const bis = $('#spBis').value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(bis) || bis < todayISO()) { toast('Bitte ein Datum ab heute wählen.'); return; }
+    state.data.hirschSperre = { bis, seit: sp?.seit || todayISO() };
+    const g = $('#spGrund').value.trim(); if (g) state.data.hirschSperre.grund = g;
+    closeSheet(); persist(`Hirschjagd gesperrt bis ${dateDE(bis)}`); render();
+  });
+  $('#spOff')?.addEventListener('click', e => {
+    const b = e.currentTarget;
+    if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Wirklich aufheben?'; return; }
+    delete state.data.hirschSperre;
+    closeSheet(); persist('Sperre Hirschjagd aufgehoben'); render();
+  });
+}
+
 function wildbretCard() {
   const gs = wvGruppen(), plan = wildbretPlan();
   const last = {}; // Gruppe → letztes Stück
@@ -913,7 +951,8 @@ function renderSchalen() {
   const st = schalenStats(state.season);
   const catTable = art => {
     const t = st.tot(art);
-    const rows = SCHALEN[art].kat.map(([k, lbl]) => { const c = st.cnt[art]?.[k] || { erlegt: 0, fallwild: 0 }; return { lbl, ...c }; });
+    const rows = SCHALEN[art].kat.map(([k, lbl]) => { const c = st.cnt[art]?.[k] || { erlegt: 0, fallwild: 0 }; return { lbl, ...c }; }).filter(r => r.erlegt + r.fallwild);
+    if (!rows.length) return `<p class="sub wb-empty">${SCHALEN[art].name}: in diesem Jagdjahr noch nichts.</p>`;
     return `<div class="table-wrap"><table>
       <thead><tr><th>${SCHALEN[art].name}</th><th>Erlegt</th><th>Fallwild</th><th class="pts">Σ</th></tr></thead>
       <tbody>${rows.map(r => `<tr><td>${esc(r.lbl)}</td><td class="${r.erlegt ? '' : 'zero'}">${r.erlegt}</td><td class="${r.fallwild ? '' : 'zero'}">${r.fallwild}</td><td class="pts ${r.erlegt + r.fallwild ? '' : 'zero'}">${r.erlegt + r.fallwild}</td></tr>`).join('')}</tbody>
@@ -925,12 +964,13 @@ function renderSchalen() {
       <span class="nt-date">${dateDE(x.datum)}</span>
       <span class="nt-what"><b>${esc(katName(x.art, x.kat))}</b> <span class="sub">${SCHALEN[x.art]?.name || ''}</span>
         <small>${x.fallwild ? `Fallwild${x.ursache ? ` · ${esc(x.ursache)}` : ''}` : esc(shooterName(x.schuetze))}${x.bemerkung ? ` · ${esc(x.bemerkung)}` : ''}${x.von ? ` · eingetragen von ${esc(shooterName(x.von))}` : ''}</small>
-        ${plan.map[x.id] ? `<small class="wb-tag">🥩 Wildbret: ${esc(gruppeLabel(plan.map[x.id], true))}</small>` : ''}</span>
+        ${plan.map[x.id] ? `<small class="wb-tag">🥩 Wildbret: ${esc(gruppeLabel(plan.map[x.id]))}</small>` : ''}</span>
       ${canSchalen() ? '<span class="nt-edit" aria-hidden="true">›</span>' : ''}
     </li>`;
   const tr = st.tot('reh'), td = st.tot('damm');
   const shooters = Object.entries(st.perShooter).sort((a, b) => (b[1].reh + b[1].damm) - (a[1].reh + a[1].damm) || shooterName(a[0]).localeCompare(shooterName(b[0]), 'de'));
   el.innerHTML = `
+    ${sperreBanner()}
     <h2 class="section" style="margin-top:2px">Reh- &amp; Dammwildjagd ${esc(state.season)}</h2>
     <div class="stats">
       <div class="card stat"><div class="v">${tr.erlegt + tr.fallwild}</div><div class="l">Rehwild${tr.fallwild ? ` · ${tr.fallwild} Fallwild` : ''}</div></div>
@@ -938,6 +978,7 @@ function renderSchalen() {
       <div class="card stat"><div class="v">${st.fallwild.length}</div><div class="l">Fallwild gesamt</div></div>
     </div>
     ${canSchalen() ? '<button class="btn block" id="btnSchalen">+ Erlegung / Fallwild eintragen</button>' : ''}
+    ${isAdmin() ? `<button class="btn ${hirschSperre() ? 'danger' : 'secondary'} block" id="btnSperre" style="margin-top:8px">${hirschSperre() ? '⛔ Sperre Hirschjagd ändern / aufheben' : 'Hirschjagd sperren (Fehlabschuss)'}</button>` : ''}
     ${state.schalenOps.length ? `<div class="alert">${state.schalenOps.length} Änderung(en) noch nicht hochgeladen.</div>` : ''}
     ${state.season === seasonOf(todayISO()) ? wildbretCard() : ''}
     <h2 class="section">Übersicht ${esc(state.season)}</h2>
@@ -955,6 +996,7 @@ function renderSchalen() {
     <p class="hint" style="text-align:center">Reh- und Dammwild zählt nicht zum Niederwild-Streckenbericht und nicht zum Jagdkönig.</p>`;
   $('#btnSchalen')?.addEventListener('click', () => openSchalen(null));
   $('#wbEdit')?.addEventListener('click', openGruppen);
+  $('#btnSperre')?.addEventListener('click', openSperre);
   $$('[data-sw]', el).forEach(li => li.addEventListener('click', () => openSchalen(li.dataset.sw)));
 }
 
@@ -2148,7 +2190,7 @@ async function exportSchalen(season) {
     y = sectionTitle(doc, 'Erlegt', y);
     doc.autoTable({ ...tableStyle, startY: y,
       head: [['Datum', 'Wildart', 'Kategorie', 'Schütze', 'Wildbret an', 'Bemerkung']],
-      body: st.erlegt.length ? st.erlegt.map(x => [dateDE(x.datum), SCHALEN[x.art].name, katName(x.art, x.kat), shooterName(x.schuetze), plan.map[x.id] ? gruppeLabel(plan.map[x.id], true) : '–', x.bemerkung || '–']) : [[{ content: 'Keine Erlegungen', colSpan: 6 }]],
+      body: st.erlegt.length ? st.erlegt.map(x => [dateDE(x.datum), SCHALEN[x.art].name, katName(x.art, x.kat), shooterName(x.schuetze), plan.map[x.id] ? gruppeLabel(plan.map[x.id]) : '–', x.bemerkung || '–']) : [[{ content: 'Keine Erlegungen', colSpan: 6 }]],
       columnStyles: { 0: { cellWidth: 24 } },
     });
     y = doc.lastAutoTable.finalY + 10;
@@ -2595,6 +2637,7 @@ function renderStart() {
       <img src="icons/logo.png" alt="Jagdgemeinschaft Thuine">
       <p class="sub">Jagdjahr ${esc(state.season)}</p>
     </div>
+    ${sperreBanner()}
     ${isAdmin() && state.meldungen.length ? `<button class="start-tile ml-tile" id="btnMeldungen"><span class="st-title">📬 ${state.meldungen.length} neue Meldung${state.meldungen.length === 1 ? '' : 'en'}</span><span class="st-meta">antippen zum Prüfen und Übernehmen</span><span class="st-go" aria-hidden="true">›</span></button>` : ''}
     ${canMelden() ? `<button class="start-tile melden-tile" id="btnMelden">
       <span class="st-title"><span class="mt-plus" aria-hidden="true">+</span> Wild melden</span>

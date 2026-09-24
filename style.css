@@ -452,3 +452,13 @@ fieldset { min-width: 0; max-width: 100%; }
 .wb-edit select { min-width: 0; width: 100%; }
 .wb-no { font-weight: 700; color: var(--green); text-align: right; }
 .wb-field select { font-weight: 600; }
+
+/* Sperre Hirschjagd */
+.sperre { display: flex; gap: 14px; align-items: center; margin: 12px 0 4px; padding: 16px 18px; border-radius: 18px; background: #a3452f; color: #fff; box-shadow: var(--shadow); }
+.sperre .sp-icon { font-size: 34px; line-height: 1; flex: none; }
+.sperre > div:last-child { display: grid; gap: 3px; min-width: 0; }
+.sperre .sp-title { font: 700 22px/1.15 var(--serif); }
+.sperre span { font-size: 15px; }
+.sperre small { font-size: 13.5px; opacity: .9; overflow-wrap: anywhere; }
+#view-schalen .sperre { margin-top: 0; margin-bottom: 14px; }
+.wb-empty { margin: 6px 2px 14px; }
