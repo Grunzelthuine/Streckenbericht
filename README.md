@@ -50,7 +50,7 @@ Beim Öffnen erscheint die **Startseite** mit dem Logo und zwei Bereichen:
 1. Bei github.com (Konto **Grunzelthuine**) ein neues Repository **`streckenbericht`** anlegen (Public).
 2. Den **Inhalt** dieses Ordners hochladen, also `index.html`, `app.js`, `style.css`, `sw.js`, `manifest.webmanifest` sowie die Ordner `icons/`, `vendor/` und `data/`.
 3. Unter *Settings → Pages* als Quelle „Deploy from a branch“, Branch `main`, Ordner `/ (root)` wählen.
-4. Nach etwa einer Minute ist die App erreichbar unter: **https://grunzelthuine.github.io/streckenbericht/**
+4. Nach etwa einer Minute ist die App erreichbar unter: **https://grunzelthuine.github.io/Streckenbericht/**
 
 Diesen Link bekommen alle Jäger. Auf dem iPhone mit Safari öffnen, dann *Teilen → Zum Home-Bildschirm*.
 
@@ -113,6 +113,13 @@ Die Seite ist außerdem für Suchmaschinen gesperrt („noindex“).
 4. **Deinen Token bearbeiten** und bei Repository access das neue `streckenbericht` auswählen. Tokens sind an das konkrete Repository gebunden, nicht an den Namen.
 5. Für `streckenbericht-schalenwild` gilt dasselbe nur, wenn dort schon vor dem Passwort Einträge gespeichert wurden. Dann müssten allerdings auch die sechs Reh-&-Damm-Tokens auf das neue Repository umgestellt werden.
 
+### 6. Wild melden (alle Jäger → Posteingang)
+Auf der Startseite kann jeder mit dem Passwort ein erlegtes Stück melden. Die Meldungen landen verschlüsselt in einem eigenen Repository, und du übernimmst sie per Knopfdruck.
+1. Neues Repository `Streckenbericht-meldungen` anlegen (Private oder Public, der Inhalt ist verschlüsselt).
+2. Einen Fine-grained Token **nur für dieses Repository** erstellen: *Contents: Read and write*. Ablaufdatum möglichst lang, bei Ablauf neu erstellen und eintragen.
+3. In der App: *Einstellungen → Meldungen*, Token einfügen und übernehmen. Der Token wird verschlüsselt in den Hauptdaten gespeichert und gelangt so automatisch auf alle Geräte. Keiner muss etwas einrichten.
+4. Neue Meldungen erscheinen bei dir auf der Startseite als **„📬 N neue Meldungen“**. „Übernehmen“ öffnet das passende Formular (Nachtrag bzw. Reh- & Dammwild) vorausgefüllt, nach dem Speichern verschwindet die Meldung. Eine Push-Benachrichtigung gibt es nicht.
+
 ## Ablauf am Jagdtag
 1. Die Erlegerliste wie gewohnt am Tisch ausfüllen.
 2. In der App **📷 Erlegerliste fotografieren** antippen.
@@ -122,7 +129,7 @@ Die Seite ist außerdem für Suchmaschinen gesperrt („noindex“).
 Beim Speichern ohne Netz bleiben die Daten auf dem Gerät, und oben erscheint „Erneut senden“.
 
 ## Neue Version einspielen
-Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-1.0.0'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
+Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-2.1.0'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
 
 ## Daten
 Alle Daten liegen in `data/strecke.json`. Jede Speicherung ist ein Commit in GitHub, dadurch gibt es automatisch eine Versionshistorie. Zusätzlich gibt es in den Einstellungen **„Sicherung speichern“ / „Sicherung einspielen“**. Die Sicherung enthält Niederwild und Reh- & Dammwild **unverschlüsselt**, gehört also nur in deinen eigenen Ordner.

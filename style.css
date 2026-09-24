@@ -367,3 +367,7 @@ fieldset { min-width: 0; max-width: 100%; }
 .list-row .icon-btn, .icon-spacer { flex: 0 0 38px; }
 .sh-cfg > * { min-width: 0; }
 .sh-cfg select { max-width: 100%; }
+.ml-tile { margin-top: 12px; border-color: #d8c48f; background: linear-gradient(180deg, #f4ecd0, var(--paper)); }
+.ml-tile .st-title { font-size: 20px; }
+.nt-list li.ml-actions { gap: 8px; padding-top: 0; }
+.nt-list li.ml-actions .btn { flex: 1; min-height: 38px; padding: 6px 10px; }

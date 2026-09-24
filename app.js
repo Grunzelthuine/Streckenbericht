@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '1.9.8';
+const APP_VERSION = '2.1.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -516,6 +516,147 @@ function showSchalenBanner(err) {
   $('#retrySchalen')?.addEventListener('click', () => pushSchalen());
 }
 
+/* ================= Meldungen („Wild melden“) =================
+   Eigenes Repository <repo>-meldungen, Datei meldungen.json (mit dem Passwort verschlüsselt).
+   Der Melde-Zugang (Token nur für dieses Repo) liegt in der verschlüsselten Hauptdatei –
+   nur wer das Passwort kennt, kann melden. */
+const MELD_PATH = 'meldungen.json';
+const meldRepo = () => state.data?.melde?.repo || (state.cfg.repo ? `${state.cfg.repo}-meldungen` : '');
+const meldToken = () => state.data?.melde?.token || '';
+const canMelden = () => !!(meldToken() && state.cfg.owner && meldRepo());
+state.meldungen = [];
+function meldHeaders() { return { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', Authorization: `Bearer ${meldToken()}` }; }
+async function fetchMeldungen() {
+  const r = await fetch(ghFileUrl(meldRepo(), MELD_PATH) + `&t=${Date.now()}`, { headers: meldHeaders(), cache: 'no-store' });
+  if (r.status === 404) return { list: [], sha: undefined };
+  if (!r.ok) throw new Error(`Meldungen: GitHub ${r.status}`);
+  const j = await r.json();
+  const d = await openData(JSON.parse(b64decodeUtf8(j.content)));
+  return { list: Array.isArray(d?.eintraege) ? d.eintraege : [], sha: j.sha };
+}
+/** Änderung sicher anwenden: neuesten Stand holen, Änderung drauf, speichern (bei Konflikt wiederholen) */
+async function changeMeldungen(fn, message) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const { list, sha } = await fetchMeldungen();
+    const next = fn(list);
+    const body = { message, content: b64encodeUtf8(JSON.stringify(await sealData({ version: 1, eintraege: next }), null, 2) + '\n'), branch: state.cfg.branch || 'main' };
+    if (sha) body.sha = sha;
+    const r = await fetch(ghFileUrl(meldRepo(), MELD_PATH, false), { method: 'PUT', headers: { ...meldHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (r.ok) { state.meldungen = next; updateBadge(); return true; }
+    if (r.status === 409 || r.status === 422) continue;
+    throw new Error(r.status === 401 || r.status === 403 || r.status === 404 ? 'Melde-Zugang ungültig – bitte Sebastian Bescheid geben.' : `GitHub ${r.status}`);
+  }
+  throw new Error('Konflikt beim Speichern – bitte nochmal versuchen.');
+}
+async function loadMeldungen() {
+  if (!isAdmin() || !canMelden()) return;
+  try { state.meldungen = (await fetchMeldungen()).list; updateBadge(); if (state.tab === 'start') renderStart(); } catch { /* offline */ }
+}
+/** Zahl der offenen Meldungen am App-Symbol (nur beim Admin) */
+function updateBadge() {
+  if (!isAdmin() || !('setAppBadge' in navigator)) return;
+  const n = state.meldungen.length;
+  (n ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(() => {});
+}
+/* Push über ntfy.sh: geheimer Kanal, gespeichert verschlüsselt in den Hauptdaten.
+   Einfache POST-Anfrage ohne eigene Header → kein CORS-Preflight. Inhalt ohne Namen. */
+const ntfyTopic = () => state.data?.melde?.ntfy || '';
+function newNtfyTopic() {
+  const a = crypto.getRandomValues(new Uint8Array(12));
+  return 'jg-thuine-' + Array.from(a, b => (b % 36).toString(36)).join('');
+}
+async function sendPush(topic, title, message) {
+  if (!topic) return false;
+  const q = new URLSearchParams({ title, tags: 'deer', click: location.origin + location.pathname });
+  try { const r = await fetch(`https://ntfy.sh/${encodeURIComponent(topic)}?${q}`, { method: 'POST', body: message }); return r.ok; }
+  catch { return false; }
+}
+const meldText = m => m.typ === 'schalen'
+  ? `${katName(m.art, m.kat)} (${SCHALEN[m.art]?.name || ''})${m.fallwild ? ' – Fallwild' : ''}`
+  : `${m.anzahl}× ${speciesName(m.art)}`;
+
+function openMelden() {
+  const members = state.data.schuetzen.filter(s => isMember(s, seasonOf(todayISO())));
+  const m = { von: state.cfg.ich && shooterById(state.cfg.ich) ? state.cfg.ich : '', datum: todayISO(), typ: 'nieder', art: 'fuchs', anzahl: 1, sArt: 'reh', kat: 'rehbock', fallwild: false, bemerkung: '' };
+  const draw = () => {
+    const body = `
+      <p class="hint">Deine Meldung geht direkt an Sebastian. Er prüft sie und trägt sie in die Strecke ein.</p>
+      <label class="field"><span>Wer meldet?</span><select id="mlVon"><option value="">Bitte wählen …</option>${members.map(s => `<option value="${esc(s.id)}" ${s.id === m.von ? 'selected' : ''}>${esc(s.vollname || s.name)}</option>`).join('')}</select></label>
+      <label class="field"><span>Datum</span><input type="date" id="mlDate" value="${esc(m.datum)}"></label>
+      <div class="seg seg2" role="radiogroup" aria-label="Bereich">
+        <button type="button" data-mltyp="nieder" class="${m.typ === 'nieder' ? 'on' : ''}">Niederwild</button>
+        <button type="button" data-mltyp="schalen" class="${m.typ === 'schalen' ? 'on' : ''}">Reh / Damm</button>
+      </div>
+      ${m.typ === 'nieder' ? `
+        <label class="field"><span>Wildart</span><select id="mlArt">${species().map(w => `<option value="${w.id}" ${w.id === m.art ? 'selected' : ''}>${esc(w.name)}</option>`).join('')}</select></label>
+        <div class="stepper big-stepper"><span class="lab">Anzahl</span><span class="ctl"><button type="button" id="mlMinus" aria-label="weniger">−</button><output id="mlCount">${m.anzahl}</output><button type="button" id="mlPlus" aria-label="mehr">+</button></span></div>`
+      : `
+        <div class="seg seg2" role="radiogroup" aria-label="Wildart">${Object.entries(SCHALEN).map(([k, v]) => `<button type="button" data-mlsart="${k}" class="${m.sArt === k ? 'on' : ''}">${v.name}</button>`).join('')}</div>
+        <label class="field"><span>Kategorie</span><select id="mlKat">${SCHALEN[m.sArt].kat.map(([k, l]) => `<option value="${k}" ${k === m.kat ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <label class="check-row"><input type="checkbox" id="mlFall" ${m.fallwild ? 'checked' : ''}> <span><b>Fallwild</b><small>z. B. Verkehrsunfall</small></span></label>`}
+      <label class="field"><span>Bemerkung (optional)</span><input type="text" id="mlBem" value="${esc(m.bemerkung)}" placeholder="z. B. Ort, Uhrzeit, Ursache"></label>`;
+    openSheet('Wild melden', body, `<button class="btn secondary" data-close>Abbrechen</button><button class="btn" id="mlSend">Melden</button>`);
+    const sync = () => {
+      m.von = $('#mlVon').value; m.datum = $('#mlDate').value || m.datum; m.bemerkung = $('#mlBem').value.trim();
+      if ($('#mlArt')) m.art = $('#mlArt').value;
+      if ($('#mlKat')) m.kat = $('#mlKat').value;
+      if ($('#mlFall')) m.fallwild = $('#mlFall').checked;
+    };
+    $$('[data-mltyp]').forEach(b => b.addEventListener('click', () => { sync(); m.typ = b.dataset.mltyp; draw(); }));
+    $$('[data-mlsart]').forEach(b => b.addEventListener('click', () => { sync(); if (m.sArt !== b.dataset.mlsart) { m.sArt = b.dataset.mlsart; m.kat = SCHALEN[m.sArt].kat[0][0]; } draw(); }));
+    $('#mlMinus')?.addEventListener('click', () => { m.anzahl = Math.max(1, m.anzahl - 1); $('#mlCount').textContent = m.anzahl; });
+    $('#mlPlus')?.addEventListener('click', () => { m.anzahl++; $('#mlCount').textContent = m.anzahl; });
+    $('#mlSend').addEventListener('click', async e => {
+      sync();
+      if (!m.von) { toast('Bitte auswählen, wer meldet.'); return; }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(m.datum)) { toast('Bitte ein Datum wählen.'); return; }
+      if (!state.cfg.ich) { state.cfg.ich = m.von; lsSet(LS_CFG, state.cfg); }
+      const rec = { id: `m-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, zeit: new Date().toISOString(), von: m.von, datum: m.datum, typ: m.typ };
+      if (m.typ === 'nieder') Object.assign(rec, { art: m.art, anzahl: m.anzahl });
+      else Object.assign(rec, { art: m.sArt, kat: m.kat, fallwild: !!m.fallwild });
+      if (m.bemerkung) rec.bemerkung = m.bemerkung;
+      const btn = e.currentTarget; btn.disabled = true; btn.textContent = 'Wird gesendet …';
+      try {
+        await changeMeldungen(list => [...list, rec], `Meldung: ${meldText(rec)} von ${shooterName(rec.von)}`);
+        closeSheet(); toast('Gemeldet ✓ – danke! Sebastian trägt es ein.', 4000);
+        sendPush(ntfyTopic(), 'Neue Wildmeldung', `${meldText(rec)} am ${dateDE(rec.datum)} – in der App übernehmen`);
+      } catch (err) { btn.disabled = false; btn.textContent = 'Melden'; toast(err.message || 'Senden fehlgeschlagen – Internet prüfen.', 4500); }
+    });
+  };
+  draw();
+}
+
+function openMeldungen() {
+  const list = [...state.meldungen].sort((a, b) => a.zeit.localeCompare(b.zeit));
+  const body = list.length ? `<div class="card"><ul class="nt-list">${list.map(m => `
+      <li>
+        <span class="nt-date">${dateDE(m.datum)}</span>
+        <span class="nt-what"><b>${esc(meldText(m))}</b><small>von ${esc(shooterName(m.von))}${m.bemerkung ? ` · ${esc(m.bemerkung)}` : ''}</small></span>
+      </li>
+      <li class="ml-actions"><button class="btn" data-mlok="${esc(m.id)}">Übernehmen</button><button class="btn danger" data-mlno="${esc(m.id)}">Verwerfen</button></li>`).join('')}</ul></div>
+      <p class="hint">„Übernehmen“ öffnet den Eintrag vorausgefüllt – prüfen und speichern, dann verschwindet die Meldung.</p>`
+    : '<p class="sub" style="text-align:center">Keine offenen Meldungen.</p>';
+  openSheet(`Meldungen (${list.length})`, body, '<button class="btn secondary" data-close>Schließen</button>');
+  $$('[data-mlok]').forEach(b => b.addEventListener('click', () => {
+    const m = list.find(x => x.id === b.dataset.mlok); if (!m) return;
+    state.pendingMeldung = m.id;
+    closeSheet();
+    if (m.typ === 'schalen') openSchalen(null, { datum: m.datum, art: m.art, kat: m.kat, fallwild: !!m.fallwild, schuetze: m.fallwild ? '' : m.von, ursache: m.fallwild ? (m.bemerkung || '') : '', bemerkung: m.fallwild ? '' : (m.bemerkung || '') });
+    else openNachtrag(null, { datum: m.datum, art: m.art, anzahl: m.anzahl, text: [shooterName(m.von), m.bemerkung].filter(Boolean).join(', ') });
+  }));
+  $$('[data-mlno]').forEach(b => b.addEventListener('click', async () => {
+    if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Wirklich?'; return; }
+    try { await changeMeldungen(l => l.filter(x => x.id !== b.dataset.mlno), 'Meldung verworfen'); openMeldungen(); renderStart(); }
+    catch (err) { toast(err.message, 4000); }
+  }));
+}
+/** Nach dem Speichern eines übernommenen Eintrags die Meldung entfernen */
+async function finishMeldung() {
+  const id = state.pendingMeldung; state.pendingMeldung = null;
+  if (!id) return;
+  try { await changeMeldungen(l => l.filter(x => x.id !== id), 'Meldung übernommen'); renderStart(); } catch { toast('Eintrag gespeichert – Meldung bitte manuell verwerfen.', 4000); }
+}
+
 /* ================= Banner ================= */
 function showBanner(html, kind = '') {
   const b = $('#banner'); b.className = 'banner ' + kind; b.innerHTML = html; b.hidden = false;
@@ -713,10 +854,10 @@ function renderSchalen() {
   $('#expSchalen').addEventListener('click', () => exportSchalen(state.season));
 }
 
-function openSchalen(id) {
+function openSchalen(id, prefill = null) {
   const ex = id ? state.schalen.eintraege.find(x => x.id === id) : null;
   const ich = state.cfg.ich && shooterById(state.cfg.ich) ? state.cfg.ich : '';
-  const x = ex ? clone(ex) : { id: null, datum: todayISO(), art: 'reh', kat: 'rehbock', fallwild: false, schuetze: ich, ursache: '', bemerkung: '' };
+  const x = ex ? clone(ex) : Object.assign({ id: null, datum: todayISO(), art: 'reh', kat: 'rehbock', fallwild: false, schuetze: ich, ursache: '', bemerkung: '' }, prefill || {});
   const draw = () => {
     const members = state.data.schuetzen.filter(s => isMember(s, seasonOf(x.datum || todayISO())) || s.id === x.schuetze);
     const body = `
@@ -755,7 +896,7 @@ function openSchalen(id) {
       queueSchalenOp({ type: 'upsert', rec });
       state.season = seasonOf(rec.datum);
       closeSheet(); switchTab('schalen'); render();
-      pushSchalen(`${SCHALEN[rec.art].name}: ${katName(rec.art, rec.kat)}${rec.fallwild ? ' (Fallwild)' : ''} ${dateDE(rec.datum)}${ich ? ` – eingetragen von ${shooterName(ich)}` : ''}`);
+      pushSchalen(`${SCHALEN[rec.art].name}: ${katName(rec.art, rec.kat)}${rec.fallwild ? ' (Fallwild)' : ''} ${dateDE(rec.datum)}${ich ? ` – eingetragen von ${shooterName(ich)}` : ''}`).then(ok => { if (ok) finishMeldung(); });
     });
     $('#swDel')?.addEventListener('click', e => {
       const b = e.currentTarget;
@@ -769,9 +910,9 @@ function openSchalen(id) {
 }
 
 /* ================= Nachträge ================= */
-function openNachtrag(id) {
+function openNachtrag(id, prefill = null) {
   const ex = id ? state.data.nachtraege.find(n => n.id === id) : null;
-  const n = ex ? clone(ex) : { id: null, datum: todayISO(), art: 'taube', anzahl: 1, text: '' };
+  const n = ex ? clone(ex) : Object.assign({ id: null, datum: todayISO(), art: 'taube', anzahl: 1, text: '' }, prefill || {});
   const body = `
     <p class="hint">Nachträge zählen zum Streckenbericht, aber nicht zum Jagdkönig.</p>
     <label class="field"><span>Datum</span><input type="date" id="ntDate" value="${esc(n.datum)}"></label>
@@ -810,7 +951,7 @@ function openNachtrag(id) {
     state.data.nachtraege.push(rec);
     state.season = seasonOf(datum);
     closeSheet(); switchTab('strecke');
-    persist(`Nachtrag: ${count} ${speciesName(art)} (${dateDE(datum)})`);
+    persist(`Nachtrag: ${count} ${speciesName(art)} (${dateDE(datum)})`).then(ok => { if (ok) finishMeldung(); });
   });
   $('#ntDel')?.addEventListener('click', e => {
     const b = e.currentTarget;
@@ -1448,6 +1589,14 @@ function openSettings() {
         <label class="field" style="margin-top:10px"><span>Repository Reh- & Dammwild</span><input id="cfRepo2" value="${esc(c.repo2)}" autocapitalize="off" autocorrect="off"></label>
       </details>` : ''}
     </fieldset>
+    ${isAdmin() ? `<fieldset><legend>Meldungen</legend>
+      <label class="field"><span>Melde-Zugang (Token nur für das Repository „${esc(meldRepo())}“)</span><input id="cfMeldToken" type="password" value="${esc(meldToken())}" placeholder="github_pat_…" autocomplete="off"></label>
+      <p class="hint">Damit können alle Jäger über „Erlegtes Wild melden“ Meldungen an dich schicken. Der Zugang wird verschlüsselt in den gemeinsamen Daten gespeichert – nur wer das Passwort kennt, kann melden. ${canMelden() ? '✓ Aktiv.' : '<b>Noch nicht eingerichtet.</b>'}</p>
+      <label class="field" style="margin-top:10px"><span>Push-Kanal (ntfy)</span><input id="cfNtfy" type="text" value="${esc(ntfyTopic())}" placeholder="leer = keine Push-Nachricht" autocomplete="off" autocapitalize="off" autocorrect="off"></label>
+      <div class="ml-actions"><button type="button" class="btn secondary" id="cfNtfyNew">Kanal erzeugen</button><button type="button" class="btn secondary" id="cfNtfyTest">Test senden</button></div>
+      <p class="hint">In der kostenlosen App <b>ntfy</b> auf „+“ tippen und genau diesen Kanalnamen abonnieren (Server ntfy.sh). Dann kommt bei jeder Meldung eine Push-Nachricht – ohne Namen, nur Wildart und Datum.</p>
+      ${'setAppBadge' in navigator && 'Notification' in window ? `<button type="button" class="btn secondary block" id="cfBadge" style="margin-top:8px">${Notification.permission === 'granted' ? '✓ Zahl am App-Symbol aktiv' : 'Zahl am App-Symbol erlauben'}</button>` : ''}
+    </fieldset>` : ''}
     ${isAdmin() ? `<fieldset><legend>Datenschutz</legend>
       <label class="field"><span>Passwort der Jagdgemeinschaft</span><input id="cfPw" type="text" value="${esc(state.pw)}" placeholder="mind. 6 Zeichen" autocomplete="off" autocapitalize="off" autocorrect="off"></label>
       <p class="hint">${state.pw ? 'Die Daten werden verschlüsselt gespeichert. Alle Jäger brauchen dieses Passwort zum Ansehen.' : '<b>Noch kein Passwort gesetzt – die Daten sind im Klartext lesbar.</b>'} Ändern: neues Passwort eintragen und übernehmen, danach müssen alle Jäger das neue Passwort einmal eingeben. <b>Passwort gut aufbewahren – ohne es sind die Daten nicht mehr lesbar.</b></p>
@@ -1479,6 +1628,16 @@ function openSettings() {
   openSheet('Einstellungen', body, `<button class="btn secondary" data-close>Abbrechen</button><button class="btn" id="cfSave">Übernehmen</button>`);
 
   const removed = new Set();
+  $('#cfNtfyNew')?.addEventListener('click', () => { $('#cfNtfy').value = newNtfyTopic(); toast('Neuer Kanal – jetzt in der ntfy-App abonnieren und „Übernehmen“ tippen.', 4500); });
+  $('#cfNtfyTest')?.addEventListener('click', async () => {
+    const t = $('#cfNtfy').value.trim(); if (!t) { toast('Erst einen Kanal erzeugen.'); return; }
+    toast(await sendPush(t, 'Streckenbericht', 'Test – Push-Nachrichten funktionieren ✓') ? 'Test gesendet – kommt die Nachricht an?' : 'Senden fehlgeschlagen – Internet prüfen.', 4000);
+  });
+  $('#cfBadge')?.addEventListener('click', async e => {
+    const b = e.currentTarget;
+    try { const p = await Notification.requestPermission(); if (p === 'granted') { b.textContent = '✓ Zahl am App-Symbol aktiv'; updateBadge(); } else toast('Nicht erlaubt – änderbar in den Handy-Einstellungen unter Mitteilungen → Strecke.', 4500); }
+    catch { toast('Auf dem iPhone geht das nur in der App vom Home-Bildschirm.', 4000); }
+  });
   $$('[data-wdel]').forEach(b => b.addEventListener('click', () => { removed.add(b.dataset.wdel); b.closest('.list-row').remove(); }));
   $('#cfAddSpecies')?.addEventListener('click', () => {
     const name = $('#cfNewSpecies').value.trim(); if (!name) return;
@@ -1520,6 +1679,14 @@ function openSettings() {
     const newPw = $('#cfPw') ? $('#cfPw').value.trim() : state.pw;
     if (newPw !== state.pw && newPw.length < 6) { toast('Das Passwort muss mindestens 6 Zeichen haben.', 3500); return; }
     const pwChanged = newPw !== state.pw;
+    const newMeld = $('#cfMeldToken') ? $('#cfMeldToken').value.trim() : meldToken();
+    const newNtfy = $('#cfNtfy') ? $('#cfNtfy').value.trim() : ntfyTopic();
+    const meldChanged = newMeld !== meldToken() || newNtfy !== ntfyTopic();
+    if (meldChanged) {
+      state.data.melde = Object.assign({}, state.data.melde, { token: newMeld, ntfy: newNtfy });
+      if (!newMeld) delete state.data.melde.token;
+      if (!newNtfy) delete state.data.melde.ntfy;
+    }
     Object.assign(state.cfg, {
       owner: $('#cfOwner')?.value.trim() ?? state.cfg.owner, repo: $('#cfRepo')?.value.trim() ?? state.cfg.repo, repo2: $('#cfRepo2')?.value.trim() ?? state.cfg.repo2,
       token: $('#cfToken').value.trim(), apiKey: $('#cfKey').value.trim(), model: $('#cfModel').value,
@@ -1547,9 +1714,10 @@ function openSettings() {
     if (pwChanged) {
       await persist('Daten verschlüsselt');
       await pushSchalen('Reh-/Dammwild verschlüsselt', true);
+      if (canMelden()) { try { await changeMeldungen(l => l, 'Meldungen neu verschlüsselt'); } catch { /* egal */ } }
       state.pwOld = '';
       toast('Daten sind jetzt mit dem Passwort verschlüsselt.', 4000);
-    } else if (JSON.stringify({ s: state.data.schuetzen, w: state.data.wildarten }) !== before) await persist('Schützen/Punkte geändert');
+    } else if (meldChanged || JSON.stringify({ s: state.data.schuetzen, w: state.data.wildarten }) !== before) { await persist(meldChanged ? 'Melde-Zugang geändert' : 'Schützen/Punkte geändert'); loadMeldungen(); }
     else { render(); if (state.pending) pushRemote(); else load(); }
   });
 }
@@ -1945,9 +2113,13 @@ function renderStart() {
       <span class="st-meta">Rehwild ${reh.erlegt + reh.fallwild} · Dammwild ${damm.erlegt + damm.fallwild}${sw.fallwild.length ? ` · davon ${sw.fallwild.length} Fallwild` : ''}</span>
       <span class="st-go" aria-hidden="true">›</span>
     </button>
-    <button class="btn secondary block" id="expGesamt" style="margin-top:16px">⤓ Gesamtstreckenbericht ${esc(state.season)} (PDF)</button>
+    ${isAdmin() && state.meldungen.length ? `<button class="start-tile ml-tile" id="btnMeldungen"><span class="st-title">📬 ${state.meldungen.length} neue Meldung${state.meldungen.length === 1 ? '' : 'en'}</span><span class="st-meta">antippen zum Prüfen und Übernehmen</span><span class="st-go" aria-hidden="true">›</span></button>` : ''}
+    ${canMelden() ? '<button class="btn block" id="btnMelden" style="margin-top:16px">+ Erlegtes Wild melden</button>' : ''}
+    <button class="btn secondary block" id="expGesamt" style="margin-top:12px">⤓ Gesamtstreckenbericht ${esc(state.season)} (PDF)</button>
     <p class="hint" style="text-align:center">Niederwild und Schalenwild – jeweils nur die Gesamtstrecke.</p>`;
   $('#expGesamt').addEventListener('click', () => exportGesamt(state.season));
+  $('#btnMelden')?.addEventListener('click', openMelden);
+  $('#btnMeldungen')?.addEventListener('click', openMeldungen);
   $$('[data-go]', el).forEach(b => b.addEventListener('click', () => switchTab(b.dataset.go)));
 }
 $$('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));
@@ -1959,7 +2131,7 @@ $('#forgotPw')?.addEventListener('click', openReset);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState !== 'visible' || !$('#sheet').hidden) return;
   if (!state.pending) load();
-  loadSchalen();
+  loadSchalen(); loadMeldungen();
 });
 
 /* ================= Service Worker (Update-Hinweis) ================= */
@@ -1988,5 +2160,5 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
 }
 
 try { history.replaceState({ sb: 0 }, ''); } catch { /* egal */ }
-load().then(loadSchalen);
+load().then(() => { loadSchalen(); loadMeldungen(); });
 switchTab('start');
