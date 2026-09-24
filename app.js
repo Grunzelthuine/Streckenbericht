@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.1.0';
+const APP_VERSION = '2.2.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -961,12 +961,39 @@ function openNachtrag(id, prefill = null) {
   });
 }
 
+/* Jagdkönig des laufenden Jagdjahres: nur Admin sieht ihn, bis er freigegeben wird.
+   Vergangene Jagdjahre sind immer sichtbar. */
+const koenigGesperrt = season => season === seasonOf(todayISO()) && !state.data?.koenigFrei?.[season];
+function koenigFreigabeCard(season) {
+  const zu = koenigGesperrt(season);
+  return `<div class="card pad kf-card ${zu ? 'zu' : 'frei'}">
+    <div><b>${zu ? '🔒 Nur für dich sichtbar' : '👁 Für alle sichtbar'}</b><small>${zu ? 'Die anderen sehen den Jagdkönig ' + esc(season) + ' erst nach der Freigabe.' : 'Alle Jäger sehen die Rangliste ' + esc(season) + '.'}</small></div>
+    <button class="btn ${zu ? '' : 'secondary'}" id="kfToggle">${zu ? 'Für alle freigeben' : 'Wieder sperren'}</button>
+  </div>`;
+}
+function wireKoenigFreigabe(season) {
+  $('#kfToggle')?.addEventListener('click', async e => {
+    const b = e.currentTarget, zu = koenigGesperrt(season);
+    if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = zu ? 'Wirklich freigeben?' : 'Wirklich sperren?'; return; }
+    state.data.koenigFrei = Object.assign({}, state.data.koenigFrei);
+    if (zu) state.data.koenigFrei[season] = true; else delete state.data.koenigFrei[season];
+    renderKoenig();
+    await persist(zu ? `Jagdkönig ${season} freigegeben` : `Jagdkönig ${season} gesperrt`);
+    toast(zu ? 'Jagdkönig ist jetzt für alle sichtbar.' : 'Jagdkönig ist wieder nur für dich sichtbar.', 3500);
+  });
+}
 function renderKoenig() {
   const el = $('#view-koenig');
   const st = seasonStats(state.season);
   const rk = st.ranking;
+  if (koenigGesperrt(state.season) && !isAdmin()) {
+    el.innerHTML = `<div class="card pad empty"><img src="icons/logo.png" alt=""><p><b>Der Jagdkönig ${esc(state.season)} ist noch geheim.</b></p><p class="sub">Die Rangliste wird von Sebastian freigegeben. Die Jagdkönige der vergangenen Jagdjahre kannst du oben über die Auswahl des Jagdjahres ansehen.</p></div>`;
+    return;
+  }
+  const kf = isAdmin() && state.season === seasonOf(todayISO()) ? koenigFreigabeCard(state.season) : '';
   if (!rk.length) {
-    el.innerHTML = `<div class="card pad empty"><img src="icons/logo.png" alt=""><p>Noch keine Punkte im Jagdjahr ${esc(state.season)}.</p></div>`;
+    el.innerHTML = kf + `<div class="card pad empty"><img src="icons/logo.png" alt=""><p>Noch keine Punkte im Jagdjahr ${esc(state.season)}.</p></div>`;
+    wireKoenigFreigabe(state.season);
     return;
   }
   const byRank = r => rk.filter(x => x.rank === r);
@@ -983,7 +1010,7 @@ function renderKoenig() {
   };
   const max = rk[0].punkte || 1;
   const last = st.days[st.days.length - 1];
-  let html = `
+  let html = kf + `
     <div class="sub" style="text-align:center">Stand nach ${st.days.length} Jagdtag${st.days.length === 1 ? '' : 'en'}${last ? ` · zuletzt ${dateDE(last.datum)}` : ''}</div>
     <div class="podium">${pod(ranks[1], 'p2')}${pod(ranks[0], 'p1')}${pod(ranks[2], 'p3')}</div>
     <h2 class="section">Rangliste ${esc(state.season)}</h2>
@@ -1009,6 +1036,7 @@ function renderKoenig() {
     <div class="btn-row"><button class="btn secondary" id="expKoenig">⤓ Jagdkönig-Übersicht als PDF</button></div>`;
   el.innerHTML = html;
   $('#expKoenig').addEventListener('click', () => exportKoenig(state.season));
+  wireKoenigFreigabe(state.season);
 }
 
 /* ================= Sheet ================= */

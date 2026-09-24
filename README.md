@@ -118,7 +118,11 @@ Auf der Startseite kann jeder mit dem Passwort ein erlegtes Stück melden. Die M
 1. Neues Repository `Streckenbericht-meldungen` anlegen (Private oder Public, der Inhalt ist verschlüsselt).
 2. Einen Fine-grained Token **nur für dieses Repository** erstellen: *Contents: Read and write*. Ablaufdatum möglichst lang, bei Ablauf neu erstellen und eintragen.
 3. In der App: *Einstellungen → Meldungen*, Token einfügen und übernehmen. Der Token wird verschlüsselt in den Hauptdaten gespeichert und gelangt so automatisch auf alle Geräte. Keiner muss etwas einrichten.
-4. Neue Meldungen erscheinen bei dir auf der Startseite als **„📬 N neue Meldungen“**. „Übernehmen“ öffnet das passende Formular (Nachtrag bzw. Reh- & Dammwild) vorausgefüllt, nach dem Speichern verschwindet die Meldung. Eine Push-Benachrichtigung gibt es nicht.
+4. Neue Meldungen erscheinen bei dir auf der Startseite als **„📬 N neue Meldungen“**. „Übernehmen“ öffnet das passende Formular (Nachtrag bzw. Reh- & Dammwild) vorausgefüllt, nach dem Speichern verschwindet die Meldung. 5. **Push aufs Handy (optional):** App *ntfy* installieren (kostenlos, kein Konto). In der Streckenbericht-App unter *Einstellungen → Meldungen* auf „Kanal erzeugen“ tippen, dann „Übernehmen“. In ntfy auf „+“ tippen und genau diesen Kanalnamen abonnieren (Server ntfy.sh). Mit „Test senden“ prüfen. Die Nachricht enthält nur Wildart und Datum, keine Namen.
+6. **Zahl am App-Symbol (optional):** „Zahl am App-Symbol erlauben“ antippen und die Mitteilungen erlauben. Die Zahl aktualisiert sich, sobald die App geöffnet wird.
+
+## Jagdkönig freigeben
+Den Jagdkönig des **laufenden** Jagdjahres sieht zunächst nur der Admin. Auf der Seite Jagdkönig zeigt die Karte „🔒 Nur für dich sichtbar“ den Knopf **„Für alle freigeben“** (zweimal tippen). Mit „Wieder sperren“ lässt sich das zurücknehmen. Vergangene Jagdjahre sind immer für alle sichtbar. Die Jagdtage mit Tageskönigen bleiben sichtbar.
 
 ## Ablauf am Jagdtag
 1. Die Erlegerliste wie gewohnt am Tisch ausfüllen.
@@ -129,7 +133,7 @@ Auf der Startseite kann jeder mit dem Passwort ein erlegtes Stück melden. Die M
 Beim Speichern ohne Netz bleiben die Daten auf dem Gerät, und oben erscheint „Erneut senden“.
 
 ## Neue Version einspielen
-Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-2.1.0'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
+Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-2.2.0'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
 
 ## Daten
 Alle Daten liegen in `data/strecke.json`. Jede Speicherung ist ein Commit in GitHub, dadurch gibt es automatisch eine Versionshistorie. Zusätzlich gibt es in den Einstellungen **„Sicherung speichern“ / „Sicherung einspielen“**. Die Sicherung enthält Niederwild und Reh- & Dammwild **unverschlüsselt**, gehört also nur in deinen eigenen Ordner.
