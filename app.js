@@ -1,4 +1,4 @@
-/* Streckenbericht · Jagdgemeinschaft Thuine
+/* Jagd Thuine · App der Jagdgemeinschaft Thuine
  * Daten liegen als data/strecke.json im GitHub-Repo.
  * Lesen: öffentlich (GitHub-API bzw. Pages-Datei). Schreiben: nur mit GitHub-Token (Einstellungen).
  * Foto-Auswertung: Anthropic-API mit eigenem Schlüssel (nur auf dem Gerät gespeichert).
@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.7.0';
+const APP_VERSION = '2.8.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -117,7 +117,7 @@ function ensureLockDom() {
   document.body.insertAdjacentHTML('beforeend', `<div id="lock" class="lock" hidden>
     <form class="lock-box" id="lockForm" autocomplete="off">
       <img src="icons/logo.png" alt="Jagdgemeinschaft Thuine">
-      <h2>Streckenbericht</h2>
+      <h2>Jagd Thuine</h2>
       <p id="lockMsg" class="sub">Bitte das Passwort der Jagdgemeinschaft eingeben.</p>
       <input type="password" id="lockPw" placeholder="Passwort" autocomplete="current-password" aria-label="Passwort">
       <button class="btn block" id="lockBtn" type="submit">Öffnen</button>
@@ -1658,7 +1658,7 @@ function openSettings() {
   $('#cfNtfyNew')?.addEventListener('click', () => { $('#cfNtfy').value = newNtfyTopic(); toast('Neuer Kanal – jetzt in der ntfy-App abonnieren und „Übernehmen“ tippen.', 4500); });
   $('#cfNtfyTest')?.addEventListener('click', async () => {
     const t = $('#cfNtfy').value.trim(); if (!t) { toast('Erst einen Kanal erzeugen.'); return; }
-    toast(await sendPush(t, 'Streckenbericht', 'Test – Push-Nachrichten funktionieren ✓') ? 'Test gesendet – kommt die Nachricht an?' : 'Senden fehlgeschlagen – Internet prüfen.', 4000);
+    toast(await sendPush(t, 'Jagd Thuine', 'Test – Push-Nachrichten funktionieren ✓') ? 'Test gesendet – kommt die Nachricht an?' : 'Senden fehlgeschlagen – Internet prüfen.', 4000);
   });
   $('#cfBadge')?.addEventListener('click', async e => {
     const b = e.currentTarget;
@@ -1766,7 +1766,7 @@ function makeBackup() {
 }
 function saveBackup() {
   const blob = new Blob([JSON.stringify(makeBackup(), null, 2)], { type: 'application/json' });
-  shareOrDownload(blob, `Streckenbericht_Sicherung_${todayISO()}.json`);
+  shareOrDownload(blob, `JagdThuine_Sicherung_${todayISO()}.json`);
 }
 /** Liest Sicherung (neues Format oder alte reine Niederwild-Datei) */
 function parseBackup(obj) {
@@ -1899,7 +1899,7 @@ function pdfFooter(doc) {
   const n = doc.getNumberOfPages();
   for (let i = 1; i <= n; i++) {
     doc.setPage(i); doc.setFontSize(8); doc.setTextColor(...PDF.muted);
-    doc.text(`Streckenbericht · Jagdgemeinschaft Thuine`, 14, 290);
+    doc.text(`Jagdgemeinschaft Thuine · App „Jagd Thuine“`, 14, 290);
     doc.text(`Seite ${i} von ${n}`, 196, 290, { align: 'right' });
   }
 }
@@ -2419,7 +2419,7 @@ function terminToCalendar(t) {
   }
   const lei = terminLeitung(t);
   const desc = [lei ? `${t.leitungId ? 'Jagdleitung' : 'Organisation'}: ${lei}` : '', t.besonderheit].filter(Boolean).join('\n');
-  const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//JG Thuine//Streckenbericht//DE', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
+  const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//JG Thuine//Jagd Thuine//DE', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
     `UID:${t.uid || t.id + '@jg-thuine'}`, `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '')}`, start, end,
     `SUMMARY:${icsEsc('JG Thuine: ' + terminTitel(t))}`, t.ort ? `LOCATION:${icsEsc(t.ort)}` : '', desc ? `DESCRIPTION:${icsEsc(desc)}` : '',
     'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n');

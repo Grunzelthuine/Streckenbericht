@@ -1,7 +1,7 @@
 {
-  "name": "Streckenbericht – Jagdgemeinschaft Thuine",
-  "short_name": "Strecke",
-  "description": "Streckenbericht, Gesamtstrecke und Jagdkönig der Jagdgemeinschaft Thuine",
+  "name": "Jagd Thuine",
+  "short_name": "Jagd Thuine",
+  "description": "App der Jagdgemeinschaft Thuine: Strecke, Jagdkönig, Reh- & Dammwild, Termine, Meldungen und Berichte",
   "lang": "de",
   "start_url": "./",
   "scope": "./",

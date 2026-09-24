@@ -1,4 +1,6 @@
-# Streckenbericht – Jagdgemeinschaft Thuine
+# Jagd Thuine – App der Jagdgemeinschaft Thuine
+
+(früher „Streckenbericht“; Adresse und Repository heißen weiterhin `Streckenbericht`)
 
 Web-App (PWA) für die Erlegerliste. Du erfasst die Jagdtage, alle anderen sehen den aktuellen Stand über einen Link.
 
@@ -145,7 +147,7 @@ Beim Speichern ohne Netz bleiben die Daten auf dem Gerät, und oben erscheint �
 `index.html` enthält eine CSP als `<meta>`-Tag (GitHub Pages kann keine eigenen Header setzen). Erlaubt sind nur die eigene Seite sowie Verbindungen zu api.github.com, raw.githubusercontent.com, api.anthropic.com und ntfy.sh. Inline-Skripte und fremde Skripte werden blockiert. **Wird ein neuer externer Dienst eingebaut, muss er in `connect-src` ergänzt werden**, sonst blockiert der Browser ihn.
 
 ## Neue Version einspielen
-Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-2.7.0'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
+Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-2.8.0'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
 
 ## Daten
 Alle Daten liegen in `data/strecke.json`. Jede Speicherung ist ein Commit in GitHub, dadurch gibt es automatisch eine Versionshistorie. Zusätzlich gibt es in den Einstellungen **„Sicherung speichern“ / „Sicherung einspielen“**. Die Sicherung enthält Niederwild und Reh- & Dammwild **unverschlüsselt**, gehört also nur in deinen eigenen Ordner.
