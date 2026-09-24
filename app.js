@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.5.0';
+const APP_VERSION = '2.5.1';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -1843,9 +1843,11 @@ function openReset() {
 }
 
 /* ================= Teilen / Download ================= */
+/** Handy/Tablet? Nur dort das Teilen-Menü nutzen – am PC (Windows/Mac) bietet es kein „Speichern“, dort direkt herunterladen */
+const isMobileDevice = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 async function shareOrDownload(blob, filename) {
   const file = new File([blob], filename, { type: blob.type });
-  if (navigator.canShare?.({ files: [file] })) {
+  if (isMobileDevice() && navigator.canShare?.({ files: [file] })) {
     try { await navigator.share({ files: [file] }); return; } // nur die Datei teilen – ein Titel/Text erzeugt auf dem iPhone eine zusätzliche „Text.txt“
     catch (e) { if (e.name === 'AbortError') return; }
   }
