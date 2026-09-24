@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.10.1';
+const APP_VERSION = '2.11.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -890,6 +890,10 @@ function openSperre() {
   });
 }
 
+/** Rehwild: Wildbret an den Schützen oder an die Jagdgemeinschaft */
+const rehWildbretLabel = x => x.wildbret === 'jg' ? 'Jagdgemeinschaft' : x.wildbret === 'schuetze' ? `Schütze (${shooterName(x.schuetze)})` : '';
+const wildbretText = (x, plan) => x.art === 'reh' ? rehWildbretLabel(x) : (plan.map[x.id] ? gruppeLabel(plan.map[x.id]) : '');
+
 function wildbretCard() {
   const gs = wvGruppen(), plan = wildbretPlan();
   const last = {}; // Gruppe → letztes Stück
@@ -964,7 +968,7 @@ function renderSchalen() {
       <span class="nt-date">${dateDE(x.datum)}</span>
       <span class="nt-what"><b>${esc(katName(x.art, x.kat))}</b> <span class="sub">${SCHALEN[x.art]?.name || ''}</span>
         <small>${x.fallwild ? `Fallwild${x.ursache ? ` · ${esc(x.ursache)}` : ''}` : esc(shooterName(x.schuetze))}${x.bemerkung ? ` · ${esc(x.bemerkung)}` : ''}${x.gemeldetVon ? ` · gemeldet von ${esc(shooterName(x.gemeldetVon))}` : ''}</small>
-        ${plan.map[x.id] ? `<small class="wb-tag">🥩 Wildbret: ${esc(gruppeLabel(plan.map[x.id]))}</small>` : ''}</span>
+        ${wildbretText(x, plan) ? `<small class="wb-tag">🥩 Wildbret: ${esc(wildbretText(x, plan))}</small>` : ''}</span>
       ${canSchalen() ? '<span class="nt-edit" aria-hidden="true">›</span>' : ''}
     </li>`;
   const tr = st.tot('reh'), td = st.tot('damm');
@@ -1005,7 +1009,7 @@ function openSchalen(id, prefill = null) {
   const ich = state.cfg.ich && shooterById(state.cfg.ich) ? state.cfg.ich : '';
   const x = ex ? clone(ex) : Object.assign({ id: null, datum: todayISO(), art: 'reh', kat: 'rehbock', fallwild: false, schuetze: ich, ursache: '', bemerkung: '' }, prefill || {});
   const planAtOpen = wildbretPlan();
-  if (!x.wildbret) x.wildbret = (ex && planAtOpen.map[ex.id]) || planAtOpen.next;
+  if (!x.wildbret || (x.art === 'damm' && ['schuetze', 'jg'].includes(x.wildbret))) x.wildbret = x.art === 'reh' ? (ex ? '' : 'schuetze') : ((ex && planAtOpen.map[ex.id]) || planAtOpen.next);
   const draw = () => {
     const members = state.data.schuetzen.filter(s => isMember(s, seasonOf(x.datum || todayISO())) || s.id === x.schuetze);
     const body = `
@@ -1018,6 +1022,11 @@ function openSchalen(id, prefill = null) {
       ${x.fallwild
         ? `<label class="field"><span>Ursache (optional)</span><input type="text" id="swUrs" list="swUrsList" value="${esc(x.ursache || '')}" placeholder="z. B. Verkehrsunfall"><datalist id="swUrsList">${FALLWILD_URSACHEN.map(u => `<option value="${u}">`).join('')}</datalist></label>`
         : `<label class="field"><span>Schütze</span><select id="swSchuetze"><option value="">Schütze wählen …</option>${members.map(s => `<option value="${esc(s.id)}" ${s.id === x.schuetze ? 'selected' : ''}>${esc(s.vollname || s.name)}</option>`).join('')}</select></label>`}
+      ${x.art === 'reh' && !x.fallwild ? `<div class="field wb-field"><span>🥩 Wildbret geht an</span>
+        <div class="seg seg2" role="radiogroup" aria-label="Wildbret">
+          <button type="button" data-rwb="schuetze" class="${x.wildbret === 'schuetze' ? 'on' : ''}">den Schützen</button>
+          <button type="button" data-rwb="jg" class="${x.wildbret === 'jg' ? 'on' : ''}">die Jagdgemeinschaft</button>
+        </div></div>` : ''}
       ${x.art === 'damm' && !x.fallwild ? `<label class="field wb-field"><span>🥩 Wildbret geht an${!ex ? ' (der Reihe nach)' : ''}</span><select id="swWb">
         ${wvGruppen().map(g => `<option value="${g.id}" ${g.id === x.wildbret ? 'selected' : ''}>${esc(gruppeLabel(g.id))}${g.id === planAtOpen.next && !ex ? ' – ist dran' : ''}</option>`).join('')}
         <option value="keine" ${x.wildbret === 'keine' ? 'selected' : ''}>– keine Verteilung (z. B. nicht verwertbar) –</option></select></label>` : ''}
@@ -1032,7 +1041,8 @@ function openSchalen(id, prefill = null) {
       if ($('#swUrs')) x.ursache = $('#swUrs').value.trim();
       if ($('#swWb')) x.wildbret = $('#swWb').value;
     };
-    $$('[data-swart]').forEach(b => b.addEventListener('click', () => { sync(); if (x.art !== b.dataset.swart) { x.art = b.dataset.swart; x.kat = SCHALEN[x.art].kat[0][0]; } draw(); }));
+    $$('[data-swart]').forEach(b => b.addEventListener('click', () => { sync(); if (x.art !== b.dataset.swart) { x.art = b.dataset.swart; x.kat = SCHALEN[x.art].kat[0][0]; x.wildbret = x.art === 'reh' ? 'schuetze' : planAtOpen.next; } draw(); }));
+    $$('[data-rwb]').forEach(b => b.addEventListener('click', () => { sync(); x.wildbret = b.dataset.rwb; draw(); }));
     $('#swFall').addEventListener('change', e => { sync(); x.fallwild = e.target.checked; draw(); });
     $('#swDate').addEventListener('change', () => { sync(); draw(); });
     $('#swSave').addEventListener('click', () => {
@@ -1042,7 +1052,7 @@ function openSchalen(id, prefill = null) {
       const rec = { id: ex?.id || `sw-${Date.now().toString(36)}`, datum: x.datum, art: x.art, kat: x.kat, fallwild: !!x.fallwild };
       if (x.fallwild) { if (x.ursache) rec.ursache = x.ursache; } else rec.schuetze = x.schuetze;
       if (x.bemerkung) rec.bemerkung = x.bemerkung;
-      if (rec.art === 'damm' && !rec.fallwild && x.wildbret) rec.wildbret = x.wildbret;
+      if (!rec.fallwild && x.wildbret && (rec.art === 'damm' ? !['schuetze', 'jg'].includes(x.wildbret) : ['schuetze', 'jg'].includes(x.wildbret))) rec.wildbret = x.wildbret;
       if (x.gemeldetVon) rec.gemeldetVon = x.gemeldetVon;
       rec.von = ex?.von || ich || undefined;
       if (ex && ich && ich !== ex.von) rec.geaendertVon = ich;
@@ -2191,7 +2201,7 @@ async function exportSchalen(season) {
     y = sectionTitle(doc, 'Erlegt', y);
     doc.autoTable({ ...tableStyle, startY: y,
       head: [['Datum', 'Wildart', 'Kategorie', 'Schütze', 'Wildbret an', 'Bemerkung']],
-      body: st.erlegt.length ? st.erlegt.map(x => [dateDE(x.datum), SCHALEN[x.art].name, katName(x.art, x.kat), shooterName(x.schuetze), plan.map[x.id] ? gruppeLabel(plan.map[x.id]) : '–', x.bemerkung || '–']) : [[{ content: 'Keine Erlegungen', colSpan: 6 }]],
+      body: st.erlegt.length ? st.erlegt.map(x => [dateDE(x.datum), SCHALEN[x.art].name, katName(x.art, x.kat), shooterName(x.schuetze), wildbretText(x, plan) || '–', x.bemerkung || '–']) : [[{ content: 'Keine Erlegungen', colSpan: 6 }]],
       columnStyles: { 0: { cellWidth: 24 } },
     });
     y = doc.lastAutoTable.finalY + 10;

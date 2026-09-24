@@ -1,7 +1,7 @@
 /* Service Worker – Jagd Thuine (JG Thuine)
  * Bei jeder Änderung an App-Dateien VERSION erhöhen → Nutzer bekommen den Hinweis „Neue Version“.
  */
-const VERSION = 'sb-2.10.1';
+const VERSION = 'sb-2.11.0';
 const SHELL = [
   './', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest',
   'icons/logo.png', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png',
