@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.2.0';
+const APP_VERSION = '2.3.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -681,6 +681,7 @@ function render() {
   const sel = $('#seasonSelect');
   sel.innerHTML = seasons.map(s => `<option value="${s}" ${s === state.season ? 'selected' : ''}>${s}</option>`).join('');
   renderTage(); renderStrecke(); renderKoenig(); renderSchalen(); renderStart();
+  if (state.tab === 'berichte') renderBerichte();
 }
 
 function chipsFor(perSpecies, perHund = {}) {
@@ -698,7 +699,9 @@ function renderTage() {
     <div class="stats">
       <div class="card stat"><div class="v">${st.days.length}</div><div class="l">Jagdtage</div></div>
       <div class="card stat"><div class="v">${st.total}</div><div class="l">Stück Strecke</div></div>
-      <div class="card stat leader"><div class="v">${leader ? `<span class="crown">♛</span> ${names(leaders.map(l => l.id))}` : '–'}</div><div class="l">${leader ? `führt mit ${fmt(leader.punkte)} Pkt.` : 'Jagdkönig'}</div></div>
+      ${koenigGesperrt(state.season) && !isAdmin()
+        ? `<div class="card stat leader"><div class="v">🔒</div><div class="l">Jagdkönig noch geheim</div></div>`
+        : `<div class="card stat leader"><div class="v">${leader ? `<span class="crown">♛</span> ${names(leaders.map(l => l.id))}` : '–'}</div><div class="l">${leader ? `führt mit ${fmt(leader.punkte)} Pkt.` : 'Jagdkönig'}</div></div>`}
     </div>`;
   if (isAdmin()) {
     html += `<div class="btn-row">
@@ -748,7 +751,6 @@ function renderStrecke() {
         return `<div class="card sp ${n ? '' : 'zero'}"><div class="n">${n}</div><div class="t">${esc(w.name)}</div>${nt ? `<div class="p">davon ${nt} Nachtrag</div>` : ''}</div>`;
       }).join('')}
     </div>
-    <div class="btn-row"><button class="btn secondary" id="expStrecke">⤓ Streckenbericht als PDF</button></div>
     <h2 class="section">Nachträge ${esc(state.season)}</h2>
     <p class="hint">Wild, das außerhalb der Jagdtage erlegt wurde (z. B. Tauben, Krähen, Fuchs). Es zählt zur Strecke, aber nicht zum Jagdkönig.</p>
     ${isAdmin() ? '<button class="btn block" id="btnNachtrag">+ Wild nachtragen</button>' : ''}
@@ -773,7 +775,6 @@ function renderStrecke() {
     </table></div>`;
   }
   el.innerHTML = html;
-  $('#expStrecke').addEventListener('click', () => exportStrecke(state.season));
   $('#btnNachtrag')?.addEventListener('click', () => openNachtrag(null));
   $$('[data-nt]', el).forEach(li => li.addEventListener('click', () => openNachtrag(li.dataset.nt)));
 }
@@ -847,11 +848,9 @@ function renderSchalen() {
       <thead><tr><th>Schütze</th><th>Reh</th><th>Damm</th><th>Was / wann</th></tr></thead>
       <tbody>${shooters.map(([id, p]) => `<tr><td>${esc(shooterName(id))}</td><td class="${p.reh ? '' : 'zero'}">${p.reh}</td><td class="${p.damm ? '' : 'zero'}">${p.damm}</td><td class="wrap">${p.list.map(x => `${esc(katName(x.art, x.kat))} (${dateDE(x.datum).slice(0, 6)})`).join(', ')}</td></tr>`).join('')}</tbody>
     </table></div>` : ''}
-    <div class="btn-row"><button class="btn secondary" id="expSchalen">⤓ Reh- &amp; Dammwild als PDF</button></div>
     <p class="hint" style="text-align:center">Reh- und Dammwild zählt nicht zum Niederwild-Streckenbericht und nicht zum Jagdkönig.</p>`;
   $('#btnSchalen')?.addEventListener('click', () => openSchalen(null));
   $$('[data-sw]', el).forEach(li => li.addEventListener('click', () => openSchalen(li.dataset.sw)));
-  $('#expSchalen').addEventListener('click', () => exportSchalen(state.season));
 }
 
 function openSchalen(id, prefill = null) {
@@ -1032,10 +1031,8 @@ function renderKoenig() {
         </li>`;
       }).join('')}
     </ol></div>
-    <p class="hint" style="text-align:center">Punkte: ${species().map(w => `${esc(w.name)} ${fmt(w.punkte)}`).join(' · ')}. Vom Hund gegriffenes Wild zählt zur Strecke, bringt aber keine Punkte.</p>
-    <div class="btn-row"><button class="btn secondary" id="expKoenig">⤓ Jagdkönig-Übersicht als PDF</button></div>`;
+    <p class="hint" style="text-align:center">Punkte: ${species().map(w => `${esc(w.name)} ${fmt(w.punkte)}`).join(' · ')}. Vom Hund gegriffenes Wild zählt zur Strecke, bringt aber keine Punkte.</p>`;
   el.innerHTML = html;
-  $('#expKoenig').addEventListener('click', () => exportKoenig(state.season));
   wireKoenigFreigabe(state.season);
 }
 
@@ -2104,7 +2101,7 @@ async function exportGesamt(season) {
 
 /* ================= Navigation ================= */
 /** Bereiche: Start → Niederwild (Strecke, Jagdtage, Jagdkönig) oder Schalenwild (Reh & Damm) */
-const sectionOf = tab => tab === 'start' ? 'start' : tab === 'schalen' ? 'schalen' : 'nieder';
+const sectionOf = tab => tab === 'start' ? 'start' : tab === 'schalen' ? 'schalen' : tab === 'berichte' ? 'berichte' : 'nieder';
 function switchTab(tab, fromPop = false) {
   const sec = sectionOf(tab);
   if (!fromPop) {
@@ -2117,7 +2114,36 @@ function switchTab(tab, fromPop = false) {
   $$('.view').forEach(v => (v.hidden = v.dataset.view !== tab));
   document.body.classList.toggle('on-start', sec === 'start');
   if (tab === 'start') renderStart();
+  if (tab === 'berichte') renderBerichte();
   window.scrollTo({ top: 0 });
+}
+
+/* ================= Seite Streckenberichte (alle PDF-Downloads) ================= */
+function renderBerichte() {
+  const el = $('#view-berichte');
+  if (!el || !state.data) return;
+  const aktuell = seasonOf(todayISO());
+  const reports = [
+    ['gesamt', 'Gesamtstreckenbericht', 'Niederwild und Schalenwild – nur die Gesamtstrecke'],
+    ['strecke', 'Streckenbericht Niederwild', 'Gesamtstrecke und alle Jagdtage'],
+    ['schalen', 'Streckenbericht Reh- & Dammwild', 'Erlegungen und Fallwild'],
+    ['koenig', 'Jagdkönig', 'Rangliste mit Wild je Schütze'],
+  ];
+  el.innerHTML = `
+    <h2 class="section" style="margin-top:4px">Streckenberichte</h2>
+    <p class="sub" style="margin-top:-4px">Antippen, um den Bericht als PDF zu speichern oder zu teilen.</p>
+    ${allSeasons().map(season => {
+      const list = reports.filter(([k]) => k !== 'koenig' || season !== aktuell || isAdmin());
+      return `<div class="card rep-card">
+        <div class="rep-season">Jagdjahr ${esc(season)}${season === aktuell ? ' <small>laufend</small>' : ''}</div>
+        ${list.map(([k, t, d]) => `<button class="rep-row" data-rep="${k}" data-season="${esc(season)}">
+          <span class="rep-ico" aria-hidden="true">⤓</span>
+          <span class="rep-txt"><b>${esc(t)}${k === 'koenig' && season === aktuell ? ' <small>(nur für dich)</small>' : ''}</b><small>${esc(d)}</small></span>
+        </button>`).join('')}
+      </div>`;
+    }).join('')}`;
+  const fns = { gesamt: exportGesamt, strecke: exportStrecke, schalen: exportSchalen, koenig: exportKoenig };
+  $$('[data-rep]', el).forEach(b => b.addEventListener('click', () => fns[b.dataset.rep](b.dataset.season)));
 }
 
 function renderStart() {
@@ -2142,10 +2168,16 @@ function renderStart() {
       <span class="st-go" aria-hidden="true">›</span>
     </button>
     ${isAdmin() && state.meldungen.length ? `<button class="start-tile ml-tile" id="btnMeldungen"><span class="st-title">📬 ${state.meldungen.length} neue Meldung${state.meldungen.length === 1 ? '' : 'en'}</span><span class="st-meta">antippen zum Prüfen und Übernehmen</span><span class="st-go" aria-hidden="true">›</span></button>` : ''}
-    ${canMelden() ? '<button class="btn block" id="btnMelden" style="margin-top:16px">+ Erlegtes Wild melden</button>' : ''}
-    <button class="btn secondary block" id="expGesamt" style="margin-top:12px">⤓ Gesamtstreckenbericht ${esc(state.season)} (PDF)</button>
-    <p class="hint" style="text-align:center">Niederwild und Schalenwild – jeweils nur die Gesamtstrecke.</p>`;
-  $('#expGesamt').addEventListener('click', () => exportGesamt(state.season));
+    ${canMelden() ? `<button class="start-tile" id="btnMelden">
+      <span class="st-title">Wild melden</span>
+      <span class="st-meta">Erlegtes Stück oder Fallwild an Sebastian schicken</span>
+      <span class="st-go" aria-hidden="true">›</span>
+    </button>` : ''}
+    <button class="start-tile" data-go="berichte">
+      <span class="st-title">Streckenberichte</span>
+      <span class="st-meta">PDF-Berichte aller Jagdjahre zum Herunterladen</span>
+      <span class="st-go" aria-hidden="true">›</span>
+    </button>`;
   $('#btnMelden')?.addEventListener('click', openMelden);
   $('#btnMeldungen')?.addEventListener('click', openMeldungen);
   $$('[data-go]', el).forEach(b => b.addEventListener('click', () => switchTab(b.dataset.go)));

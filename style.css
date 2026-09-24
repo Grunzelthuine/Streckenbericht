@@ -379,3 +379,15 @@ fieldset { min-width: 0; max-width: 100%; }
 .kf-card .btn { flex: none; }
 .kf-card.zu { border-color: #e3bc9a; background: #f7ecdf; }
 @media (max-width: 380px) { .kf-card { flex-direction: column; align-items: stretch; } }
+
+/* Seite Streckenberichte */
+.rep-card { padding: 6px 0; margin-top: 14px; overflow: hidden; }
+.rep-season { font: 600 20px/1.2 var(--serif); color: var(--green); padding: 12px 18px 8px; }
+.rep-season small { font: 600 12px/1 var(--sans, inherit); color: #fff; background: var(--green); border-radius: 6px; padding: 3px 7px; vertical-align: 3px; margin-left: 6px; }
+.rep-row { display: flex; align-items: center; gap: 14px; width: 100%; text-align: left; padding: 12px 18px; border: 0; border-top: 1px solid var(--line); background: transparent; color: inherit; font: inherit; cursor: pointer; }
+.rep-row:active { background: var(--paper-2); }
+.rep-ico { flex: none; width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: var(--paper-2); color: var(--green); font-weight: 700; font-size: 18px; }
+.rep-txt { display: flex; flex-direction: column; min-width: 0; }
+.rep-txt b { color: var(--ink, inherit); }
+.rep-txt b small { font-weight: 500; color: #9a6b3c; }
+.rep-txt > small { color: var(--muted, #66694f); font-size: .85em; margin-top: 2px; }

@@ -121,6 +121,9 @@ Auf der Startseite kann jeder mit dem Passwort ein erlegtes Stück melden. Die M
 4. Neue Meldungen erscheinen bei dir auf der Startseite als **„📬 N neue Meldungen“**. „Übernehmen“ öffnet das passende Formular (Nachtrag bzw. Reh- & Dammwild) vorausgefüllt, nach dem Speichern verschwindet die Meldung. 5. **Push aufs Handy (optional):** App *ntfy* installieren (kostenlos, kein Konto). In der Streckenbericht-App unter *Einstellungen → Meldungen* auf „Kanal erzeugen“ tippen, dann „Übernehmen“. In ntfy auf „+“ tippen und genau diesen Kanalnamen abonnieren (Server ntfy.sh). Mit „Test senden“ prüfen. Die Nachricht enthält nur Wildart und Datum, keine Namen.
 6. **Zahl am App-Symbol (optional):** „Zahl am App-Symbol erlauben“ antippen und die Mitteilungen erlauben. Die Zahl aktualisiert sich, sobald die App geöffnet wird.
 
+## Streckenberichte (PDF)
+Alle PDF-Downloads liegen auf der Startseite unter **Streckenberichte**, nach Jagdjahren absteigend: Gesamtstreckenbericht, Niederwild, Reh- & Dammwild und Jagdkönig. Den Jagdkönig gibt es dort nur für vergangene Jagdjahre. Das laufende Jahr kann nur der Admin herunterladen.
+
 ## Jagdkönig freigeben
 Den Jagdkönig des **laufenden** Jagdjahres sieht zunächst nur der Admin. Auf der Seite Jagdkönig zeigt die Karte „🔒 Nur für dich sichtbar“ den Knopf **„Für alle freigeben“** (zweimal tippen). Mit „Wieder sperren“ lässt sich das zurücknehmen. Vergangene Jagdjahre sind immer für alle sichtbar. Die Jagdtage mit Tageskönigen bleiben sichtbar.
 
@@ -133,7 +136,7 @@ Den Jagdkönig des **laufenden** Jagdjahres sieht zunächst nur der Admin. Auf d
 Beim Speichern ohne Netz bleiben die Daten auf dem Gerät, und oben erscheint „Erneut senden“.
 
 ## Neue Version einspielen
-Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-2.2.0'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
+Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-2.3.0'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
 
 ## Daten
 Alle Daten liegen in `data/strecke.json`. Jede Speicherung ist ein Commit in GitHub, dadurch gibt es automatisch eine Versionshistorie. Zusätzlich gibt es in den Einstellungen **„Sicherung speichern“ / „Sicherung einspielen“**. Die Sicherung enthält Niederwild und Reh- & Dammwild **unverschlüsselt**, gehört also nur in deinen eigenen Ordner.
