@@ -136,7 +136,7 @@ Den Jagdkönig des **laufenden** Jagdjahres sieht zunächst nur der Admin. Auf d
 Beim Speichern ohne Netz bleiben die Daten auf dem Gerät, und oben erscheint „Erneut senden“.
 
 ## Neue Version einspielen
-Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-2.3.0'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
+Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-2.4.0'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
 
 ## Daten
 Alle Daten liegen in `data/strecke.json`. Jede Speicherung ist ein Commit in GitHub, dadurch gibt es automatisch eine Versionshistorie. Zusätzlich gibt es in den Einstellungen **„Sicherung speichern“ / „Sicherung einspielen“**. Die Sicherung enthält Niederwild und Reh- & Dammwild **unverschlüsselt**, gehört also nur in deinen eigenen Ordner.

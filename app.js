@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.3.0';
+const APP_VERSION = '2.4.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -2159,7 +2159,7 @@ function renderStart() {
     </div>
     <button class="start-tile" data-go="strecke">
       <span class="st-title">Niederwild</span>
-      <span class="st-meta">${st.total} Stück Strecke · ${st.days.length} Jagdtage</span>
+      <span class="st-meta">${st.total} Stück Strecke · ${st.days.length} Jagdtag${st.days.length === 1 ? '' : 'e'}</span>
       <span class="st-go" aria-hidden="true">›</span>
     </button>
     <button class="start-tile" data-go="schalen">
