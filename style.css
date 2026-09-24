@@ -399,3 +399,33 @@ fieldset { min-width: 0; max-width: 100%; }
 .rep-del.armed { color: #fff; background: #a3452f; }
 .rep-add .rep-ico { background: transparent; border: 1.5px dashed var(--line); }
 .rep-add b { color: var(--green); }
+
+/* Startseite: einheitlicher Abstand, Wild melden hervorgehoben */
+#view-start .start-tile { margin-top: 12px; }
+.melden-tile { background: linear-gradient(180deg, #dfe8cc, #e9eed9); border-color: #9fb482; }
+.melden-tile:active { background: var(--green-soft); }
+.melden-tile .st-meta { color: #4c5a3c; }
+.mt-plus { display: inline-grid; place-items: center; width: 28px; height: 28px; margin-right: 6px; border-radius: 50%; background: var(--green); color: #fff; font: 700 20px/1 var(--sans); vertical-align: 3px; }
+.st-next { font-size: 15px; color: var(--ink); }
+.st-next small { color: var(--muted); }
+/* Termine */
+#tmNew { margin-bottom: 14px; }
+.tm-card { display: flex; gap: 14px; padding: 14px 16px; margin-top: 12px; }
+.tm-date { flex: none; width: 56px; display: grid; justify-items: center; align-content: start; padding: 6px 0; border-radius: 12px; background: var(--green); color: #fff; line-height: 1.1; }
+.tm-wd, .tm-m { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; opacity: .9; }
+.tm-d { font: 700 24px/1.15 var(--serif); }
+.tm-body { flex: 1; min-width: 0; display: grid; gap: 4px; }
+.tm-title { font: 600 19px/1.2 var(--serif); color: var(--green); }
+.tm-title small { font: 500 12.5px var(--sans); color: var(--brass); margin-left: 4px; }
+.tm-line { font-size: 14px; color: var(--ink); overflow-wrap: anywhere; }
+.tm-note { font-size: 14px; background: var(--brass-soft); border-radius: 8px; padding: 6px 10px; margin-top: 2px; overflow-wrap: anywhere; white-space: pre-line; }
+.tm-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 6px; }
+.tm-actions .btn { min-height: 36px; padding: 6px 12px; font-size: 14px; }
+.tm-card.past { opacity: .7; }
+.tm-card.past .tm-date { background: var(--muted); }
+.tm-past { margin-top: 18px; }
+.tm-past summary { cursor: pointer; color: var(--muted); font-weight: 600; padding: 6px 2px; }
+.tm-date { align-self: flex-start; padding: 6px 0 8px; }
+.st-one { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#view-start .start-tile .st-meta { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mt-plus { width: 22px; height: 22px; font-size: 17px; vertical-align: 2px; }

@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.5.1';
+const APP_VERSION = '2.6.1';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -371,7 +371,7 @@ const speciesUsed = id => state.data.jagdtage.some(t =>
   (state.data.nachtraege || []).some(n => n.art === id);
 
 function normalize(d) {
-  d.wildarten ||= []; d.dokumente ||= []; d.schuetzen ||= []; d.jagdtage ||= []; d.nachtraege ||= []; d.schalenwild ||= [];
+  d.wildarten ||= []; d.dokumente ||= []; d.termine ||= []; d.schuetzen ||= []; d.jagdtage ||= []; d.nachtraege ||= []; d.schalenwild ||= [];
   if (!d.wildarten.some(w => w.id === 'kraehe')) insertSpecies(d, { id: 'kraehe', name: 'Krähe', punkte: 1 });
   d.jagdtage.forEach(t => { t.art ||= 'normal'; t.strecke ||= {}; t.hund ||= {}; if (t.art !== 'normal') t.gaeste ||= []; if (t.art === 'venslage') t.revier ||= {}; t.sonderkoenig ||= ''; t.bemerkung ||= ''; t.id ||= t.datum; });
   return d;
@@ -683,6 +683,7 @@ function render() {
   sel.innerHTML = seasons.map(s => `<option value="${s}" ${s === state.season ? 'selected' : ''}>${s}</option>`).join('');
   renderTage(); renderStrecke(); renderKoenig(); renderSchalen(); renderStart();
   if (state.tab === 'berichte') renderBerichte();
+  if (state.tab === 'termine') renderTermine();
 }
 
 function chipsFor(perSpecies, perHund = {}) {
@@ -2105,7 +2106,7 @@ async function exportGesamt(season) {
 
 /* ================= Navigation ================= */
 /** Bereiche: Start → Niederwild (Strecke, Jagdtage, Jagdkönig) oder Schalenwild (Reh & Damm) */
-const sectionOf = tab => tab === 'start' ? 'start' : tab === 'schalen' ? 'schalen' : tab === 'berichte' ? 'berichte' : 'nieder';
+const sectionOf = tab => tab === 'start' ? 'start' : tab === 'schalen' ? 'schalen' : tab === 'berichte' ? 'berichte' : tab === 'termine' ? 'termine' : 'nieder';
 function switchTab(tab, fromPop = false) {
   const sec = sectionOf(tab);
   if (!fromPop) {
@@ -2119,6 +2120,7 @@ function switchTab(tab, fromPop = false) {
   document.body.classList.toggle('on-start', sec === 'start');
   if (tab === 'start') renderStart();
   if (tab === 'berichte') renderBerichte();
+  if (tab === 'termine') renderTermine();
   window.scrollTo({ top: 0 });
 }
 
@@ -2231,6 +2233,115 @@ async function reencryptDocs() {
   if (ok < docs.length) toast(`${docs.length - ok} Dokument(e) konnten nicht neu verschlüsselt werden – bitte neu hochladen.`, 6000);
 }
 
+/* ================= Termine ================= */
+const TERMIN_ARTEN = {
+  jagdtag: 'Jagdtag Niederwild', treibjagd: 'Große Treibjagd', venslage: 'Jagd mit Venslage', drueckjagd: 'Drückjagd / Ansitz',
+  hv: 'Hauptversammlung', arbeit: 'Arbeitseinsatz', schiessen: 'Übungsschießen', sonst: 'Sonstiges',
+};
+const terminTitel = t => t.titel || TERMIN_ARTEN[t.art] || 'Termin';
+const terminLeitung = t => t.leitungId ? shooterName(t.leitungId) : (t.leitung || '');
+const sortTermine = l => [...l].sort((a, b) => (a.datum + (a.zeit || '')).localeCompare(b.datum + (b.zeit || '')));
+const kommendeTermine = () => sortTermine((state.data?.termine || []).filter(t => t.datum >= todayISO()));
+function inTagen(iso) {
+  const [y, m, d] = iso.split('-').map(Number), [ty, tm, td] = todayISO().split('-').map(Number);
+  const n = Math.round((new Date(y, m - 1, d) - new Date(ty, tm - 1, td)) / 864e5);
+  return n === 0 ? 'heute' : n === 1 ? 'morgen' : `in ${n} Tagen`;
+}
+function terminCard(t, admin) {
+  const [y, m, d] = t.datum.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  const past = t.datum < todayISO();
+  const lei = terminLeitung(t);
+  return `<div class="card tm-card ${past ? 'past' : ''}" data-tm="${esc(t.id)}">
+    <div class="tm-date"><span class="tm-wd">${dt.toLocaleDateString('de-DE', { weekday: 'short' })}</span><span class="tm-d">${d}</span><span class="tm-m">${dt.toLocaleDateString('de-DE', { month: 'short' })}</span></div>
+    <div class="tm-body">
+      <div class="tm-title">${esc(terminTitel(t))}${!past ? ` <small>${inTagen(t.datum)}</small>` : ''}</div>
+      ${t.zeit || t.ort ? `<div class="tm-line">🕗 ${esc([t.zeit ? t.zeit + ' Uhr' : '', t.ort].filter(Boolean).join(' · '))}</div>` : ''}
+      ${lei ? `<div class="tm-line">👤 ${t.leitungId ? 'Jagdleitung' : 'Organisation'}: <b>${esc(lei)}</b></div>` : ''}
+      ${t.besonderheit ? `<div class="tm-note">${esc(t.besonderheit)}</div>` : ''}
+      ${!past ? `<div class="tm-actions"><button class="btn secondary" data-ics="${esc(t.id)}">📅 In Kalender</button>${admin ? `<button class="btn ghost" data-tmedit="${esc(t.id)}">Bearbeiten</button>` : ''}</div>` : (admin ? `<div class="tm-actions"><button class="btn ghost" data-tmedit="${esc(t.id)}">Bearbeiten</button></div>` : '')}
+    </div>
+  </div>`;
+}
+function renderTermine() {
+  const el = $('#view-termine');
+  if (!el || !state.data) return;
+  const admin = isAdmin();
+  const kommend = kommendeTermine();
+  const vergangen = sortTermine(state.data.termine.filter(t => t.datum < todayISO())).reverse().slice(0, 30);
+  el.innerHTML = `
+    <h2 class="section" style="margin-top:4px">Termine</h2>
+    ${admin ? '<button class="btn block" id="tmNew">+ Termin eintragen</button>' : ''}
+    ${kommend.length ? kommend.map(t => terminCard(t, admin)).join('') : '<div class="card pad empty"><img src="icons/logo.png" alt=""><p>Zurzeit sind keine Termine eingetragen.</p></div>'}
+    ${vergangen.length ? `<details class="tm-past"><summary>Vergangene Termine (${vergangen.length})</summary>${vergangen.map(t => terminCard(t, admin)).join('')}</details>` : ''}`;
+  $('#tmNew')?.addEventListener('click', () => openTermin(null));
+  $$('[data-tmedit]', el).forEach(b => b.addEventListener('click', () => openTermin(b.dataset.tmedit)));
+  $$('[data-ics]', el).forEach(b => b.addEventListener('click', () => { const t = state.data.termine.find(x => x.id === b.dataset.ics); if (t) terminToCalendar(t); }));
+}
+function openTermin(id) {
+  const ex = id ? state.data.termine.find(t => t.id === id) : null;
+  const t = Object.assign({ datum: todayISO(), zeit: '', art: 'jagdtag', titel: '', ort: '', leitungId: '', leitung: '', besonderheit: '' }, ex || {});
+  const members = state.data.schuetzen.filter(s => isMember(s, seasonOf(t.datum)));
+  const leiSel = t.leitungId || (t.leitung ? '__frei' : '');
+  openSheet(ex ? 'Termin bearbeiten' : 'Neuer Termin', `
+    <div class="grid2">
+      <label class="field"><span>Datum</span><input type="date" id="tmDatum" value="${esc(t.datum)}"></label>
+      <label class="field"><span>Uhrzeit</span><input type="time" id="tmZeit" value="${esc(t.zeit)}"></label>
+    </div>
+    <label class="field"><span>Art</span><select id="tmArt">${Object.entries(TERMIN_ARTEN).map(([k, v]) => `<option value="${k}" ${k === t.art ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
+    <label class="field"><span>Eigene Bezeichnung (optional)</span><input id="tmTitel" value="${esc(t.titel)}" placeholder="sonst: Art wie oben"></label>
+    <label class="field"><span>Treffpunkt</span><input id="tmOrt" value="${esc(t.ort)}" placeholder="z. B. Hof Schmees"></label>
+    <label class="field"><span>Jagdleitung / Organisation</span><select id="tmLeiSel">
+      <option value="">–</option>${members.map(s => `<option value="${esc(s.id)}" ${s.id === leiSel ? 'selected' : ''}>${esc(s.vollname || s.name)}</option>`).join('')}
+      <option value="__frei" ${leiSel === '__frei' ? 'selected' : ''}>Andere (Freitext) …</option></select></label>
+    <label class="field" id="tmLeiFreiWrap" ${leiSel === '__frei' ? '' : 'hidden'}><span>Wer?</span><input id="tmLeiFrei" value="${esc(t.leitung)}" placeholder="z. B. Hegering Lingen"></label>
+    <label class="field"><span>Besonderheit (optional)</span><textarea id="tmBes" rows="3" placeholder="z. B. Signalfarbe Pflicht, Gäste bitte anmelden">${esc(t.besonderheit)}</textarea></label>`,
+    `${ex ? '<button class="btn danger" id="tmDel">Löschen</button>' : '<button class="btn secondary" data-close>Abbrechen</button>'}<button class="btn" id="tmSave">Speichern</button>`);
+  $('#tmLeiSel').addEventListener('change', e => { $('#tmLeiFreiWrap').hidden = e.target.value !== '__frei'; });
+  $('#tmSave').addEventListener('click', () => {
+    const datum = $('#tmDatum').value;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(datum)) { toast('Bitte ein Datum wählen.'); return; }
+    const sel = $('#tmLeiSel').value;
+    const rec = { id: ex?.id || `t-${Date.now().toString(36)}`, datum, zeit: $('#tmZeit').value, art: $('#tmArt').value, titel: $('#tmTitel').value.trim(),
+      ort: $('#tmOrt').value.trim(), leitungId: sel && sel !== '__frei' ? sel : '', leitung: sel === '__frei' ? $('#tmLeiFrei').value.trim() : '', besonderheit: $('#tmBes').value.trim() };
+    Object.keys(rec).forEach(k => { if (rec[k] === '') delete rec[k]; });
+    state.data.termine = ex ? state.data.termine.map(x => x.id === ex.id ? rec : x) : [...state.data.termine, rec];
+    closeSheet(); persist(`Termin: ${terminTitel(rec)} ${dateDE(datum)}`); renderTermine();
+  });
+  $('#tmDel')?.addEventListener('click', e => {
+    const b = e.currentTarget;
+    if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Wirklich löschen?'; return; }
+    state.data.termine = state.data.termine.filter(x => x.id !== ex.id);
+    closeSheet(); persist(`Termin gelöscht: ${terminTitel(ex)} ${dateDE(ex.datum)}`); renderTermine();
+  });
+}
+/** Termin als .ics – iPhone öffnet direkt „Zum Kalender hinzufügen“, Android/PC laden die Datei */
+function terminToCalendar(t) {
+  const icsEsc = v => String(v || '').replace(/\\/g, '\\\\').replace(/\n/g, '\\n').replace(/([,;])/g, '\\$1');
+  const d = t.datum.replace(/-/g, '');
+  let start, end;
+  if (t.zeit) {
+    const [h, mi] = t.zeit.split(':').map(Number);
+    const e = new Date(2000, 0, 1, h + 4, mi); // Dauer pauschal 4 Stunden
+    start = `DTSTART:${d}T${String(h).padStart(2, '0')}${String(mi).padStart(2, '0')}00`;
+    end = `DTEND:${d}T${String(Math.min(e.getHours() + (e.getDate() > 1 ? 24 : 0), 23)).padStart(2, '0')}${String(e.getMinutes()).padStart(2, '0')}00`;
+  } else {
+    const [y, m, dd] = t.datum.split('-').map(Number); const n = new Date(y, m - 1, dd + 1);
+    start = `DTSTART;VALUE=DATE:${d}`; end = `DTEND;VALUE=DATE:${n.getFullYear()}${String(n.getMonth() + 1).padStart(2, '0')}${String(n.getDate()).padStart(2, '0')}`;
+  }
+  const lei = terminLeitung(t);
+  const desc = [lei ? `${t.leitungId ? 'Jagdleitung' : 'Organisation'}: ${lei}` : '', t.besonderheit].filter(Boolean).join('\n');
+  const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//JG Thuine//Streckenbericht//DE', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
+    `UID:${t.id}@jg-thuine`, `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '')}`, start, end,
+    `SUMMARY:${icsEsc('JG Thuine: ' + terminTitel(t))}`, t.ort ? `LOCATION:${icsEsc(t.ort)}` : '', desc ? `DESCRIPTION:${icsEsc(desc)}` : '',
+    'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n');
+  const blob = new Blob([ics], { type: 'text/calendar' });
+  const url = URL.createObjectURL(blob);
+  if (/iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)) { location.href = url; }
+  else { const a = document.createElement('a'); a.href = url; a.download = `Termin ${t.datum}.ics`; document.body.appendChild(a); a.click(); a.remove(); }
+  setTimeout(() => URL.revokeObjectURL(url), 60000);
+}
+
 /* ================= Seite Streckenberichte (alle PDF-Downloads) ================= */
 function renderBerichte() {
   const el = $('#view-berichte');
@@ -2279,11 +2390,23 @@ function renderStart() {
   const st = seasonStats(state.season);
   const sw = schalenStats(state.season);
   const reh = sw.tot('reh'), damm = sw.tot('damm');
+  const kommend = kommendeTermine(), next = kommend[0];
   el.innerHTML = `
     <div class="start-hero">
       <img src="icons/logo.png" alt="Jagdgemeinschaft Thuine">
       <p class="sub">Jagdjahr ${esc(state.season)}</p>
     </div>
+    ${isAdmin() && state.meldungen.length ? `<button class="start-tile ml-tile" id="btnMeldungen"><span class="st-title">📬 ${state.meldungen.length} neue Meldung${state.meldungen.length === 1 ? '' : 'en'}</span><span class="st-meta">antippen zum Prüfen und Übernehmen</span><span class="st-go" aria-hidden="true">›</span></button>` : ''}
+    ${canMelden() ? `<button class="start-tile melden-tile" id="btnMelden">
+      <span class="st-title"><span class="mt-plus" aria-hidden="true">+</span> Wild melden</span>
+      <span class="st-meta">Erlegtes Stück oder Fallwild melden</span>
+      <span class="st-go" aria-hidden="true">›</span>
+    </button>` : ''}
+    <button class="start-tile" data-go="termine">
+      <span class="st-title">Termine</span>
+      <span class="st-meta st-one">${next ? `${esc(dateDE(next.datum).slice(0, 6))}${next.zeit ? ` · ${esc(next.zeit)} Uhr` : ''} · ${esc(terminTitel(next))}` : 'Zurzeit keine Termine eingetragen'}</span>
+      <span class="st-go" aria-hidden="true">›</span>
+    </button>
     <button class="start-tile" data-go="strecke">
       <span class="st-title">Niederwild</span>
       <span class="st-meta">${st.total} Stück Strecke · ${st.days.length} Jagdtag${st.days.length === 1 ? '' : 'e'}</span>
@@ -2294,15 +2417,9 @@ function renderStart() {
       <span class="st-meta">Rehwild ${reh.erlegt + reh.fallwild} · Dammwild ${damm.erlegt + damm.fallwild}${sw.fallwild.length ? ` · davon ${sw.fallwild.length} Fallwild` : ''}</span>
       <span class="st-go" aria-hidden="true">›</span>
     </button>
-    ${isAdmin() && state.meldungen.length ? `<button class="start-tile ml-tile" id="btnMeldungen"><span class="st-title">📬 ${state.meldungen.length} neue Meldung${state.meldungen.length === 1 ? '' : 'en'}</span><span class="st-meta">antippen zum Prüfen und Übernehmen</span><span class="st-go" aria-hidden="true">›</span></button>` : ''}
-    ${canMelden() ? `<button class="start-tile" id="btnMelden">
-      <span class="st-title">Wild melden</span>
-      <span class="st-meta">Erlegtes Stück oder Fallwild an Sebastian schicken</span>
-      <span class="st-go" aria-hidden="true">›</span>
-    </button>` : ''}
     <button class="start-tile" data-go="berichte">
       <span class="st-title">Streckenberichte</span>
-      <span class="st-meta">PDF-Berichte aller Jagdjahre zum Herunterladen</span>
+      <span class="st-meta">PDF-Berichte aller Jagdjahre</span>
       <span class="st-go" aria-hidden="true">›</span>
     </button>`;
   $('#btnMelden')?.addEventListener('click', openMelden);
