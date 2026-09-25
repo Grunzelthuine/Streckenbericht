@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.11.0';
+const APP_VERSION = '2.12.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -1210,6 +1210,7 @@ const histLvl = () => (history.state && history.state.sb) || 0;
 function histBack() { ignorePops++; history.back(); }
 window.addEventListener('popstate', () => {
   if (ignorePops > 0) { ignorePops--; return; }
+  if ($('#pdfv')) { closePdfViewer(true); return; }
   if (!$('#sheet').hidden) { closeSheet(true); return; }
   if (state.tab !== 'start') { switchTab('start', true); }
 });
@@ -2009,7 +2010,74 @@ function openReset() {
 /* ================= Teilen / Download ================= */
 /** Handy/Tablet? Nur dort das Teilen-Menü nutzen – am PC (Windows/Mac) bietet es kein „Speichern“, dort direkt herunterladen */
 const isMobileDevice = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+/* ---------- PDF direkt in der App anzeigen (Handy) – ohne Teilen-/Speichern-Dialog ---------- */
+let pdfjsReady = null;
+function loadPdfJs() {
+  if (!pdfjsReady) pdfjsReady = loadScript('vendor/pdf.min.js').then(() => { window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'vendor/pdf.worker.min.js'; return window.pdfjsLib; })
+    .catch(e => { pdfjsReady = null; throw e; });
+  return pdfjsReady;
+}
+function closePdfViewer(fromPop = false) {
+  const v = $('#pdfv'); if (!v) return;
+  v._doc?.destroy?.();
+  v.remove(); document.body.style.overflow = '';
+  if (!fromPop && history.state && history.state.pdf) histBack();
+}
+async function showPdf(blob, filename) {
+  closePdfViewer();
+  const title = filename.replace(/\.pdf$/i, '').replace(/_/g, ' ');
+  document.body.insertAdjacentHTML('beforeend', `<div id="pdfv" class="pdfv" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+    <div class="pdfv-bar">
+      <button class="pdfv-btn" id="pdfvClose" aria-label="Schließen">✕</button>
+      <div class="pdfv-title">${esc(title)}</div>
+      <button class="pdfv-btn" id="pdfvShare" aria-label="Teilen oder sichern" title="Teilen / Sichern">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 8l5-5 5 5"/><path d="M5 12v8h14v-8"/></svg>
+      </button>
+    </div>
+    <div class="pdfv-pages" id="pdfvPages"><div class="pdfv-load">PDF wird geöffnet …</div></div>
+  </div>`);
+  document.body.style.overflow = 'hidden';
+  history.pushState({ sb: histLvl() + 1, pdf: true }, '');
+  $('#pdfvClose').addEventListener('click', () => closePdfViewer());
+  $('#pdfvShare').addEventListener('click', () => shareFile(blob, filename));
+  try {
+    const lib = await loadPdfJs();
+    const doc = await lib.getDocument({ data: new Uint8Array(await blob.arrayBuffer()), isEvalSupported: false }).promise;
+    const v = $('#pdfv'); if (!v) { doc.destroy(); return; }
+    v._doc = doc;
+    const box = $('#pdfvPages'); box.innerHTML = '';
+    const cssW = Math.min(box.clientWidth - 16, 900), dpr = Math.min(window.devicePixelRatio || 1, 3);
+    for (let i = 1; i <= doc.numPages; i++) {
+      if (!$('#pdfv')) return;
+      const page = await doc.getPage(i);
+      const base = page.getViewport({ scale: 1 });
+      const vp = page.getViewport({ scale: (cssW / base.width) * dpr * 1.5 }); // etwas höher auflösen → scharf beim Zoomen
+      const c = document.createElement('canvas');
+      c.width = Math.floor(vp.width); c.height = Math.floor(vp.height);
+      c.style.width = cssW + 'px'; c.style.height = Math.floor(cssW * base.height / base.width) + 'px';
+      box.appendChild(c);
+      await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+    }
+  } catch (e) {
+    const box = $('#pdfvPages');
+    if (box) box.innerHTML = `<div class="pdfv-load">Das PDF lässt sich hier nicht anzeigen.<br><br><button class="btn" id="pdfvFallback">Stattdessen teilen / sichern</button></div>`;
+    $('#pdfvFallback')?.addEventListener('click', () => shareFile(blob, filename));
+  }
+}
+/** Teilen-Menü (Handy) bzw. Download */
+async function shareFile(blob, filename) {
+  const file = new File([blob], filename, { type: blob.type });
+  if (isMobileDevice() && navigator.canShare?.({ files: [file] })) {
+    try { await navigator.share({ files: [file] }); return; } catch (e) { if (e.name === 'AbortError') return; }
+  }
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = filename;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
 async function shareOrDownload(blob, filename) {
+  // Handy: PDFs direkt in der App anzeigen (Teilen/Sichern über den Knopf oben rechts)
+  if (isMobileDevice() && (blob.type === 'application/pdf' || /\.pdf$/i.test(filename))) return showPdf(blob.type ? blob : new Blob([blob], { type: 'application/pdf' }), filename);
   const file = new File([blob], filename, { type: blob.type });
   if (isMobileDevice() && navigator.canShare?.({ files: [file] })) {
     try { await navigator.share({ files: [file] }); return; } // nur die Datei teilen – ein Titel/Text erzeugt auf dem iPhone eine zusätzliche „Text.txt“

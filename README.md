@@ -152,8 +152,11 @@ Beim Speichern ohne Netz bleiben die Daten auf dem Gerät, und oben erscheint �
 ## Sicherheit: Content Security Policy
 `index.html` enthält eine CSP als `<meta>`-Tag (GitHub Pages kann keine eigenen Header setzen). Erlaubt sind nur die eigene Seite sowie Verbindungen zu api.github.com, raw.githubusercontent.com, api.anthropic.com und ntfy.sh. Inline-Skripte und fremde Skripte werden blockiert. **Wird ein neuer externer Dienst eingebaut, muss er in `connect-src` ergänzt werden**, sonst blockiert der Browser ihn.
 
+## PDF-Anzeige auf dem Handy
+Auf iPhone/Android öffnen sich alle PDFs (Berichte, Protokolle) direkt in der App (pdf.js, `vendor/pdf.min.js` + `vendor/pdf.worker.min.js`). Oben links ✕ schließt, oben rechts „Teilen/Sichern“ öffnet das Teilen-Menü. Am PC wird weiter direkt heruntergeladen.
+
 ## Neue Version einspielen
-Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-2.10.0'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
+Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-2.12.0'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
 
 ## Daten
 Alle Daten liegen in `data/strecke.json`. Jede Speicherung ist ein Commit in GitHub, dadurch gibt es automatisch eine Versionshistorie. Zusätzlich gibt es in den Einstellungen **„Sicherung speichern“ / „Sicherung einspielen“**. Die Sicherung enthält Niederwild und Reh- & Dammwild **unverschlüsselt**, gehört also nur in deinen eigenen Ordner.

@@ -1,11 +1,11 @@
 /* Service Worker – Jagd Thuine (JG Thuine)
  * Bei jeder Änderung an App-Dateien VERSION erhöhen → Nutzer bekommen den Hinweis „Neue Version“.
  */
-const VERSION = 'sb-2.11.0';
+const VERSION = 'sb-2.12.0';
 const SHELL = [
   './', 'index.html', 'style.css', 'app.js', 'manifest.webmanifest',
   'icons/logo.png', 'icons/icon-180.png', 'icons/icon-192.png', 'icons/icon-512.png',
-  'vendor/jspdf.umd.min.js', 'vendor/jspdf.plugin.autotable.min.js',
+  'vendor/jspdf.umd.min.js', 'vendor/jspdf.plugin.autotable.min.js', 'vendor/pdf.min.js', 'vendor/pdf.worker.min.js',
 ];
 
 self.addEventListener('install', e => {
