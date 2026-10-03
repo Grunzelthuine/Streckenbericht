@@ -472,3 +472,18 @@ fieldset { min-width: 0; max-width: 100%; }
 .pdfv-pages { flex: 1; overflow: auto; -webkit-overflow-scrolling: touch; padding: 8px 8px calc(env(safe-area-inset-bottom, 0px) + 16px); display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .pdfv-pages canvas { background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,.35); max-width: 100%; height: auto; }
 .pdfv-load { color: #fff; text-align: center; padding: 40px 16px; }
+
+/* Startseite: nächste Termine */
+.st-tm { display: grid; gap: 1px; padding: 6px 0 2px; border-top: 1px solid var(--line); }
+.st-tm:first-of-type { border-top: 0; padding-top: 2px; }
+.st-tm b { font-size: 14.5px; color: var(--ink); font-weight: 600; }
+.st-tm small { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+/* Hinweis: Termin in der nächsten Stunde */
+.bald { display: flex; gap: 12px; align-items: center; width: 100%; text-align: left; margin: 12px 0 0; padding: 14px 16px; border: 1px solid #d8c48f; border-radius: 18px; background: var(--brass-soft); color: var(--ink); box-shadow: var(--shadow); font: inherit; cursor: pointer; }
+.bald > span:first-child { font-size: 26px; }
+.bald b { display: block; font-size: 16px; }
+.bald small { display: block; color: var(--muted); font-size: 13px; }
+/* Datum unbekannt */
+.dt-unk { display: flex; align-items: center; gap: 10px; margin: -2px 0 12px; font-size: 14px; color: var(--muted); }
+.dt-unk input { width: 20px; height: 20px; accent-color: var(--green); }
+.nt-date.unk { font-style: italic; color: var(--warn); }

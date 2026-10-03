@@ -126,6 +126,14 @@ Auf der Startseite kann jeder mit dem Passwort ein erlegtes Stück melden. Die M
 ## Streckenberichte (PDF)
 Alle PDF-Downloads liegen auf der Startseite unter **Streckenberichte**, nach Jagdjahren absteigend: Gesamtstreckenbericht, Niederwild, Reh- & Dammwild und Jagdkönig. Den Jagdkönig gibt es dort nur für vergangene Jagdjahre. Das laufende Jahr kann nur der Admin herunterladen.
 
+## Neu in 2.13
+- Termine: Jagdleitung auch als Gruppe (gleiche Gruppen wie Wildbret-Verteilung). Startseite zeigt die nächsten 2 Termine mit Uhrzeit, Treffpunkt, Jagdleitung.
+- Erinnerung 60 Min. vorher (Einstellungen → Termine, pro Gerät abschaltbar): „In Kalender“ enthält dann einen Alarm; in der letzten Stunde Hinweis ⏰ auf der Startseite.
+- Rehwild: Schütze „Gemeinschaftsansitz (Schütze unbekannt)“ – Wildbret dann standardmäßig an die Jagdgemeinschaft.
+- „Datum unbekannt“ bei Reh & Damm, Niederwild außerhalb der Jagdtage und Wild melden: Zuordnung über das gewählte Jagdjahr, Datum später nachtragbar. Dammwild ohne Datum reiht sich in der Wildbret-Verteilung nach dem Eintragetag ein.
+- „Nachträge“ heißen jetzt „Außerhalb der Jagdtage erlegt“.
+- Jagdkönig-PDF: Wildarten im Tabellenkopf senkrecht, keine abgebrochenen Wörter mehr.
+
 ## Wildbret-Verteilung Dammwild
 Erlegtes Dammwild (kein Fallwild) geht der Reihe nach an 9 feste Gruppen, fortlaufend über das Jagdjahr hinaus. Die Seite Reh & Damm zeigt im laufenden Jagdjahr die Gruppen und wer als Nächstes dran ist; bei jedem Stück steht „🥩 Wildbret: …“. Beim Eintragen schlägt die App die nächste Gruppe vor (änderbar, auch „keine Verteilung“). Gruppen ändert der Admin über „Gruppen bearbeiten“ (Gruppe 7: Schmees / N. N. – Nachfolge Röttering). Startpunkt: das letzte vor dem Update erfasste Stück = Gruppe 4 (Geerdes W. / Heskamp).
 
@@ -156,7 +164,7 @@ Beim Speichern ohne Netz bleiben die Daten auf dem Gerät, und oben erscheint �
 Auf iPhone/Android öffnen sich alle PDFs (Berichte, Protokolle) direkt in der App (pdf.js, `vendor/pdf.min.js` + `vendor/pdf.worker.min.js`). Oben links ✕ schließt, oben rechts „Teilen/Sichern“ öffnet das Teilen-Menü. Am PC wird weiter direkt heruntergeladen.
 
 ## Neue Version einspielen
-Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-2.12.0'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
+Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-2.13.0'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
 
 ## Daten
 Alle Daten liegen in `data/strecke.json`. Jede Speicherung ist ein Commit in GitHub, dadurch gibt es automatisch eine Versionshistorie. Zusätzlich gibt es in den Einstellungen **„Sicherung speichern“ / „Sicherung einspielen“**. Die Sicherung enthält Niederwild und Reh- & Dammwild **unverschlüsselt**, gehört also nur in deinen eigenen Ordner.

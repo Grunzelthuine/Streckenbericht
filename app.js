@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.12.0';
+const APP_VERSION = '2.13.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -65,6 +65,28 @@ function seasonOf(iso) {
   const [y, m] = iso.split('-').map(Number);
   const start = m >= 4 ? y : y - 1;
   return `${start}/${String((start + 1) % 100).padStart(2, '0')}`;
+}
+/** Jagdjahr eines Eintrags – auch ohne bekanntes Datum (dann gespeichertes season) */
+const recSeason = x => x.datum ? seasonOf(x.datum) : (x.season || seasonOf(todayISO()));
+const datumText = iso => iso ? dateDE(iso) : 'Datum unbekannt';
+/** Formular-Baustein: Datum oder „Datum unbekannt“ + Jagdjahr */
+function datumFeld(prefix, datum, season) {
+  const unbek = !datum;
+  const seasons = [...new Set([seasonOf(todayISO()), ...(state.data ? allSeasons() : []), season].filter(Boolean))].sort().reverse();
+  return `<div class="dt-field">
+    <label class="field" id="${prefix}DateWrap" ${unbek ? 'hidden' : ''}><span>Datum</span><input type="date" id="${prefix}Date" value="${esc(datum || todayISO())}"></label>
+    <label class="field" id="${prefix}SeasonWrap" ${unbek ? '' : 'hidden'}><span>Jagdjahr</span><select id="${prefix}Season">${seasons.map(x => `<option value="${x}" ${x === (season || state.season) ? 'selected' : ''}>${x}</option>`).join('')}</select></label>
+    <label class="dt-unk"><input type="checkbox" id="${prefix}Unk" ${unbek ? 'checked' : ''}> Datum unbekannt (später nachtragen)</label>
+  </div>`;
+}
+function wireDatumFeld(prefix) {
+  $(`#${prefix}Unk`)?.addEventListener('change', e => { $(`#${prefix}DateWrap`).hidden = e.target.checked; $(`#${prefix}SeasonWrap`).hidden = !e.target.checked; });
+}
+/** liefert { datum, season } oder null bei ungültigem Datum */
+function readDatumFeld(prefix) {
+  if ($(`#${prefix}Unk`)?.checked) return { datum: '', season: $(`#${prefix}Season`).value };
+  const datum = $(`#${prefix}Date`).value;
+  return /^\d{4}-\d{2}-\d{2}$/.test(datum) ? { datum, season: undefined } : null;
 }
 function todayISO() {
   const d = new Date();
@@ -256,10 +278,10 @@ function seasonDays(season) {
   return state.data.jagdtage.filter(d => seasonOf(d.datum) === season).sort((a, b) => a.datum.localeCompare(b.datum));
 }
 function seasonNachtraege(season) {
-  return (state.data.nachtraege || []).filter(n => seasonOf(n.datum) === season).sort((a, b) => a.datum.localeCompare(b.datum));
+  return (state.data.nachtraege || []).filter(n => recSeason(n) === season).sort((a, b) => (a.datum || '9').localeCompare(b.datum || '9'));
 }
 function allSeasons() {
-  const s = new Set([...state.data.jagdtage, ...(state.data.nachtraege || []), ...(state.schalen?.eintraege || [])].map(d => seasonOf(d.datum)));
+  const s = new Set([...state.data.jagdtage.map(d => seasonOf(d.datum)), ...[...(state.data.nachtraege || []), ...(state.schalen?.eintraege || [])].map(recSeason)]);
   (state.data.dokumente || []).forEach(d => s.add(d.season));
   s.add(seasonOf(todayISO()));
   return [...s].sort().reverse();
@@ -584,7 +606,7 @@ function openMelden() {
     const body = `
       <p class="hint">Deine Meldung geht direkt an Sebastian. Er prüft sie und trägt sie in die Strecke ein.</p>
       <label class="field"><span>Wer meldet?</span><select id="mlVon"><option value="">Bitte wählen …</option>${members.map(s => `<option value="${esc(s.id)}" ${s.id === m.von ? 'selected' : ''}>${esc(s.vollname || s.name)}</option>`).join('')}</select></label>
-      <label class="field"><span>Datum</span><input type="date" id="mlDate" value="${esc(m.datum)}"></label>
+      ${datumFeld('ml', m.datum, m.season)}
       <div class="seg seg2" role="radiogroup" aria-label="Bereich">
         <button type="button" data-mltyp="nieder" class="${m.typ === 'nieder' ? 'on' : ''}">Niederwild</button>
         <button type="button" data-mltyp="schalen" class="${m.typ === 'schalen' ? 'on' : ''}">Reh / Damm</button>
@@ -598,8 +620,10 @@ function openMelden() {
         <label class="check-row"><input type="checkbox" id="mlFall" ${m.fallwild ? 'checked' : ''}> <span><b>Fallwild</b><small>z. B. Verkehrsunfall</small></span></label>`}
       <label class="field"><span>Bemerkung (optional)</span><input type="text" id="mlBem" value="${esc(m.bemerkung)}" placeholder="z. B. Ort, Uhrzeit, Ursache"></label>`;
     openSheet('Wild melden', body, `<button class="btn secondary" data-close>Abbrechen</button><button class="btn" id="mlSend">Melden</button>`);
+    wireDatumFeld('ml');
     const sync = () => {
-      m.von = $('#mlVon').value; m.datum = $('#mlDate').value || m.datum; m.bemerkung = $('#mlBem').value.trim();
+      m.von = $('#mlVon').value; m.bemerkung = $('#mlBem').value.trim();
+      const dt = readDatumFeld('ml'); if (dt) { m.datum = dt.datum; m.season = dt.season; }
       if ($('#mlArt')) m.art = $('#mlArt').value;
       if ($('#mlKat')) m.kat = $('#mlKat').value;
       if ($('#mlFall')) m.fallwild = $('#mlFall').checked;
@@ -611,9 +635,10 @@ function openMelden() {
     $('#mlSend').addEventListener('click', async e => {
       sync();
       if (!m.von) { toast('Bitte auswählen, wer meldet.'); return; }
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(m.datum)) { toast('Bitte ein Datum wählen.'); return; }
+      if (!readDatumFeld('ml')) { toast('Bitte ein Datum wählen oder „Datum unbekannt“ ankreuzen.'); return; }
       if (!state.cfg.ich) { state.cfg.ich = m.von; lsSet(LS_CFG, state.cfg); }
       const rec = { id: `m-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`, zeit: new Date().toISOString(), von: m.von, datum: m.datum, typ: m.typ };
+      if (!m.datum) rec.season = m.season;
       if (m.typ === 'nieder') Object.assign(rec, { art: m.art, anzahl: m.anzahl });
       else Object.assign(rec, { art: m.sArt, kat: m.kat, fallwild: !!m.fallwild });
       if (m.bemerkung) rec.bemerkung = m.bemerkung;
@@ -621,7 +646,7 @@ function openMelden() {
       try {
         await changeMeldungen(list => [...list, rec], `Meldung: ${meldText(rec)} von ${shooterName(rec.von)}`);
         closeSheet(); toast('Gemeldet ✓ – danke! Sebastian trägt es ein.', 4000);
-        sendPush(ntfyTopic(), 'Neue Wildmeldung', `${meldText(rec)} am ${dateDE(rec.datum)} – in der App übernehmen`);
+        sendPush(ntfyTopic(), 'Neue Wildmeldung', `${meldText(rec)}${rec.datum ? ` am ${dateDE(rec.datum)}` : ' (Datum unbekannt)'} – in der App übernehmen`);
       } catch (err) { btn.disabled = false; btn.textContent = 'Melden'; toast(err.message || 'Senden fehlgeschlagen – Internet prüfen.', 4500); }
     });
   };
@@ -632,7 +657,7 @@ function openMeldungen() {
   const list = [...state.meldungen].sort((a, b) => a.zeit.localeCompare(b.zeit));
   const body = list.length ? `<div class="card"><ul class="nt-list">${list.map(m => `
       <li>
-        <span class="nt-date">${dateDE(m.datum)}</span>
+        <span class="nt-date ${m.datum ? '' : 'unk'}">${datumText(m.datum)}</span>
         <span class="nt-what"><b>${esc(meldText(m))}</b><small>von ${esc(shooterName(m.von))}${m.bemerkung ? ` · ${esc(m.bemerkung)}` : ''}</small></span>
       </li>
       <li class="ml-actions"><button class="btn" data-mlok="${esc(m.id)}">Übernehmen</button><button class="btn danger" data-mlno="${esc(m.id)}">Verwerfen</button></li>`).join('')}</ul></div>
@@ -643,8 +668,8 @@ function openMeldungen() {
     const m = list.find(x => x.id === b.dataset.mlok); if (!m) return;
     state.pendingMeldung = m.id;
     closeSheet();
-    if (m.typ === 'schalen') openSchalen(null, { datum: m.datum, art: m.art, kat: m.kat, fallwild: !!m.fallwild, schuetze: m.fallwild ? '' : m.von, ursache: m.fallwild ? (m.bemerkung || '') : '', bemerkung: m.fallwild ? '' : (m.bemerkung || ''), gemeldetVon: m.von });
-    else openNachtrag(null, { datum: m.datum, art: m.art, anzahl: m.anzahl, text: [shooterName(m.von), m.bemerkung].filter(Boolean).join(', ') });
+    if (m.typ === 'schalen') openSchalen(null, { datum: m.datum, season: m.season, art: m.art, kat: m.kat, fallwild: !!m.fallwild, schuetze: m.fallwild ? '' : m.von, ursache: m.fallwild ? (m.bemerkung || '') : '', bemerkung: m.fallwild ? '' : (m.bemerkung || ''), gemeldetVon: m.von });
+    else openNachtrag(null, { datum: m.datum, season: m.season, art: m.art, anzahl: m.anzahl, text: [shooterName(m.von), m.bemerkung].filter(Boolean).join(', ') });
   }));
   $$('[data-mlno]').forEach(b => b.addEventListener('click', async () => {
     if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Wirklich?'; return; }
@@ -751,18 +776,17 @@ function renderStrecke() {
       ${species().map(w => {
         const n = st.perSpecies[w.id] || 0;
         const nt = st.perNachtrag[w.id] || 0;
-        return `<div class="card sp ${n ? '' : 'zero'}"><div class="n">${n}</div><div class="t">${esc(w.name)}</div>${nt ? `<div class="p">davon ${nt} Nachtrag</div>` : ''}</div>`;
+        return `<div class="card sp ${n ? '' : 'zero'}"><div class="n">${n}</div><div class="t">${esc(w.name)}</div>${nt ? `<div class="p">davon ${nt} außerh. Jagdtage</div>` : ''}</div>`;
       }).join('')}
     </div>
-    <h2 class="section">Nachträge ${esc(state.season)}</h2>
-    <p class="hint">Wild, das außerhalb der Jagdtage erlegt wurde (z. B. Tauben, Krähen, Fuchs). Es zählt zur Strecke, aber nicht zum Jagdkönig.</p>
-    ${isAdmin() ? '<button class="btn block" id="btnNachtrag">+ Wild nachtragen</button>' : ''}
+    <h2 class="section">Außerhalb der Jagdtage erlegt ${esc(state.season)}</h2>
+    ${isAdmin() ? '<button class="btn block" id="btnNachtrag">+ Wild eintragen</button>' : ''}
     ${st.nachtraege.length ? `<div class="card"><ul class="nt-list">${[...st.nachtraege].reverse().map(n => `
       <li${isAdmin() ? ` data-nt="${esc(n.id)}" tabindex="0" role="button"` : ''}>
-        <span class="nt-date">${dateDE(n.datum)}</span>
+        <span class="nt-date ${n.datum ? '' : 'unk'}">${datumText(n.datum)}</span>
         <span class="nt-what"><b>${n.anzahl}</b> ${esc(speciesName(n.art))}${n.text ? `<small>${esc(n.text)}</small>` : ''}</span>
         ${isAdmin() ? '<span class="nt-edit" aria-hidden="true">›</span>' : ''}
-      </li>`).join('')}</ul></div>` : '<p class="sub" style="text-align:center">Noch keine Nachträge in diesem Jagdjahr.</p>'}`;
+      </li>`).join('')}</ul></div>` : '<p class="sub" style="text-align:center">In diesem Jagdjahr noch nichts außerhalb der Jagdtage erlegt.</p>'}`;
 
   // Vergleich über alle Jagdjahre
   const seasons = allSeasons().filter(s => seasonDays(s).length || seasonNachtraege(s).length);
@@ -812,8 +836,9 @@ function gruppeLabel(gid, kurz = false) {
   return `${i + 1}. ${names.join(' / ')}`;
 }
 const createdKey = x => { const m = /^sw-([0-9a-z]+)$/.exec(x.id || ''); return m ? parseInt(m[1], 36) : Date.parse(x.zeit || '') || 0; };
+const ordDatum = x => x.datum || (createdKey(x) ? new Date(createdKey(x)).toISOString().slice(0, 10) : '0000');
 const dammVerteilt = () => (state.schalen?.eintraege || []).filter(x => x.art === 'damm' && !x.fallwild)
-  .sort((a, b) => a.datum.localeCompare(b.datum) || createdKey(a) - createdKey(b));
+  .sort((a, b) => ordDatum(a).localeCompare(ordDatum(b)) || createdKey(a) - createdKey(b));
 /** Map Eintrag-ID → Gruppen-ID, dazu die als Nächstes dran befindliche Gruppe */
 function wildbretPlan() {
   const gs = wvGruppen(), n = gs.length, list = dammVerteilt();
@@ -891,7 +916,8 @@ function openSperre() {
 }
 
 /** Rehwild: Wildbret an den Schützen oder an die Jagdgemeinschaft */
-const rehWildbretLabel = x => x.wildbret === 'jg' ? 'Jagdgemeinschaft' : x.wildbret === 'schuetze' ? `Schütze (${shooterName(x.schuetze)})` : '';
+const schuetzeText = x => x.gemeinschaft ? 'Gemeinschaftsansitz' : shooterName(x.schuetze);
+const rehWildbretLabel = x => x.wildbret === 'jg' ? 'Jagdgemeinschaft' : x.wildbret === 'schuetze' ? (x.gemeinschaft ? 'Schütze' : `Schütze (${shooterName(x.schuetze)})`) : '';
 const wildbretText = (x, plan) => x.art === 'reh' ? rehWildbretLabel(x) : (plan.map[x.id] ? gruppeLabel(plan.map[x.id]) : '');
 
 function wildbretCard() {
@@ -903,7 +929,7 @@ function wildbretCard() {
       <div class="wb-next"><span class="sub">Als Nächstes dran</span><b>${esc(gruppeLabel(plan.next))}</b></div>
       <ol class="wb-list">${gs.map(g => `<li class="${g.id === plan.next ? 'next' : ''}">
         <span class="wb-names">${esc(gruppeLabel(g.id))}</span>
-        <small>${last[g.id] ? `zuletzt ${dateDE(last[g.id].datum)} · ${esc(katName('damm', last[g.id].kat))}` : '–'}</small></li>`).join('')}</ol>
+        <small>${last[g.id] ? `zuletzt ${datumText(last[g.id].datum)} · ${esc(katName('damm', last[g.id].kat))}` : '–'}</small></li>`).join('')}</ol>
       ${isAdmin() ? '<button class="btn secondary block" id="wbEdit">Gruppen bearbeiten</button>' : ''}
     </div>
     <p class="hint">Erlegtes Dammwild geht der Reihe nach an die Gruppen – unabhängig vom Schützen und über das Jagdjahr hinaus. Fallwild wird nicht verteilt.</p>`;
@@ -934,7 +960,7 @@ function openGruppen() {
 }
 
 function schalenStats(season) {
-  const list = (state.schalen?.eintraege || []).filter(x => seasonOf(x.datum) === season).sort((a, b) => a.datum.localeCompare(b.datum));
+  const list = (state.schalen?.eintraege || []).filter(x => recSeason(x) === season).sort((a, b) => (a.datum || '9').localeCompare(b.datum || '9'));
   const cnt = {}; // art -> kat -> {erlegt, fallwild}
   for (const x of list) {
     const c = ((cnt[x.art] ||= {})[x.kat] ||= { erlegt: 0, fallwild: 0 });
@@ -965,9 +991,9 @@ function renderSchalen() {
   };
   const plan = wildbretPlan();
   const item = x => `<li${canSchalen() ? ` data-sw="${esc(x.id)}" tabindex="0" role="button"` : ''}>
-      <span class="nt-date">${dateDE(x.datum)}</span>
+      <span class="nt-date ${x.datum ? '' : 'unk'}">${datumText(x.datum)}</span>
       <span class="nt-what"><b>${esc(katName(x.art, x.kat))}</b> <span class="sub">${SCHALEN[x.art]?.name || ''}</span>
-        <small>${x.fallwild ? `Fallwild${x.ursache ? ` · ${esc(x.ursache)}` : ''}` : esc(shooterName(x.schuetze))}${x.bemerkung ? ` · ${esc(x.bemerkung)}` : ''}${x.gemeldetVon ? ` · gemeldet von ${esc(shooterName(x.gemeldetVon))}` : ''}</small>
+        <small>${x.fallwild ? `Fallwild${x.ursache ? ` · ${esc(x.ursache)}` : ''}` : esc(schuetzeText(x))}${x.bemerkung ? ` · ${esc(x.bemerkung)}` : ''}${x.gemeldetVon ? ` · gemeldet von ${esc(shooterName(x.gemeldetVon))}` : ''}</small>
         ${wildbretText(x, plan) ? `<small class="wb-tag">🥩 Wildbret: ${esc(wildbretText(x, plan))}</small>` : ''}</span>
       ${canSchalen() ? '<span class="nt-edit" aria-hidden="true">›</span>' : ''}
     </li>`;
@@ -995,7 +1021,7 @@ function renderSchalen() {
     ${shooters.length ? `<h2 class="section">Je Schütze</h2>
     <div class="table-wrap"><table>
       <thead><tr><th>Schütze</th><th>Reh</th><th>Damm</th><th>Was / wann</th></tr></thead>
-      <tbody>${shooters.map(([id, p]) => `<tr><td>${esc(shooterName(id))}</td><td class="${p.reh ? '' : 'zero'}">${p.reh}</td><td class="${p.damm ? '' : 'zero'}">${p.damm}</td><td class="wrap">${p.list.map(x => `${esc(katName(x.art, x.kat))} (${dateDE(x.datum).slice(0, 6)})`).join(', ')}</td></tr>`).join('')}</tbody>
+      <tbody>${shooters.map(([id, p]) => `<tr><td>${esc(shooterName(id))}</td><td class="${p.reh ? '' : 'zero'}">${p.reh}</td><td class="${p.damm ? '' : 'zero'}">${p.damm}</td><td class="wrap">${p.list.map(x => `${esc(katName(x.art, x.kat))} (${x.datum ? dateDE(x.datum).slice(0, 6) : 'o. D.'})`).join(', ')}</td></tr>`).join('')}</tbody>
     </table></div>` : ''}
     <p class="hint" style="text-align:center">Reh- und Dammwild zählt nicht zum Niederwild-Streckenbericht und nicht zum Jagdkönig.</p>`;
   $('#btnSchalen')?.addEventListener('click', () => openSchalen(null));
@@ -1011,9 +1037,9 @@ function openSchalen(id, prefill = null) {
   const planAtOpen = wildbretPlan();
   if (!x.wildbret || (x.art === 'damm' && ['schuetze', 'jg'].includes(x.wildbret))) x.wildbret = x.art === 'reh' ? (ex ? '' : 'schuetze') : ((ex && planAtOpen.map[ex.id]) || planAtOpen.next);
   const draw = () => {
-    const members = state.data.schuetzen.filter(s => isMember(s, seasonOf(x.datum || todayISO())) || s.id === x.schuetze);
+    const members = state.data.schuetzen.filter(s => isMember(s, x.datum ? seasonOf(x.datum) : (x.season || seasonOf(todayISO()))) || s.id === x.schuetze);
     const body = `
-      <label class="field"><span>Datum</span><input type="date" id="swDate" value="${esc(x.datum)}"></label>
+      ${datumFeld('sw', x.datum, x.season)}
       <div class="seg seg2" role="radiogroup" aria-label="Wildart">
         ${Object.entries(SCHALEN).map(([k, v]) => `<button type="button" role="radio" aria-checked="${x.art === k}" class="${x.art === k ? 'on' : ''}" data-swart="${k}">${v.name}</button>`).join('')}
       </div>
@@ -1021,7 +1047,7 @@ function openSchalen(id, prefill = null) {
       <label class="check-row"><input type="checkbox" id="swFall" ${x.fallwild ? 'checked' : ''}> <span><b>Fallwild</b><small>z. B. Verkehrsunfall – ohne Schützen</small></span></label>
       ${x.fallwild
         ? `<label class="field"><span>Ursache (optional)</span><input type="text" id="swUrs" list="swUrsList" value="${esc(x.ursache || '')}" placeholder="z. B. Verkehrsunfall"><datalist id="swUrsList">${FALLWILD_URSACHEN.map(u => `<option value="${u}">`).join('')}</datalist></label>`
-        : `<label class="field"><span>Schütze</span><select id="swSchuetze"><option value="">Schütze wählen …</option>${members.map(s => `<option value="${esc(s.id)}" ${s.id === x.schuetze ? 'selected' : ''}>${esc(s.vollname || s.name)}</option>`).join('')}</select></label>`}
+        : `<label class="field"><span>Schütze</span><select id="swSchuetze"><option value="">Schütze wählen …</option>${x.art === 'reh' ? `<option value="__gemein" ${x.gemeinschaft ? 'selected' : ''}>Gemeinschaftsansitz (Schütze unbekannt)</option>` : ''}${members.map(s => `<option value="${esc(s.id)}" ${s.id === x.schuetze && !x.gemeinschaft ? 'selected' : ''}>${esc(s.vollname || s.name)}</option>`).join('')}</select></label>`}
       ${x.art === 'reh' && !x.fallwild ? `<div class="field wb-field"><span>🥩 Wildbret geht an</span>
         <div class="seg seg2" role="radiogroup" aria-label="Wildbret">
           <button type="button" data-rwb="schuetze" class="${x.wildbret === 'schuetze' ? 'on' : ''}">den Schützen</button>
@@ -1035,22 +1061,28 @@ function openSchalen(id, prefill = null) {
                     : `<button class="btn secondary" data-close>Abbrechen</button><button class="btn" id="swSave">Speichern</button>`;
     openSheet(ex ? 'Eintrag bearbeiten' : 'Reh- / Dammwild eintragen', body, foot);
     const sync = () => {
-      x.datum = $('#swDate').value || x.datum; x.kat = $('#swKat').value;
+      const dt = readDatumFeld('sw'); if (dt) { x.datum = dt.datum; x.season = dt.season; }
+      x.kat = $('#swKat').value;
       x.bemerkung = $('#swBem').value.trim();
-      if ($('#swSchuetze')) x.schuetze = $('#swSchuetze').value;
+      if ($('#swSchuetze')) { const v = $('#swSchuetze').value; x.gemeinschaft = v === '__gemein'; x.schuetze = x.gemeinschaft ? '' : v; }
       if ($('#swUrs')) x.ursache = $('#swUrs').value.trim();
       if ($('#swWb')) x.wildbret = $('#swWb').value;
     };
-    $$('[data-swart]').forEach(b => b.addEventListener('click', () => { sync(); if (x.art !== b.dataset.swart) { x.art = b.dataset.swart; x.kat = SCHALEN[x.art].kat[0][0]; x.wildbret = x.art === 'reh' ? 'schuetze' : planAtOpen.next; } draw(); }));
+    $$('[data-swart]').forEach(b => b.addEventListener('click', () => { sync(); if (x.art !== b.dataset.swart) { x.art = b.dataset.swart; x.kat = SCHALEN[x.art].kat[0][0]; x.wildbret = x.art === 'reh' ? 'schuetze' : planAtOpen.next; if (x.art === 'damm' && x.gemeinschaft) { x.gemeinschaft = false; x.schuetze = ''; } } draw(); }));
     $$('[data-rwb]').forEach(b => b.addEventListener('click', () => { sync(); x.wildbret = b.dataset.rwb; draw(); }));
     $('#swFall').addEventListener('change', e => { sync(); x.fallwild = e.target.checked; draw(); });
     $('#swDate').addEventListener('change', () => { sync(); draw(); });
+    $('#swUnk').addEventListener('change', () => { sync(); draw(); });
+    $('#swSchuetze')?.addEventListener('change', () => { const was = x.gemeinschaft; sync(); if (x.art === 'reh' && x.gemeinschaft !== was) { x.wildbret = x.gemeinschaft ? 'jg' : 'schuetze'; draw(); } });
     $('#swSave').addEventListener('click', () => {
       sync();
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(x.datum)) { toast('Bitte ein Datum wählen.'); return; }
-      if (!x.fallwild && !x.schuetze) { toast('Bitte den Schützen wählen oder „Fallwild“ ankreuzen.'); return; }
+      if (!readDatumFeld('sw')) { toast('Bitte ein Datum wählen oder „Datum unbekannt“ ankreuzen.'); return; }
+      if (!x.fallwild && !x.schuetze && !(x.art === 'reh' && x.gemeinschaft)) { toast('Bitte den Schützen wählen oder „Fallwild“ ankreuzen.'); return; }
       const rec = { id: ex?.id || `sw-${Date.now().toString(36)}`, datum: x.datum, art: x.art, kat: x.kat, fallwild: !!x.fallwild };
-      if (x.fallwild) { if (x.ursache) rec.ursache = x.ursache; } else rec.schuetze = x.schuetze;
+      if (!x.datum) rec.season = x.season;
+      if (x.fallwild) { if (x.ursache) rec.ursache = x.ursache; }
+      else if (x.art === 'reh' && x.gemeinschaft) { rec.gemeinschaft = true; rec.schuetze = ''; }
+      else rec.schuetze = x.schuetze;
       if (x.bemerkung) rec.bemerkung = x.bemerkung;
       if (!rec.fallwild && x.wildbret && (rec.art === 'damm' ? !['schuetze', 'jg'].includes(x.wildbret) : ['schuetze', 'jg'].includes(x.wildbret))) rec.wildbret = x.wildbret;
       if (x.gemeldetVon) rec.gemeldetVon = x.gemeldetVon;
@@ -1058,9 +1090,9 @@ function openSchalen(id, prefill = null) {
       if (ex && ich && ich !== ex.von) rec.geaendertVon = ich;
       rec.zeit = new Date().toISOString();
       queueSchalenOp({ type: 'upsert', rec });
-      state.season = seasonOf(rec.datum);
+      state.season = recSeason(rec);
       closeSheet(); switchTab('schalen'); render();
-      pushSchalen(`${SCHALEN[rec.art].name}: ${katName(rec.art, rec.kat)}${rec.fallwild ? ' (Fallwild)' : ''} ${dateDE(rec.datum)}${ich ? ` – eingetragen von ${shooterName(ich)}` : ''}`).then(ok => { if (ok) finishMeldung(); });
+      pushSchalen(`${SCHALEN[rec.art].name}: ${katName(rec.art, rec.kat)}${rec.fallwild ? ' (Fallwild)' : ''} ${datumText(rec.datum)}${ich ? ` – eingetragen von ${shooterName(ich)}` : ''}`).then(ok => { if (ok) finishMeldung(); });
     });
     $('#swDel')?.addEventListener('click', e => {
       const b = e.currentTarget;
@@ -1078,8 +1110,8 @@ function openNachtrag(id, prefill = null) {
   const ex = id ? state.data.nachtraege.find(n => n.id === id) : null;
   const n = ex ? clone(ex) : Object.assign({ id: null, datum: todayISO(), art: 'taube', anzahl: 1, text: '' }, prefill || {});
   const body = `
-    <p class="hint">Nachträge zählen zum Streckenbericht, aber nicht zum Jagdkönig.</p>
-    <label class="field"><span>Datum</span><input type="date" id="ntDate" value="${esc(n.datum)}"></label>
+    <p class="hint">Zählt zur Strecke, aber nicht zum Jagdkönig.</p>
+    ${datumFeld('nt', n.datum, n.season)}
     <label class="field"><span>Wildart</span>
       <select id="ntArt">${species().map(w => `<option value="${w.id}" ${w.id === n.art ? 'selected' : ''}>${esc(w.name)}</option>`).join('')}<option value="__neu">+ Neue Wildart …</option></select>
     </label>
@@ -1095,15 +1127,17 @@ function openNachtrag(id, prefill = null) {
     <label class="field"><span>Erlegt von / Bemerkung (optional)</span><input type="text" id="ntText" value="${esc(n.text)}" placeholder="z. B. Sebastian Bruns, Taubenjagd"></label>`;
   const foot = ex ? `<button class="btn danger" id="ntDel">Löschen</button><button class="btn" id="ntSave">Speichern</button>`
                   : `<button class="btn secondary" data-close>Abbrechen</button><button class="btn" id="ntSave">Speichern</button>`;
-  openSheet(ex ? 'Nachtrag bearbeiten' : 'Wild nachtragen', body, foot);
+  openSheet(ex ? 'Eintrag bearbeiten' : 'Außerhalb der Jagdtage erlegt', body, foot);
+  wireDatumFeld('nt');
   let count = n.anzahl;
   const upd = () => ($('#ntCount').textContent = count);
   $('#ntMinus').addEventListener('click', () => { count = Math.max(1, count - 1); upd(); });
   $('#ntPlus').addEventListener('click', () => { count++; upd(); });
   $('#ntArt').addEventListener('change', e => { $('#ntNew').hidden = e.target.value !== '__neu'; if (!$('#ntNew').hidden) $('#ntNewName').focus(); });
   $('#ntSave').addEventListener('click', () => {
-    const datum = $('#ntDate').value;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(datum)) { toast('Bitte ein Datum wählen.'); return; }
+    const dt = readDatumFeld('nt');
+    if (!dt) { toast('Bitte ein Datum wählen oder „Datum unbekannt“ ankreuzen.'); return; }
+    const datum = dt.datum;
     let art = $('#ntArt').value;
     if (art === '__neu') {
       const name = $('#ntNewName').value.trim();
@@ -1111,17 +1145,18 @@ function openNachtrag(id, prefill = null) {
       art = addSpecies(name, $('#ntNewPts').value);
     }
     const rec = { id: ex?.id || `n-${Date.now().toString(36)}`, datum, art, anzahl: count, text: $('#ntText').value.trim() };
+    if (!datum) rec.season = dt.season;
     state.data.nachtraege = state.data.nachtraege.filter(x => x.id !== rec.id);
     state.data.nachtraege.push(rec);
-    state.season = seasonOf(datum);
+    state.season = recSeason(rec);
     closeSheet(); switchTab('strecke');
-    persist(`Nachtrag: ${count} ${speciesName(art)} (${dateDE(datum)})`).then(ok => { if (ok) finishMeldung(); });
+    persist(`Außerhalb der Jagdtage: ${count} ${speciesName(art)} (${datumText(datum)})`).then(ok => { if (ok) finishMeldung(); });
   });
   $('#ntDel')?.addEventListener('click', e => {
     const b = e.currentTarget;
     if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Wirklich löschen?'; return; }
     state.data.nachtraege = state.data.nachtraege.filter(x => x.id !== ex.id);
-    closeSheet(); persist('Nachtrag gelöscht');
+    closeSheet(); persist('Eintrag (außerhalb der Jagdtage) gelöscht');
   });
 }
 
@@ -1780,6 +1815,9 @@ function openSettings() {
         <label class="field" style="margin-top:10px"><span>Repository Reh- & Dammwild</span><input id="cfRepo2" value="${esc(c.repo2)}" autocapitalize="off" autocorrect="off"></label>
       </details>` : ''}
     </fieldset>
+    <fieldset><legend>Termine</legend>
+      <label class="check-row"><input type="checkbox" id="cfErinnerung" ${c.erinnerung !== false ? 'checked' : ''}> <span><b>Erinnerung 60 Minuten vorher</b><small>„In Kalender“ übernimmt den Termin mit Erinnerung, und die App zeigt in der letzten Stunde einen Hinweis auf der Startseite.</small></span></label>
+    </fieldset>
     ${isAdmin() ? `<fieldset><legend>Meldungen</legend>
       <label class="field"><span>Melde-Zugang (Token nur für das Repository „${esc(meldRepo())}“)</span><input id="cfMeldToken" type="password" value="${esc(meldToken())}" placeholder="github_pat_…" autocomplete="off"></label>
       <p class="hint">Damit können alle Jäger über „Erlegtes Wild melden“ Meldungen an dich schicken. Der Zugang wird verschlüsselt in den gemeinsamen Daten gespeichert – nur wer das Passwort kennt, kann melden. ${canMelden() ? '✓ Aktiv.' : '<b>Noch nicht eingerichtet.</b>'}</p>
@@ -1881,7 +1919,7 @@ function openSettings() {
     Object.assign(state.cfg, {
       owner: $('#cfOwner')?.value.trim() ?? state.cfg.owner, repo: $('#cfRepo')?.value.trim() ?? state.cfg.repo, repo2: $('#cfRepo2')?.value.trim() ?? state.cfg.repo2,
       token: $('#cfToken').value.trim(), apiKey: $('#cfKey').value.trim(), model: $('#cfModel').value,
-      mode: $('#cfMode').value, ich: $('#cfIch').value,
+      mode: $('#cfMode').value, ich: $('#cfIch').value, erinnerung: $('#cfErinnerung').checked,
     });
     if (pwChanged) { state.pwOld = state.pw; state.pw = newPw; lsSet(LS_PW, newPw); }
     if (!pwChanged) loadSchalen();
@@ -2161,7 +2199,7 @@ async function exportStrecke(season) {
     const hundTotal = sumCounts(st.perSpeciesHund);
     const hasNt = st.totalNachtrag > 0;
     doc.autoTable({ ...tableStyle, startY: y,
-      head: [['Wildart', ...(hasNt ? ['Jagdtage', 'Nachträge'] : []), 'Stück', ...(hundTotal ? ['davon Hund'] : [])]],
+      head: [['Wildart', ...(hasNt ? ['Jagdtage', 'Außerhalb'] : []), 'Stück', ...(hundTotal ? ['davon Hund'] : [])]],
       body: species().map(w => [w.name, ...(hasNt ? [String(st.perSpeciesTage[w.id] || 0), String(st.perNachtrag[w.id] || 0)] : []), String(st.perSpecies[w.id] || 0), ...(hundTotal ? [String(st.perSpeciesHund[w.id] || '')] : [])]),
       foot: [['Gesamt', ...(hasNt ? [String(st.totalTage), String(st.totalNachtrag)] : []), String(st.total), ...(hundTotal ? [String(hundTotal)] : [])]],
       columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } },
@@ -2176,17 +2214,17 @@ async function exportStrecke(season) {
       head: [['Jagdtag', ...cols.map(w => w.name), 'Gesamt']],
       body: st.days.map(d => { const ds = dayStats(d); return [dateDE(d.datum) + (isVenslage(d) ? '\nmit Venslage*' : isTreibjagd(d) ? '\nGr. Treibjagd**' : ''), ...cols.map(w => ds.perSpecies[w.id] ? String(ds.perSpecies[w.id]) + (ds.perSpeciesHund[w.id] ? ` (${ds.perSpeciesHund[w.id]} H)` : '') : '–'), String(ds.total)]; }),
       foot: [
-        ...(hasNt ? [['Nachträge', ...cols.map(w => String(st.perNachtrag[w.id] || '–')), String(st.totalNachtrag)]] : []),
+        ...(hasNt ? [['Außerhalb d. Jagdtage', ...cols.map(w => String(st.perNachtrag[w.id] || '–')), String(st.totalNachtrag)]] : []),
         ['Gesamt', ...cols.map(w => String(st.perSpecies[w.id] || 0)), String(st.total)]],
       columnStyles: Object.fromEntries([...cols.map((_, i) => [i + 1, { halign: 'right' }]), [cols.length + 1, { halign: 'right', fontStyle: 'bold' }]]),
       didParseCell: numRight(1),
     });
     y = doc.lastAutoTable.finalY + 10;
     if (hasNt) {
-      y = sectionTitle(doc, 'Nachträge (außerhalb der Jagdtage)', y);
+      y = sectionTitle(doc, 'Außerhalb der Jagdtage erlegt', y);
       doc.autoTable({ ...tableStyle, startY: y,
         head: [['Datum', 'Wildart', 'Anzahl', 'Erlegt von / Bemerkung']],
-        body: st.nachtraege.map(n => [dateDE(n.datum), speciesName(n.art), String(n.anzahl), n.text || '–']),
+        body: st.nachtraege.map(n => [datumText(n.datum), speciesName(n.art), String(n.anzahl), n.text || '–']),
         columnStyles: { 0: { cellWidth: 26 }, 2: { halign: 'right', cellWidth: 18 } }, didParseCell: numRight(2, 2),
       });
       y = doc.lastAutoTable.finalY + 10;
@@ -2217,11 +2255,25 @@ async function exportKoenig(season) {
     }
     y = sectionTitle(doc, 'Rangliste', y);
     const cols = species().filter(w => st.ranking.some(r => r.erlegt[w.id] || r.hund[w.id]));
+    const spw = Math.min(14, (182 - 48 - 40) / Math.max(1, cols.length)); // Breite je Wildart-Spalte
     doc.autoTable({ ...tableStyle, startY: y,
       head: [['Platz', 'Schütze', ...cols.map(w => w.name), 'Stück', 'Punkte', 'Tageskönig']],
       body: st.ranking.map(r => [`${r.rank}.`, shooterName(r.id), ...cols.map(w => { const e = r.erlegt[w.id] || 0, h = r.hund[w.id] || 0; return e + h ? `${e + h}${h ? ` (${h} H)` : ''}` : '–'; }), String(r.stueck), fmt(r.punkte), r.siege ? `${r.siege}×` : '–']),
-      columnStyles: Object.fromEntries([[0, { halign: 'right', cellWidth: 12 }], ...cols.map((_, i) => [i + 2, { halign: 'right' }]), [cols.length + 2, { halign: 'right' }], [cols.length + 3, { halign: 'right', fontStyle: 'bold' }], [cols.length + 4, { halign: 'center' }]]),
-      didParseCell: numRight(2, cols.length + 3),
+      columnStyles: Object.fromEntries([[0, { halign: 'right', cellWidth: 12 }], [1, { cellWidth: 'auto', minCellWidth: 36 }], ...cols.map((_, i) => [i + 2, { halign: 'right', cellWidth: spw }]), [cols.length + 2, { halign: 'right', cellWidth: 11 }], [cols.length + 3, { halign: 'right', fontStyle: 'bold', cellWidth: 13 }], [cols.length + 4, { halign: 'center', cellWidth: 12 }]]),
+      didParseCell: d => {
+        numRight(2, cols.length + 3)(d);
+        // Kopfzeile: Wildarten, Stück, Punkte, Tageskönig senkrecht – kein Umbruch mitten im Wort
+        if (d.section === 'head' && d.column.index >= 2) {
+          d.cell._vert = d.cell.raw; d.cell.text = [''];
+          d.cell.styles.minCellHeight = 25;
+        }
+        if (d.section === 'body' && d.column.index >= 2 && d.column.index < cols.length + 2) { d.cell.styles.fontSize = spw < 11 ? 7.5 : 8.5; d.cell.styles.cellPadding = { top: 2, bottom: 2, left: 1, right: 1.5 }; }
+      },
+      didDrawCell: d => {
+        if (d.section !== 'head' || !d.cell._vert) return;
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(255, 255, 255);
+        doc.text(String(d.cell._vert), d.cell.x + d.cell.width / 2 + 1.3, d.cell.y + d.cell.height - 2.5, { angle: 90 });
+      },
     });
     y = doc.lastAutoTable.finalY + 10;
     y = sectionTitle(doc, 'Einzelnachweis je Schütze', y);
@@ -2269,14 +2321,14 @@ async function exportSchalen(season) {
     y = sectionTitle(doc, 'Erlegt', y);
     doc.autoTable({ ...tableStyle, startY: y,
       head: [['Datum', 'Wildart', 'Kategorie', 'Schütze', 'Wildbret an', 'Bemerkung']],
-      body: st.erlegt.length ? st.erlegt.map(x => [dateDE(x.datum), SCHALEN[x.art].name, katName(x.art, x.kat), shooterName(x.schuetze), wildbretText(x, plan) || '–', x.bemerkung || '–']) : [[{ content: 'Keine Erlegungen', colSpan: 6 }]],
+      body: st.erlegt.length ? st.erlegt.map(x => [datumText(x.datum), SCHALEN[x.art].name, katName(x.art, x.kat), schuetzeText(x), wildbretText(x, plan) || '–', x.bemerkung || '–']) : [[{ content: 'Keine Erlegungen', colSpan: 6 }]],
       columnStyles: { 0: { cellWidth: 24 } },
     });
     y = doc.lastAutoTable.finalY + 10;
     y = sectionTitle(doc, 'Fallwild', y);
     doc.autoTable({ ...tableStyle, startY: y,
       head: [['Datum', 'Wildart', 'Kategorie', 'Ursache', 'Bemerkung']],
-      body: st.fallwild.length ? st.fallwild.map(x => [dateDE(x.datum), SCHALEN[x.art].name, katName(x.art, x.kat), x.ursache || '–', x.bemerkung || '–']) : [[{ content: 'Kein Fallwild', colSpan: 5 }]],
+      body: st.fallwild.length ? st.fallwild.map(x => [datumText(x.datum), SCHALEN[x.art].name, katName(x.art, x.kat), x.ursache || '–', x.bemerkung || '–']) : [[{ content: 'Kein Fallwild', colSpan: 5 }]],
       columnStyles: { 0: { cellWidth: 24 } },
     });
     const sh = Object.entries(st.perShooter);
@@ -2285,7 +2337,7 @@ async function exportSchalen(season) {
       y = sectionTitle(doc, 'Je Schütze', y);
       doc.autoTable({ ...tableStyle, startY: y,
         head: [['Schütze', 'Rehwild', 'Dammwild', 'Erlegt']],
-        body: sh.sort((a, b) => (b[1].reh + b[1].damm) - (a[1].reh + a[1].damm)).map(([id, p]) => [shooterName(id), String(p.reh), String(p.damm), p.list.map(x => `${katName(x.art, x.kat)} (${dateDE(x.datum)})`).join(', ')]),
+        body: sh.sort((a, b) => (b[1].reh + b[1].damm) - (a[1].reh + a[1].damm)).map(([id, p]) => [shooterName(id), String(p.reh), String(p.damm), p.list.map(x => `${katName(x.art, x.kat)} (${datumText(x.datum)})`).join(', ')]),
         columnStyles: { 1: { halign: 'right', cellWidth: 20 }, 2: { halign: 'right', cellWidth: 22 } }, didParseCell: numRight(1, 2),
       });
     }
@@ -2330,7 +2382,7 @@ async function exportGesamt(season) {
     });
     y = doc.lastAutoTable.finalY + 8;
     doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...PDF.muted);
-    doc.text('Niederwild inkl. Nachträge außerhalb der Jagdtage. Bei der Jagd mit Venslage zählt nur das im Revier Thuine erlegte Wild.', 14, y, { maxWidth: 182 });
+    doc.text('Niederwild inkl. Wild, das außerhalb der Jagdtage erlegt wurde. Bei der Jagd mit Venslage zählt nur das im Revier Thuine erlegte Wild.', 14, y, { maxWidth: 182 });
     pdfFooter(doc);
     await shareOrDownload(doc.output('blob'), `Gesamtstrecke_${safeSeason(season)}.pdf`);
   } catch (e) { toast('Export fehlgeschlagen: ' + e.message, 4500); }
@@ -2471,7 +2523,8 @@ const TERMIN_ARTEN = {
   hv: 'Hauptversammlung', arbeit: 'Arbeitseinsatz', schiessen: 'Übungsschießen', sonst: 'Sonstiges',
 };
 const terminTitel = t => t.titel || TERMIN_ARTEN[t.art] || 'Termin';
-const terminLeitung = t => t.leitungId ? shooterName(t.leitungId) : (t.leitung || '');
+const terminLeitung = t => t.leitungGruppe ? gruppeLabel(t.leitungGruppe).replace(/^\d+\.\s*/, '') : t.leitungId ? shooterName(t.leitungId) : (t.leitung || '');
+const leitungArt = t => t.leitung && !t.leitungId && !t.leitungGruppe ? 'Organisation' : 'Jagdleitung';
 const sortTermine = l => [...l].sort((a, b) => (a.datum + (a.zeit || '')).localeCompare(b.datum + (b.zeit || '')));
 const kommendeTermine = () => sortTermine((state.data?.termine || []).filter(t => t.datum >= todayISO()));
 function inTagen(iso) {
@@ -2489,7 +2542,7 @@ function terminCard(t, admin) {
     <div class="tm-body">
       <div class="tm-title">${esc(terminTitel(t))}${!past ? ` <small>${inTagen(t.datum)}</small>` : ''}</div>
       ${t.zeit || t.ort ? `<div class="tm-line">🕗 ${esc([t.zeit ? t.zeit + ' Uhr' : '', t.ort].filter(Boolean).join(' · '))}</div>` : ''}
-      ${lei ? `<div class="tm-line">👤 ${t.leitungId ? 'Jagdleitung' : 'Organisation'}: <b>${esc(lei)}</b></div>` : ''}
+      ${lei ? `<div class="tm-line">👤 ${leitungArt(t)}: <b>${esc(lei)}</b></div>` : ''}
       ${t.besonderheit ? `<div class="tm-note">${esc(t.besonderheit)}</div>` : ''}
       ${!past ? `<div class="tm-actions"><button class="btn secondary" data-ics="${esc(t.id)}">📅 In Kalender</button>${admin ? `<button class="btn ghost" data-tmedit="${esc(t.id)}">Bearbeiten</button>` : ''}</div>` : (admin ? `<div class="tm-actions"><button class="btn ghost" data-tmedit="${esc(t.id)}">Bearbeiten</button></div>` : '')}
     </div>
@@ -2513,9 +2566,9 @@ function renderTermine() {
 }
 function openTermin(id) {
   const ex = id ? state.data.termine.find(t => t.id === id) : null;
-  const t = Object.assign({ datum: todayISO(), zeit: '', art: 'jagdtag', titel: '', ort: '', leitungId: '', leitung: '', besonderheit: '' }, ex || {});
+  const t = Object.assign({ datum: todayISO(), zeit: '', art: 'jagdtag', titel: '', ort: '', leitungGruppe: '', leitungId: '', leitung: '', besonderheit: '' }, ex || {});
   const members = state.data.schuetzen.filter(s => isMember(s, seasonOf(t.datum)));
-  const leiSel = t.leitungId || (t.leitung ? '__frei' : '');
+  const leiSel = t.leitungGruppe ? `grp:${t.leitungGruppe}` : t.leitungId || (t.leitung ? '__frei' : '');
   openSheet(ex ? 'Termin bearbeiten' : 'Neuer Termin', `
     <div class="grid2">
       <label class="field"><span>Datum</span><input type="date" id="tmDatum" value="${esc(t.datum)}"></label>
@@ -2525,7 +2578,9 @@ function openTermin(id) {
     <label class="field"><span>Eigene Bezeichnung (optional)</span><input id="tmTitel" value="${esc(t.titel)}" placeholder="sonst: Art wie oben"></label>
     <label class="field"><span>Treffpunkt</span><input id="tmOrt" value="${esc(t.ort)}" placeholder="z. B. Hof Schmees"></label>
     <label class="field"><span>Jagdleitung / Organisation</span><select id="tmLeiSel">
-      <option value="">–</option>${members.map(s => `<option value="${esc(s.id)}" ${s.id === leiSel ? 'selected' : ''}>${esc(s.vollname || s.name)}</option>`).join('')}
+      <option value="">–</option>
+      <optgroup label="Gruppen">${wvGruppen().map(g => `<option value="grp:${g.id}" ${`grp:${g.id}` === leiSel ? 'selected' : ''}>${esc(gruppeLabel(g.id))}</option>`).join('')}</optgroup>
+      <optgroup label="Einzelne Schützen">${members.map(s => `<option value="${esc(s.id)}" ${s.id === leiSel ? 'selected' : ''}>${esc(s.vollname || s.name)}</option>`).join('')}</optgroup>
       <option value="__frei" ${leiSel === '__frei' ? 'selected' : ''}>Andere (Freitext) …</option></select></label>
     <label class="field" id="tmLeiFreiWrap" ${leiSel === '__frei' ? '' : 'hidden'}><span>Wer?</span><input id="tmLeiFrei" value="${esc(t.leitung)}" placeholder="z. B. Hegering Lingen"></label>
     <label class="field"><span>Besonderheit (optional)</span><textarea id="tmBes" rows="3" placeholder="z. B. Signalfarbe Pflicht, Gäste bitte anmelden">${esc(t.besonderheit)}</textarea></label>`,
@@ -2536,7 +2591,7 @@ function openTermin(id) {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(datum)) { toast('Bitte ein Datum wählen.'); return; }
     const sel = $('#tmLeiSel').value;
     const rec = { id: ex?.id || `t-${Date.now().toString(36)}`, datum, zeit: $('#tmZeit').value, art: $('#tmArt').value, titel: $('#tmTitel').value.trim(),
-      ort: $('#tmOrt').value.trim(), leitungId: sel && sel !== '__frei' ? sel : '', leitung: sel === '__frei' ? $('#tmLeiFrei').value.trim() : '', besonderheit: $('#tmBes').value.trim() };
+      ort: $('#tmOrt').value.trim(), leitungGruppe: sel.startsWith('grp:') ? sel.slice(4) : '', leitungId: sel && sel !== '__frei' && !sel.startsWith('grp:') ? sel : '', leitung: sel === '__frei' ? $('#tmLeiFrei').value.trim() : '', besonderheit: $('#tmBes').value.trim() };
     Object.keys(rec).forEach(k => { if (rec[k] === '') delete rec[k]; });
     state.data.termine = ex ? state.data.termine.map(x => x.id === ex.id ? rec : x) : [...state.data.termine, rec];
     closeSheet(); persist(`Termin: ${terminTitel(rec)} ${dateDE(datum)}`); renderTermine();
@@ -2548,6 +2603,22 @@ function openTermin(id) {
     closeSheet(); persist(`Termin gelöscht: ${terminTitel(ex)} ${dateDE(ex.datum)}`); renderTermine();
   });
 }
+/* ---------- Erinnerung 60 Minuten vorher (pro Gerät abschaltbar) ---------- */
+const erinnerungAn = () => state.cfg.erinnerung !== false;
+const terminStart = t => { if (!t.zeit) return null; const [y, m, d] = t.datum.split('-').map(Number), [h, mi] = t.zeit.split(':').map(Number); return new Date(y, m - 1, d, h, mi); };
+function baldTermin() {
+  if (!erinnerungAn()) return null;
+  const now = Date.now();
+  return kommendeTermine().map(t => ({ t, ms: terminStart(t) - now })).find(x => x.t.zeit && x.ms > -15 * 60e3 && x.ms <= 60 * 60e3) || null;
+}
+function erinnerungBanner() {
+  const b = baldTermin(); if (!b) return '';
+  const min = Math.max(0, Math.round(b.ms / 60e3)), t = b.t;
+  return `<button class="bald" data-go="termine"><span aria-hidden="true">⏰</span><span><b>${min ? `In ${min} Min.` : 'Jetzt'}: ${esc(terminTitel(t))}</b>
+    <small>${esc([t.zeit + ' Uhr', t.ort, terminLeitung(t)].filter(Boolean).join(' · '))}</small></span></button>`;
+}
+setInterval(() => { if (state.tab === 'start' && $('#sheet').hidden && !$('#pdfv')) renderStart(); }, 60e3);
+
 /* ---------- Import aus Kalenderdatei (.ics) ---------- */
 function parseIcs(text) {
   const lines = text.replace(/\r\n?/g, '\n').replace(/\n[ \t]/g, '').split('\n'); // gefaltete Zeilen zusammenführen
@@ -2650,10 +2721,11 @@ function terminToCalendar(t) {
     start = `DTSTART;VALUE=DATE:${d}`; end = `DTEND;VALUE=DATE:${n.getFullYear()}${String(n.getMonth() + 1).padStart(2, '0')}${String(n.getDate()).padStart(2, '0')}`;
   }
   const lei = terminLeitung(t);
-  const desc = [lei ? `${t.leitungId ? 'Jagdleitung' : 'Organisation'}: ${lei}` : '', t.besonderheit].filter(Boolean).join('\n');
+  const desc = [lei ? `${leitungArt(t)}: ${lei}` : '', t.besonderheit].filter(Boolean).join('\n');
   const ics = ['BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//JG Thuine//Jagd Thuine//DE', 'CALSCALE:GREGORIAN', 'BEGIN:VEVENT',
     `UID:${t.uid || t.id + '@jg-thuine'}`, `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, '').replace(/\.\d+/, '')}`, start, end,
     `SUMMARY:${icsEsc('JG Thuine: ' + terminTitel(t))}`, t.ort ? `LOCATION:${icsEsc(t.ort)}` : '', desc ? `DESCRIPTION:${icsEsc(desc)}` : '',
+    ...(erinnerungAn() && t.zeit ? ['BEGIN:VALARM', 'ACTION:DISPLAY', `DESCRIPTION:${icsEsc(terminTitel(t) + ' in 60 Minuten')}`, 'TRIGGER:-PT60M', 'END:VALARM'] : []),
     'END:VEVENT', 'END:VCALENDAR'].filter(Boolean).join('\r\n');
   const blob = new Blob([ics], { type: 'text/calendar' });
   const url = URL.createObjectURL(blob);
@@ -2717,6 +2789,7 @@ function renderStart() {
       <p class="sub">Jagdjahr ${esc(state.season)}</p>
     </div>
     ${sperreBanner()}
+    ${erinnerungBanner()}
     ${isAdmin() && state.meldungen.length ? `<button class="start-tile ml-tile" id="btnMeldungen"><span class="st-title">📬 ${state.meldungen.length} neue Meldung${state.meldungen.length === 1 ? '' : 'en'}</span><span class="st-meta">antippen zum Prüfen und Übernehmen</span><span class="st-go" aria-hidden="true">›</span></button>` : ''}
     ${canMelden() ? `<button class="start-tile melden-tile" id="btnMelden">
       <span class="st-title"><span class="mt-plus" aria-hidden="true">+</span> Wild melden</span>
@@ -2725,7 +2798,10 @@ function renderStart() {
     </button>` : ''}
     <button class="start-tile" data-go="termine">
       <span class="st-title">Termine</span>
-      <span class="st-meta st-one">${next ? `${esc(dateDE(next.datum).slice(0, 6))}${next.zeit ? ` · ${esc(next.zeit)} Uhr` : ''} · ${esc(terminTitel(next))}` : 'Zurzeit keine Termine eingetragen'}</span>
+      ${kommend.length ? kommend.slice(0, 2).map(t => `<span class="st-tm">
+        <b>${esc(dateDE(t.datum, true).replace(/\d{4}$/, '').trim())}${t.zeit ? ` · ${esc(t.zeit)} Uhr` : ''} – ${esc(terminTitel(t))}</b>
+        ${t.ort || terminLeitung(t) ? `<small>${t.ort ? `📍 ${esc(t.ort)}` : ''}${t.ort && terminLeitung(t) ? ' · ' : ''}${terminLeitung(t) ? `👤 ${esc(terminLeitung(t))}` : ''}</small>` : ''}
+      </span>`).join('') + (kommend.length > 2 ? `<span class="st-meta">+ ${kommend.length - 2} weitere</span>` : '') : '<span class="st-meta">Zurzeit keine Termine eingetragen</span>'}
       <span class="st-go" aria-hidden="true">›</span>
     </button>
     <button class="start-tile" data-go="strecke">
