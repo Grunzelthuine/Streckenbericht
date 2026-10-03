@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.14.1';
+const APP_VERSION = '2.15.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -2846,10 +2846,27 @@ $('#settingsBtn').addEventListener('click', openSettings);
 ensureLockDom();
 $('#lockForm')?.addEventListener('submit', unlock);
 $('#forgotPw')?.addEventListener('click', openReset);
-document.addEventListener('visibilitychange', () => {
-  if (document.visibilityState !== 'visible' || !$('#sheet').hidden) return;
-  if (!state.pending) load();
-  loadSchalen(); loadMeldungen();
+/* ---------- Aktualisieren: beim Zurückkehren, alle 5 Minuten im Vordergrund und per Knopf ---------- */
+let lastRefresh = Date.now();
+function refreshAll() {
+  lastRefresh = Date.now();
+  return Promise.allSettled([state.pending ? null : load(), loadSchalen(), loadMeldungen()]);
+}
+const ruhig = () => document.visibilityState === 'visible' && $('#sheet').hidden && !$('#pdfv') && !$('#lock:not([hidden])');
+document.addEventListener('visibilitychange', () => { if (ruhig()) refreshAll(); });
+setInterval(() => { if (ruhig() && Date.now() - lastRefresh >= 5 * 60e3 - 5e3) refreshAll(); }, 30e3);
+function ensureRefreshBtn() {
+  if ($('#refreshBtn') || !$('#settingsBtn')) return;
+  $('#settingsBtn').insertAdjacentHTML('beforebegin', `<button class="icon-btn" id="refreshBtn" aria-label="Aktualisieren" title="Aktualisieren">
+    <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 11a8 8 0 1 0-2.3 5.7"/><path d="M20 4v7h-7"/></svg></button>`);
+}
+ensureRefreshBtn();
+$('#refreshBtn')?.addEventListener('click', async e => {
+  const b = e.currentTarget; if (b.classList.contains('spin')) return;
+  b.classList.add('spin');
+  await refreshAll();
+  setTimeout(() => b.classList.remove('spin'), 400);
+  toast(navigator.onLine === false ? 'Offline – zeige zuletzt geladenen Stand.' : 'Aktualisiert ✓');
 });
 
 /* ================= Service Worker (Update-Hinweis) ================= */

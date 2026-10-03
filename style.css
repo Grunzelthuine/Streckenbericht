@@ -506,3 +506,22 @@ fieldset { min-width: 0; max-width: 100%; }
 .st-big { font: 700 30px/1.15 var(--serif); color: var(--ink); margin-top: 4px; }
 .st-half .st-meta { white-space: normal !important; font-size: 13px; }
 body.on-start .topbar .season { display: none; } /* Jagdjahr steht auf der Startseite groß im Kopfbereich */
+
+/* Aktualisieren-Knopf */
+#refreshBtn.spin svg { animation: rf-spin .8s linear infinite; }
+@keyframes rf-spin { to { transform: rotate(360deg); } }
+/* Kopfzeile mit Aktualisieren-Knopf: Titel einzeilig halten */
+.topbar h1 { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.topbar .eyebrow { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block; }
+@media (max-width: 400px) {
+  .topbar { gap: 8px; }
+  .topbar-logo { width: 38px; height: 38px; }
+  .topbar h1 { font-size: 18px; }
+  .topbar .icon-btn { width: 38px; height: 38px; }
+  .season select { font-size: 14px; padding: 6px 22px 6px 8px; background-position: right 7px center; }
+  .topbar { gap: 6px; }
+  .topbar .icon-btn { width: 34px; }
+}
+@media (max-width: 400px) { .topbar .eyebrow { display: none; } }
+@media (max-width: 380px) { .topbar-logo { width: 32px; height: 32px; } .topbar h1 { font-size: 17px; } }
+@media (max-width: 340px) { body:not(.on-start) .topbar-title { visibility: hidden; } }
