@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.13.2';
+const APP_VERSION = '2.14.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -2789,9 +2789,13 @@ function renderStart() {
   const reh = sw.tot('reh'), damm = sw.tot('damm');
   const kommend = kommendeTermine(), next = kommend[0];
   el.innerHTML = `
-    <div class="start-hero">
+    <div class="start-hero2">
       <img src="icons/logo.png" alt="Jagdgemeinschaft Thuine">
-      <p class="sub">Jagdjahr ${esc(state.season)}</p>
+      <label class="hs-season">
+        <span class="hs-lbl">Jagdjahr</span>
+        <span class="hs-sel"><select id="heroSeason" aria-label="Jagdjahr wählen">${allSeasons().map(x => `<option value="${x}" ${x === state.season ? 'selected' : ''}>${x}</option>`).join('')}</select><span class="hs-caret" aria-hidden="true">▾</span></span>
+        ${state.season === seasonOf(todayISO()) ? '<span class="hs-now">aktuelles Jagdjahr</span>' : `<button type="button" class="hs-back" id="heroNow">zurück zu ${seasonOf(todayISO())}</button>`}
+      </label>
     </div>
     ${sperreBanner()}
     ${erinnerungBanner()}
@@ -2809,16 +2813,18 @@ function renderStart() {
       </span>`).join('') + (kommend.length > 2 ? `<span class="st-meta">+ ${kommend.length - 2} weitere</span>` : '') : '<span class="st-meta">Zurzeit keine Termine eingetragen</span>'}
       <span class="st-go" aria-hidden="true">›</span>
     </button>
-    <button class="start-tile" data-go="strecke">
-      <span class="st-title">Niederwild</span>
-      <span class="st-meta">${st.total} Stück Strecke · ${st.days.length} Jagdtag${st.days.length === 1 ? '' : 'e'}</span>
-      <span class="st-go" aria-hidden="true">›</span>
-    </button>
-    <button class="start-tile" data-go="schalen">
-      <span class="st-title">Schalenwild</span>
-      <span class="st-meta">Rehwild ${reh.erlegt + reh.fallwild} · Dammwild ${damm.erlegt + damm.fallwild}${sw.fallwild.length ? ` · davon ${sw.fallwild.length} Fallwild` : ''}</span>
-      <span class="st-go" aria-hidden="true">›</span>
-    </button>
+    <div class="st-grid">
+      <button class="start-tile st-half" data-go="strecke">
+        <span class="st-title">Niederwild</span>
+        <span class="st-big">${st.total}</span>
+        <span class="st-meta">Stück · ${st.days.length} Jagdtag${st.days.length === 1 ? '' : 'e'}</span>
+      </button>
+      <button class="start-tile st-half" data-go="schalen">
+        <span class="st-title">Schalenwild</span>
+        <span class="st-big">${reh.erlegt + reh.fallwild + damm.erlegt + damm.fallwild}</span>
+        <span class="st-meta">Reh ${reh.erlegt + reh.fallwild} · Damm ${damm.erlegt + damm.fallwild}</span>
+      </button>
+    </div>
     <button class="start-tile" data-go="berichte">
       <span class="st-title">Streckenberichte</span>
       <span class="st-meta">PDF-Berichte aller Jagdjahre</span>
@@ -2826,6 +2832,9 @@ function renderStart() {
     </button>`;
   $('#btnMelden')?.addEventListener('click', openMelden);
   $('#btnMeldungen')?.addEventListener('click', openMeldungen);
+  const setSeason = v => { const sel = $('#seasonSelect'); sel.value = v; sel.dispatchEvent(new Event('change')); };
+  $('#heroSeason')?.addEventListener('change', e => setSeason(e.target.value));
+  $('#heroNow')?.addEventListener('click', e => { e.preventDefault(); setSeason(seasonOf(todayISO())); });
   $$('[data-go]', el).forEach(b => b.addEventListener('click', () => switchTab(b.dataset.go)));
 }
 $$('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.tab)));

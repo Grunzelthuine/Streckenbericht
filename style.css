@@ -487,3 +487,22 @@ fieldset { min-width: 0; max-width: 100%; }
 .dt-unk { display: flex; align-items: center; gap: 10px; margin: -2px 0 12px; font-size: 14px; color: var(--muted); }
 .dt-unk input { width: 20px; height: 20px; accent-color: var(--green); }
 .nt-date.unk { font-style: italic; color: var(--warn); }
+
+/* Startseite kompakter (2.14) */
+.start-hero2 { display: flex; align-items: center; gap: 14px; padding: 4px 4px 6px; }
+.start-hero2 img { width: 72px; height: auto; flex: none; }
+.hs-season { display: grid; gap: 0; min-width: 0; }
+.hs-lbl { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.hs-sel { position: relative; display: inline-flex; align-items: center; }
+.hs-sel select { appearance: none; -webkit-appearance: none; border: 0; background: transparent; padding: 0 26px 0 0; margin: 0; font: 700 34px/1.1 var(--serif); color: var(--green); cursor: pointer; }
+.hs-caret { position: absolute; right: 2px; pointer-events: none; color: var(--green); font-size: 18px; }
+.hs-now { font-size: 12.5px; color: var(--muted); }
+.hs-back { justify-self: start; border: 0; background: var(--brass-soft); color: var(--ink); border-radius: 8px; padding: 3px 9px; font: 600 12.5px var(--sans); cursor: pointer; margin-top: 2px; }
+#view-start .start-tile { padding: 15px 44px 15px 18px; border-radius: 16px; }
+#view-start .st-title { font-size: 21px; }
+.st-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 12px; }
+#view-start .st-grid .start-tile { margin-top: 0; padding: 14px 16px; gap: 0; }
+.st-half .st-title { font-size: 19px !important; }
+.st-big { font: 700 30px/1.15 var(--serif); color: var(--ink); margin-top: 4px; }
+.st-half .st-meta { white-space: normal !important; font-size: 13px; }
+body.on-start .topbar .season { display: none; } /* Jagdjahr steht auf der Startseite groß im Kopfbereich */
