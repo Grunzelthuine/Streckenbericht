@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.13.0';
+const APP_VERSION = '2.13.2';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -2520,11 +2520,14 @@ async function reencryptDocs() {
 /* ================= Termine ================= */
 const TERMIN_ARTEN = {
   jagdtag: 'Jagdtag Niederwild', treibjagd: 'Große Treibjagd', venslage: 'Jagd mit Venslage', drueckjagd: 'Drückjagd / Ansitz',
-  hv: 'Hauptversammlung', arbeit: 'Arbeitseinsatz', schiessen: 'Übungsschießen', sonst: 'Sonstiges',
+  hv: 'Hauptversammlung', arbeit: 'Arbeitseinsatz', schiessen: 'Übungsschießen',
+  gruenkohl: 'Grünkohlessen', leberessen: 'Leberessen', bockvertrinken: 'Bockvertrinken', hirschvertrinken: 'Hirschvertrinken', sonst: 'Sonstiges',
 };
 const terminTitel = t => t.titel || TERMIN_ARTEN[t.art] || 'Termin';
 const terminLeitung = t => t.leitungGruppe ? gruppeLabel(t.leitungGruppe).replace(/^\d+\.\s*/, '') : t.leitungId ? shooterName(t.leitungId) : (t.leitung || '');
-const leitungArt = t => t.leitung && !t.leitungId && !t.leitungGruppe ? 'Organisation' : 'Jagdleitung';
+/* Bei Jagden heißt es „Jagdleitung“, bei allen anderen Terminen (Essen, Vertrinken, Versammlung …) „Organisation“ */
+const JAGD_ARTEN = ['jagdtag', 'treibjagd', 'venslage', 'drueckjagd'];
+const leitungArt = t => JAGD_ARTEN.includes(t.art) ? 'Jagdleitung' : 'Organisator';
 const sortTermine = l => [...l].sort((a, b) => (a.datum + (a.zeit || '')).localeCompare(b.datum + (b.zeit || '')));
 const kommendeTermine = () => sortTermine((state.data?.termine || []).filter(t => t.datum >= todayISO()));
 function inTagen(iso) {
@@ -2577,7 +2580,7 @@ function openTermin(id) {
     <label class="field"><span>Art</span><select id="tmArt">${Object.entries(TERMIN_ARTEN).map(([k, v]) => `<option value="${k}" ${k === t.art ? 'selected' : ''}>${v}</option>`).join('')}</select></label>
     <label class="field"><span>Eigene Bezeichnung (optional)</span><input id="tmTitel" value="${esc(t.titel)}" placeholder="sonst: Art wie oben"></label>
     <label class="field"><span>Treffpunkt</span><input id="tmOrt" value="${esc(t.ort)}" placeholder="z. B. Hof Schmees"></label>
-    <label class="field"><span>Jagdleitung / Organisation</span><select id="tmLeiSel">
+    <label class="field"><span id="tmLeiLbl">${leitungArt(t)}</span><select id="tmLeiSel">
       <option value="">–</option>
       <optgroup label="Gruppen">${wvGruppen().map(g => `<option value="grp:${g.id}" ${`grp:${g.id}` === leiSel ? 'selected' : ''}>${esc(gruppeLabel(g.id))}</option>`).join('')}</optgroup>
       <optgroup label="Einzelne Schützen">${members.map(s => `<option value="${esc(s.id)}" ${s.id === leiSel ? 'selected' : ''}>${esc(s.vollname || s.name)}</option>`).join('')}</optgroup>
@@ -2586,6 +2589,7 @@ function openTermin(id) {
     <label class="field"><span>Besonderheit (optional)</span><textarea id="tmBes" rows="3" placeholder="z. B. Signalfarbe Pflicht, Gäste bitte anmelden">${esc(t.besonderheit)}</textarea></label>`,
     `${ex ? '<button class="btn danger" id="tmDel">Löschen</button>' : '<button class="btn secondary" data-close>Abbrechen</button>'}<button class="btn" id="tmSave">Speichern</button>`);
   $('#tmLeiSel').addEventListener('change', e => { $('#tmLeiFreiWrap').hidden = e.target.value !== '__frei'; });
+  $('#tmArt').addEventListener('change', e => { $('#tmLeiLbl').textContent = leitungArt({ art: e.target.value }); });
   $('#tmSave').addEventListener('click', () => {
     const datum = $('#tmDatum').value;
     if (!/^\d{4}-\d{2}-\d{2}$/.test(datum)) { toast('Bitte ein Datum wählen.'); return; }
@@ -2649,11 +2653,12 @@ function parseIcs(text) {
     let desc = unesc(e.DESCRIPTION?.value || '');
     const t = { uid: e.UID?.value || '', datum, zeit, titel, ort: unesc(e.LOCATION?.value || ''), wiederholt: !!e.RRULE };
     const low = titel.toLowerCase();
-    t.art = /venslage/.test(low) ? 'venslage' : /treibjagd/.test(low) ? 'treibjagd' : /drück|drueck|ansitz/.test(low) ? 'drueckjagd'
+    t.art = /grünkohl|gruenkohl|kohl/.test(low) ? 'gruenkohl' : /leber/.test(low) ? 'leberessen' : /bock.*vertrink|vertrink.*bock/.test(low) ? 'bockvertrinken'
+      : /hirsch.*vertrink|vertrink.*hirsch/.test(low) ? 'hirschvertrinken' : /venslage/.test(low) ? 'venslage' : /treibjagd/.test(low) ? 'treibjagd' : /drück|drueck|ansitz/.test(low) ? 'drueckjagd'
       : /hauptversammlung|jahreshauptversammlung|\bhv\b|\bjhv\b/.test(low) ? 'hv' : /arbeit|einsatz|hochsitz/.test(low) ? 'arbeit'
       : /schieß|schiess|schießstand/.test(low) ? 'schiessen' : /jagd|niederwild/.test(low) ? 'jagdtag' : 'sonst';
     // „Jagdleitung: Name“ / „Organisation: …“ aus der Beschreibung übernehmen
-    const lm = desc.match(/^(?:jagdleitung|jagdleiter|leitung|organisation)\s*:\s*(.+)$/im);
+    const lm = desc.match(/^(?:jagdleitung|jagdleiter|leitung|organisation|organisator)\s*:\s*(.+)$/im);
     if (lm) {
       const name = lm[1].trim(), nl = name.toLowerCase();
       const s = state.data.schuetzen.find(x => [x.vollname, x.name].filter(Boolean).some(n => n.toLowerCase() === nl) || (x.vollname && x.vollname.toLowerCase().includes(nl)));
