@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.14.0';
+const APP_VERSION = '2.14.1';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -828,11 +828,14 @@ const DEFAULT_GRUPPEN = [
 const wv = () => state.data?.wildverteilung || { gruppen: DEFAULT_GRUPPEN };
 const wvGruppen = () => wv().gruppen?.length ? wv().gruppen : DEFAULT_GRUPPEN;
 const mitgliedName = m => shooterById(m) ? (shooterById(m).vollname || shooterById(m).name) : m;
+/** Nachname für die Sortierung: aus Kurzname „Geerdes, W.“ bzw. letztes Wort des vollen Namens; „N. N.“ immer zuletzt */
+const nachname = m => { const sh = shooterById(m); if (!sh) return '\uffff'; return (sh.name.includes(',') ? sh.name.split(',')[0] : (sh.vollname || sh.name).trim().split(/\s+/).pop()).toLowerCase(); };
+const sortMitglieder = list => [...list].sort((a, b) => nachname(a).localeCompare(nachname(b), 'de') || mitgliedName(a).localeCompare(mitgliedName(b), 'de'));
 function gruppeLabel(gid, kurz = false) {
   if (gid === 'keine') return 'keine Verteilung';
   const gs = wvGruppen(), i = gs.findIndex(g => g.id === gid);
   if (i < 0) return 'Gruppe (gelöscht)';
-  const names = gs[i].mitglieder.filter(Boolean).map(m => kurz && shooterById(m) ? shooterById(m).name : mitgliedName(m));
+  const names = sortMitglieder(gs[i].mitglieder.filter(Boolean)).map(m => kurz && shooterById(m) ? shooterById(m).name : mitgliedName(m));
   return `${i + 1}. ${names.join(' / ')}`;
 }
 const createdKey = x => { const m = /^sw-([0-9a-z]+)$/.exec(x.id || ''); return m ? parseInt(m[1], 36) : Date.parse(x.zeit || '') || 0; };
