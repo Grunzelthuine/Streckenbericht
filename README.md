@@ -126,6 +126,13 @@ Auf der Startseite kann jeder mit dem Passwort ein erlegtes Stück melden. Die M
 ## Streckenberichte (PDF)
 Alle PDF-Downloads liegen auf der Startseite unter **Streckenberichte**, nach Jagdjahren absteigend: Gesamtstreckenbericht, Niederwild, Reh- & Dammwild und Jagdkönig. Den Jagdkönig gibt es dort nur für vergangene Jagdjahre. Das laufende Jahr kann nur der Admin herunterladen.
 
+## Neu in 2.16
+- Schalenwild in drei Seiten: Rehwild, Damwild, Schwarzwild (Reiter unten). Schwarzwild: Sau, Keiler, Überläufer, Frischling – wie Rehwild, ohne Wildbret-Auswahl; auch bei „Wild melden“.
+- Damwild: 8 Kategorien (Damtier, Kalb, Schmaltier, Schmalspießer, Spießer (3b), Hirsch 3b/2a/1a); alte Einträge werden zugeordnet (1b→1a, 2b→2a, 3a→3b, Hirschkalb→Kalb).
+- Freigabe Damwild oben auf der Damwild-Seite: je Kategorie „frei“ / „gesperrt – unsere Regelung“ (Admin schaltet) / „Schonzeit – Gesetz“ (automatisch nach DVO-NJagdG § 3, Stand 18.01.2021; Alttiere nach Bundes-JagdzeitV). Bei Gesetzesänderung `DAM_JAGDZEIT` in app.js anpassen.
+- Termine rutschen 4 Std. nach Beginn (ohne Uhrzeit: am Folgetag) in „Vergangene Termine“, dort Auswahl nach Jagdjahr.
+- Startseite: Niederwild/Schalenwild nur mit Symbol.
+
 ## Neu in 2.13
 - Termine: Jagdleitung auch als Gruppe (gleiche Gruppen wie Wildbret-Verteilung). Startseite zeigt die nächsten 2 Termine mit Uhrzeit, Treffpunkt, Jagdleitung.
 - Erinnerung 60 Min. vorher (Einstellungen → Termine, pro Gerät abschaltbar): „In Kalender“ enthält dann einen Alarm; in der letzten Stunde Hinweis ⏰ auf der Startseite.
@@ -164,7 +171,7 @@ Beim Speichern ohne Netz bleiben die Daten auf dem Gerät, und oben erscheint �
 Auf iPhone/Android öffnen sich alle PDFs (Berichte, Protokolle) direkt in der App (pdf.js, `vendor/pdf.min.js` + `vendor/pdf.worker.min.js`). Oben links ✕ schließt, oben rechts „Teilen/Sichern“ öffnet das Teilen-Menü. Am PC wird weiter direkt heruntergeladen.
 
 ## Neue Version einspielen
-Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-2.13.0'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
+Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-2.16.0'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
 
 ## Daten
 Alle Daten liegen in `data/strecke.json`. Jede Speicherung ist ein Commit in GitHub, dadurch gibt es automatisch eine Versionshistorie. Zusätzlich gibt es in den Einstellungen **„Sicherung speichern“ / „Sicherung einspielen“**. Die Sicherung enthält Niederwild und Reh- & Dammwild **unverschlüsselt**, gehört also nur in deinen eigenen Ordner.

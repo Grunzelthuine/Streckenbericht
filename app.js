@@ -26,13 +26,15 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.15.0';
+const APP_VERSION = '2.16.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
 const LS_SCHALEN = 'sb.schalen.v1';
 const LS_SCHALEN_OPS = 'sb.schalen.ops.v1';
 const SCHALEN_PATH = 'schalenwild.json';
+/* Alte Damwild-Kategorien (bis 2.15) → neue 8 Kategorien */
+const KAT_ALIAS = { 'hirsch-1b': 'hirsch-1a', 'hirsch-2b': 'hirsch-2a', 'hirsch-3a': 'hirsch-3b', hirschkalb: 'kalb' };
 const FALLBACK_MODEL = 'claude-sonnet-4-6';
 
 /* ================= Hilfsfunktionen ================= */
@@ -187,7 +189,7 @@ const state = {
   schalenOps: lsGet(LS_SCHALEN_OPS, []),
   pw: lsGet('sb.pw.v1', ''),
 };
-function normalizeSchalen(d) { d = d && typeof d === 'object' ? d : {}; d.version ||= 1; d.eintraege = Array.isArray(d.eintraege) ? d.eintraege : []; return d; }
+function normalizeSchalen(d) { d = d && typeof d === 'object' ? d : {}; d.version ||= 1; d.eintraege = Array.isArray(d.eintraege) ? d.eintraege : []; d.eintraege.forEach(x => { if (x.art === 'damm' && KAT_ALIAS[x.kat]) x.kat = KAT_ALIAS[x.kat]; }); return d; }
 
 function defaultCfg() {
   let owner = '', repo = '';
@@ -460,7 +462,7 @@ async function fetchSchalenRemote(auth) {
   // Fallback ohne API-Limit (kann bis zu 5 Min. verzögert sein)
   const r = await fetch(`https://raw.githubusercontent.com/${owner}/${repo2}/${branch || 'main'}/${SCHALEN_PATH}?t=${Date.now()}`, { cache: 'no-store' });
   if (r.status === 404) return { data: normalizeSchalen(null) };
-  if (!r.ok) throw new Error('Reh-/Dammwild-Daten nicht erreichbar');
+  if (!r.ok) throw new Error('Schalenwild-Daten nicht erreichbar');
   return { data: normalizeSchalen(await openData(await r.json())) };
 }
 function applySchalenOp(d, op) {
@@ -496,7 +498,7 @@ function queueSchalenOp(op) {
   applySchalenOp(state.schalen, op); lsSet(LS_SCHALEN, state.schalen);
 }
 let savingSchalen = false;
-async function pushSchalen(message = 'Reh-/Dammwild aktualisiert', force = false) {
+async function pushSchalen(message = 'Schalenwild aktualisiert', force = false) {
   if (!state.schalenOps.length && !force) return true;
   if (!canSchalen()) { showSchalenBanner('Zugang fehlt – bitte in den Einstellungen eintragen.'); return false; }
   if (savingSchalen) return false;
@@ -528,7 +530,7 @@ async function pushSchalen(message = 'Reh-/Dammwild aktualisiert', force = false
         return true;
       }
       if (r.status === 409 || r.status === 422) continue;
-      if (r.status === 401 || r.status === 403 || r.status === 404) throw new Error('Keine Schreibrechte für Reh & Damm (Token prüfen)');
+      if (r.status === 401 || r.status === 403 || r.status === 404) throw new Error('Keine Schreibrechte für Schalenwild (Token prüfen)');
       throw new Error(`GitHub ${r.status}`);
     }
     throw new Error('Konflikt beim Speichern – bitte erneut senden');
@@ -536,7 +538,7 @@ async function pushSchalen(message = 'Reh-/Dammwild aktualisiert', force = false
   finally { savingSchalen = false; }
 }
 function showSchalenBanner(err) {
-  showBanner(`<span>Reh-/Dammwild-Einträge noch nicht hochgeladen${err ? ` (${esc(err)})` : ''}.</span><button class="btn" id="retrySchalen">Erneut senden</button>`);
+  showBanner(`<span>Schalenwild-Einträge noch nicht hochgeladen${err ? ` (${esc(err)})` : ''}.</span><button class="btn" id="retrySchalen">Erneut senden</button>`);
   $('#retrySchalen')?.addEventListener('click', () => pushSchalen());
 }
 
@@ -609,13 +611,13 @@ function openMelden() {
       ${datumFeld('ml', m.datum, m.season)}
       <div class="seg seg2" role="radiogroup" aria-label="Bereich">
         <button type="button" data-mltyp="nieder" class="${m.typ === 'nieder' ? 'on' : ''}">Niederwild</button>
-        <button type="button" data-mltyp="schalen" class="${m.typ === 'schalen' ? 'on' : ''}">Reh / Damm</button>
+        <button type="button" data-mltyp="schalen" class="${m.typ === 'schalen' ? 'on' : ''}">Schalenwild</button>
       </div>
       ${m.typ === 'nieder' ? `
         <label class="field"><span>Wildart</span><select id="mlArt">${species().map(w => `<option value="${w.id}" ${w.id === m.art ? 'selected' : ''}>${esc(w.name)}</option>`).join('')}</select></label>
         <div class="stepper big-stepper"><span class="lab">Anzahl</span><span class="ctl"><button type="button" id="mlMinus" aria-label="weniger">−</button><output id="mlCount">${m.anzahl}</output><button type="button" id="mlPlus" aria-label="mehr">+</button></span></div>`
       : `
-        <div class="seg seg2" role="radiogroup" aria-label="Wildart">${Object.entries(SCHALEN).map(([k, v]) => `<button type="button" data-mlsart="${k}" class="${m.sArt === k ? 'on' : ''}">${v.name}</button>`).join('')}</div>
+        <div class="seg" role="radiogroup" aria-label="Wildart">${Object.entries(SCHALEN).map(([k, v]) => `<button type="button" data-mlsart="${k}" class="${m.sArt === k ? 'on' : ''}">${v.name}</button>`).join('')}</div>
         <label class="field"><span>Kategorie</span><select id="mlKat">${SCHALEN[m.sArt].kat.map(([k, l]) => `<option value="${k}" ${k === m.kat ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         <label class="check-row"><input type="checkbox" id="mlFall" ${m.fallwild ? 'checked' : ''}> <span><b>Fallwild</b><small>z. B. Verkehrsunfall</small></span></label>`}
       <label class="field"><span>Bemerkung (optional)</span><input type="text" id="mlBem" value="${esc(m.bemerkung)}" placeholder="z. B. Ort, Uhrzeit, Ursache"></label>`;
@@ -811,13 +813,68 @@ const speciesName = id => species().find(w => w.id === id)?.name || id;
 /* ================= Reh- & Dammwild ================= */
 const SCHALEN = {
   reh: { name: 'Rehwild', kat: [['rehbock', 'Rehbock'], ['ricke', 'Ricke'], ['schmalreh', 'Schmalreh'], ['kitz', 'Kitz']] },
-  damm: { name: 'Dammwild', kat: [['hirsch-1a', 'Hirsch 1a'], ['hirsch-1b', 'Hirsch 1b'], ['hirsch-2a', 'Hirsch 2a'], ['hirsch-2b', 'Hirsch 2b'], ['hirsch-3a', 'Hirsch 3a'], ['hirsch-3b', 'Hirsch 3b'],
-    ['alttier', 'Alttier'], ['schmaltier', 'Schmaltier'], ['spiesser', 'Spießer'], ['kalb', 'Kalb'], ['hirschkalb', 'Hirschkalb']] },
+  damm: { name: 'Damwild', kat: [['alttier', 'Damtier'], ['kalb', 'Kalb'], ['schmaltier', 'Schmaltier'], ['schmalspiesser', 'Schmalspießer'],
+    ['spiesser', 'Spießer (3b)'], ['hirsch-3b', 'Hirsch 3b'], ['hirsch-2a', 'Hirsch 2a'], ['hirsch-1a', 'Hirsch 1a']] },
+  schwarz: { name: 'Schwarzwild', kat: [['sau', 'Sau'], ['keiler', 'Keiler'], ['ueberlaeufer', 'Überläufer'], ['frischling', 'Frischling']] },
 };
-const katName = (art, k) => SCHALEN[art]?.kat.find(x => x[0] === k)?.[1] || k;
+const katName = (art, k) => SCHALEN[art]?.kat.find(x => x[0] === (KAT_ALIAS[k] || k))?.[1] || k;
+const MIT_GEMEINSCHAFT = ['reh', 'schwarz']; // Gemeinschaftsansitz möglich
+
+/* ---------- Freigabe Damwild: unsere Regelung + gesetzliche Jagdzeit (Niedersachsen) ----------
+   DVO-NJagdG § 3 (Stand 18.01.2021): Kälber 1.9.–31.1., Schmaltiere/Schmalspießer 1.4.–15.5. und 1.8.–31.1., Hirsche 1.8.–31.1.;
+   Alttiere nach Bundes-JagdzeitV 1.9.–31.1. */
+const DAM_JAGDZEIT = {
+  alttier: [['09-01', '01-31']], kalb: [['09-01', '01-31']],
+  schmaltier: [['04-01', '05-15'], ['08-01', '01-31']], schmalspiesser: [['04-01', '05-15'], ['08-01', '01-31']],
+  spiesser: [['08-01', '01-31']], 'hirsch-3b': [['08-01', '01-31']], 'hirsch-2a': [['08-01', '01-31']], 'hirsch-1a': [['08-01', '01-31']],
+};
+const DAM_FREI_LBL = { alttier: 'Damtiere', kalb: 'Kälber', schmaltier: 'Schmaltiere', schmalspiesser: 'Schmalspießer', spiesser: 'Spießer (3b)', 'hirsch-3b': 'Hirsch 3b', 'hirsch-2a': 'Hirsch 2a', 'hirsch-1a': 'Hirsch 1a' };
+const inJagdzeit = (ranges, iso) => { const md = iso.slice(5); return ranges.some(([a, b]) => a <= b ? md >= a && md <= b : md >= a || md <= b); };
+const mdText = md => { const [m, d] = md.split('-').map(Number); return `${d}.${m}.`; };
+const jagdzeitText = ranges => ranges.map(([a, b]) => `${mdText(a)}–${mdText(b)}`).join(' und ');
+function naechsterBeginn(ranges, iso) {
+  const y = +iso.slice(0, 4);
+  const cands = ranges.flatMap(([a]) => [`${y}-${a}`, `${y + 1}-${a}`]).filter(d => d > iso).sort();
+  return cands[0];
+}
+function damStatus(k, iso = todayISO()) {
+  const legal = inJagdzeit(DAM_JAGDZEIT[k], iso);
+  const frei = !!state.data?.damFreigabe?.[k];
+  return { legal, frei, art: !legal ? 'gesetz' : frei ? 'frei' : 'regel' };
+}
+function freigabeCard() {
+  const admin = isAdmin(), heute = todayISO();
+  const rows = Object.keys(DAM_JAGDZEIT).map(k => {
+    const st = damStatus(k, heute);
+    const txt = st.art === 'frei' ? '<b>frei</b>'
+      : st.art === 'regel' ? '<b>gesperrt</b> · unsere Regelung'
+      : `<b>Schonzeit</b> · Gesetz, wieder ab ${dateDE(naechsterBeginn(DAM_JAGDZEIT[k], heute)).slice(0, 6)}${admin ? ` <i>(danach ${st.frei ? 'frei' : 'gesperrt'})</i>` : ''}`;
+    return `<li class="fg-${st.art}">
+      <span class="fg-dot" aria-hidden="true"></span>
+      <span class="fg-name">${esc(DAM_FREI_LBL[k])}<small>Jagdzeit ${jagdzeitText(DAM_JAGDZEIT[k])}</small></span>
+      <span class="fg-st">${txt}</span>
+      ${admin ? `<button class="btn ${st.frei ? 'secondary' : ''} fg-btn" data-fg="${k}">${st.frei ? 'sperren' : 'freigeben'}</button>` : ''}
+    </li>`;
+  }).join('');
+  const stand = state.data?.damFreigabeStand;
+  return `<h2 class="section">Freigabe Damwild</h2>
+    <div class="card fg-card"><ul class="fg-list">${rows}</ul>
+      <p class="hint fg-legend"><span class="fg-k fg-frei"></span> frei <span class="fg-k fg-regel"></span> gesperrt (unsere Regelung) <span class="fg-k fg-gesetz"></span> Schonzeit (Niedersächsisches Jagdgesetz)${stand ? ` · Stand ${dateDE(stand)}` : ''}</p>
+    </div>`;
+}
+function wireFreigabe(el) {
+  $$('[data-fg]', el).forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.fg;
+    state.data.damFreigabe = Object.assign({}, state.data.damFreigabe);
+    state.data.damFreigabe[k] = !state.data.damFreigabe[k];
+    state.data.damFreigabeStand = todayISO();
+    persist(`Freigabe Damwild: ${DAM_FREI_LBL[k]} ${state.data.damFreigabe[k] ? 'frei' : 'gesperrt'}`);
+    renderSchalen();
+  }));
+}
 const FALLWILD_URSACHEN = ['Verkehrsunfall', 'Mähtod', 'Krankheit', 'Hund', 'Zaun', 'Unbekannt'];
 
-/* ================= Wildbret-Verteilung Dammwild =================
+/* ================= Wildbret-Verteilung Damwild =================
    Erlegtes Dammwild (kein Fallwild) geht der Reihe nach an feste Gruppen – fortlaufend über Jagdjahre.
    Jeder Eintrag speichert seine Gruppe (rec.wildbret); ältere Einträge ohne Angabe werden aus der
    Reihenfolge berechnet (Anker: data.wildverteilung.anker). 'keine' = Stück ohne Verteilung (zählt nicht). */
@@ -878,7 +935,7 @@ async function migrateWildverteilung() {
   const list = dammVerteilt();
   state.data.wildverteilung = { gruppen: clone(DEFAULT_GRUPPEN) };
   if (list.length && !list.some(x => x.wildbret)) state.data.wildverteilung.anker = { id: list[list.length - 1].id, gruppe: 'g4' };
-  await persist('Wildbret-Verteilung Dammwild eingerichtet');
+  await persist('Wildbret-Verteilung Damwild eingerichtet');
 }
 /* ---------- Sperre Hirschjagd (nach Fehlabschuss, i. d. R. 4 Wochen) ---------- */
 const hirschSperre = () => { const sp = state.data?.hirschSperre; return sp?.bis && sp.bis >= todayISO() ? sp : null; };
@@ -927,7 +984,7 @@ function wildbretCard() {
   const gs = wvGruppen(), plan = wildbretPlan();
   const last = {}; // Gruppe → letztes Stück
   plan.list.forEach(x => { const g = plan.map[x.id]; if (g && g !== 'keine') last[g] = x; });
-  return `<h2 class="section">Wildbret-Verteilung Dammwild</h2>
+  return `<h2 class="section">Wildbret-Verteilung Damwild</h2>
     <div class="card wb-card">
       <div class="wb-next"><span class="sub">Als Nächstes dran</span><b>${esc(gruppeLabel(plan.next))}</b></div>
       <ol class="wb-list">${gs.map(g => `<li class="${g.id === plan.next ? 'next' : ''}">
@@ -935,7 +992,7 @@ function wildbretCard() {
         <small>${last[g.id] ? `zuletzt ${datumText(last[g.id].datum)} · ${esc(katName('damm', last[g.id].kat))}` : '–'}</small></li>`).join('')}</ol>
       ${isAdmin() ? '<button class="btn secondary block" id="wbEdit">Gruppen bearbeiten</button>' : ''}
     </div>
-    <p class="hint">Erlegtes Dammwild geht der Reihe nach an die Gruppen – unabhängig vom Schützen und über das Jagdjahr hinaus. Fallwild wird nicht verteilt.</p>`;
+    <p class="hint">Erlegtes Damwild geht der Reihe nach an die Gruppen – unabhängig vom Schützen und über das Jagdjahr hinaus. Fallwild wird nicht verteilt.</p>`;
 }
 function openGruppen() {
   const gs = clone(wvGruppen());
@@ -972,7 +1029,7 @@ function schalenStats(season) {
   const tot = art => Object.values(cnt[art] || {}).reduce((a, c) => ({ erlegt: a.erlegt + c.erlegt, fallwild: a.fallwild + c.fallwild }), { erlegt: 0, fallwild: 0 });
   const perShooter = {};
   for (const x of list.filter(x => !x.fallwild && x.schuetze)) {
-    const p = (perShooter[x.schuetze] ||= { reh: 0, damm: 0, list: [] });
+    const p = (perShooter[x.schuetze] ||= { reh: 0, damm: 0, schwarz: 0, list: [] });
     p[x.art]++; p.list.push(x);
   }
   return { list, erlegt: list.filter(x => !x.fallwild), fallwild: list.filter(x => x.fallwild), cnt, tot, perShooter };
@@ -981,55 +1038,55 @@ function schalenStats(season) {
 function renderSchalen() {
   const el = $('#view-schalen');
   if (!el || !state.data) return;
+  const art = state.schalenArt || 'reh', W = SCHALEN[art];
   const st = schalenStats(state.season);
-  const catTable = art => {
-    const t = st.tot(art);
-    const rows = SCHALEN[art].kat.map(([k, lbl]) => { const c = st.cnt[art]?.[k] || { erlegt: 0, fallwild: 0 }; return { lbl, ...c }; }).filter(r => r.erlegt + r.fallwild);
-    if (!rows.length) return `<p class="sub wb-empty">${SCHALEN[art].name}: in diesem Jagdjahr noch nichts.</p>`;
-    return `<div class="table-wrap"><table>
-      <thead><tr><th>${SCHALEN[art].name}</th><th>Erlegt</th><th>Fallwild</th><th class="pts">Σ</th></tr></thead>
-      <tbody>${rows.map(r => `<tr><td>${esc(r.lbl)}</td><td class="${r.erlegt ? '' : 'zero'}">${r.erlegt}</td><td class="${r.fallwild ? '' : 'zero'}">${r.fallwild}</td><td class="pts ${r.erlegt + r.fallwild ? '' : 'zero'}">${r.erlegt + r.fallwild}</td></tr>`).join('')}</tbody>
-      <tfoot><tr><td>Gesamt</td><td>${t.erlegt}</td><td>${t.fallwild}</td><td>${t.erlegt + t.fallwild}</td></tr></tfoot>
-    </table></div>`;
-  };
   const plan = wildbretPlan();
+  const t = st.tot(art);
+  const rows = W.kat.map(([k, lbl]) => { const c = st.cnt[art]?.[k] || { erlegt: 0, fallwild: 0 }; return { lbl, ...c }; }).filter(r => r.erlegt + r.fallwild);
+  const catTable = rows.length ? `<div class="table-wrap"><table>
+      <thead><tr><th>${W.name}</th><th>Erlegt</th><th>Fallwild</th><th class="pts">Σ</th></tr></thead>
+      <tbody>${rows.map(r => `<tr><td>${esc(r.lbl)}</td><td class="${r.erlegt ? '' : 'zero'}">${r.erlegt}</td><td class="${r.fallwild ? '' : 'zero'}">${r.fallwild}</td><td class="pts">${r.erlegt + r.fallwild}</td></tr>`).join('')}</tbody>
+      <tfoot><tr><td>Gesamt</td><td>${t.erlegt}</td><td>${t.fallwild}</td><td>${t.erlegt + t.fallwild}</td></tr></tfoot>
+    </table></div>` : `<p class="sub wb-empty">${W.name}: in diesem Jagdjahr noch nichts.</p>`;
   const item = x => `<li${canSchalen() ? ` data-sw="${esc(x.id)}" tabindex="0" role="button"` : ''}>
       <span class="nt-date ${x.datum ? '' : 'unk'}">${datumText(x.datum)}</span>
-      <span class="nt-what"><b>${esc(katName(x.art, x.kat))}</b> <span class="sub">${SCHALEN[x.art]?.name || ''}</span>
+      <span class="nt-what"><b>${esc(katName(x.art, x.kat))}</b>
         <small>${x.fallwild ? `Fallwild${x.ursache ? ` · ${esc(x.ursache)}` : ''}` : esc(schuetzeText(x))}${x.bemerkung ? ` · ${esc(x.bemerkung)}` : ''}${x.gemeldetVon ? ` · gemeldet von ${esc(shooterName(x.gemeldetVon))}` : ''}</small>
         ${wildbretText(x, plan) ? `<small class="wb-tag">🥩 Wildbret: ${esc(wildbretText(x, plan))}</small>` : ''}</span>
       ${canSchalen() ? '<span class="nt-edit" aria-hidden="true">›</span>' : ''}
     </li>`;
-  const tr = st.tot('reh'), td = st.tot('damm');
-  const shooters = Object.entries(st.perShooter).sort((a, b) => (b[1].reh + b[1].damm) - (a[1].reh + a[1].damm) || shooterName(a[0]).localeCompare(shooterName(b[0]), 'de'));
+  const erlegt = st.erlegt.filter(x => x.art === art), fallwild = st.fallwild.filter(x => x.art === art);
+  const shooters = Object.entries(st.perShooter).filter(([, p]) => p[art]).sort((a, b) => b[1][art] - a[1][art] || shooterName(a[0]).localeCompare(shooterName(b[0]), 'de'));
+  const aktuell = state.season === seasonOf(todayISO());
   el.innerHTML = `
-    ${sperreBanner()}
-    <h2 class="section" style="margin-top:2px">Reh- &amp; Dammwildjagd ${esc(state.season)}</h2>
+    ${art === 'damm' ? sperreBanner() : ''}
+    ${art === 'damm' ? freigabeCard().replace('<h2 class="section">', '<h2 class="section" style="margin-top:2px">') : ''}
+    <h2 class="section" ${art === 'damm' ? '' : 'style="margin-top:2px"'}>${W.name} ${esc(state.season)}</h2>
     <div class="stats">
-      <div class="card stat"><div class="v">${tr.erlegt + tr.fallwild}</div><div class="l">Rehwild${tr.fallwild ? ` · ${tr.fallwild} Fallwild` : ''}</div></div>
-      <div class="card stat"><div class="v">${td.erlegt + td.fallwild}</div><div class="l">Dammwild${td.fallwild ? ` · ${td.fallwild} Fallwild` : ''}</div></div>
-      <div class="card stat"><div class="v">${st.fallwild.length}</div><div class="l">Fallwild gesamt</div></div>
+      <div class="card stat"><div class="v">${t.erlegt}</div><div class="l">erlegt</div></div>
+      <div class="card stat"><div class="v">${t.fallwild}</div><div class="l">Fallwild</div></div>
+      <div class="card stat"><div class="v">${t.erlegt + t.fallwild}</div><div class="l">gesamt</div></div>
     </div>
-    ${canSchalen() ? '<button class="btn block" id="btnSchalen">+ Erlegung / Fallwild eintragen</button>' : ''}
-    ${isAdmin() ? `<button class="btn ${hirschSperre() ? 'danger' : 'secondary'} block" id="btnSperre" style="margin-top:8px">${hirschSperre() ? '⛔ Sperre Hirschjagd ändern / aufheben' : 'Hirschjagd sperren (Fehlabschuss)'}</button>` : ''}
+    ${canSchalen() ? `<button class="btn block" id="btnSchalen">+ ${W.name} eintragen</button>` : ''}
+    ${art === 'damm' && isAdmin() ? `<button class="btn ${hirschSperre() ? 'danger' : 'secondary'} block" id="btnSperre" style="margin-top:8px">${hirschSperre() ? '⛔ Sperre Hirschjagd ändern / aufheben' : 'Hirschjagd sperren (Fehlabschuss)'}</button>` : ''}
     ${state.schalenOps.length ? `<div class="alert">${state.schalenOps.length} Änderung(en) noch nicht hochgeladen.</div>` : ''}
-    ${state.season === seasonOf(todayISO()) ? wildbretCard() : ''}
+    ${art === 'damm' && aktuell ? wildbretCard() : ''}
     <h2 class="section">Übersicht ${esc(state.season)}</h2>
-    ${catTable('reh')}
-    ${catTable('damm')}
+    ${catTable}
     <h2 class="section">Erlegt</h2>
-    ${st.erlegt.length ? `<div class="card"><ul class="nt-list">${[...st.erlegt].reverse().map(item).join('')}</ul></div>` : '<p class="sub" style="text-align:center">Noch nichts erlegt in diesem Jagdjahr.</p>'}
+    ${erlegt.length ? `<div class="card"><ul class="nt-list">${[...erlegt].reverse().map(item).join('')}</ul></div>` : '<p class="sub" style="text-align:center">Noch nichts erlegt in diesem Jagdjahr.</p>'}
     <h2 class="section">Fallwild</h2>
-    ${st.fallwild.length ? `<div class="card"><ul class="nt-list">${[...st.fallwild].reverse().map(item).join('')}</ul></div>` : '<p class="sub" style="text-align:center">Kein Fallwild in diesem Jagdjahr.</p>'}
+    ${fallwild.length ? `<div class="card"><ul class="nt-list">${[...fallwild].reverse().map(item).join('')}</ul></div>` : '<p class="sub" style="text-align:center">Kein Fallwild in diesem Jagdjahr.</p>'}
     ${shooters.length ? `<h2 class="section">Je Schütze</h2>
     <div class="table-wrap"><table>
-      <thead><tr><th>Schütze</th><th>Reh</th><th>Damm</th><th>Was / wann</th></tr></thead>
-      <tbody>${shooters.map(([id, p]) => `<tr><td>${esc(shooterName(id))}</td><td class="${p.reh ? '' : 'zero'}">${p.reh}</td><td class="${p.damm ? '' : 'zero'}">${p.damm}</td><td class="wrap">${p.list.map(x => `${esc(katName(x.art, x.kat))} (${x.datum ? dateDE(x.datum).slice(0, 6) : 'o. D.'})`).join(', ')}</td></tr>`).join('')}</tbody>
+      <thead><tr><th>Schütze</th><th>Anzahl</th><th>Was / wann</th></tr></thead>
+      <tbody>${shooters.map(([id, p]) => `<tr><td>${esc(shooterName(id))}</td><td>${p[art]}</td><td class="wrap">${p.list.filter(x => x.art === art).map(x => `${esc(katName(x.art, x.kat))} (${x.datum ? dateDE(x.datum).slice(0, 6) : 'o. D.'})`).join(', ')}</td></tr>`).join('')}</tbody>
     </table></div>` : ''}
-    <p class="hint" style="text-align:center">Reh- und Dammwild zählt nicht zum Niederwild-Streckenbericht und nicht zum Jagdkönig.</p>`;
-  $('#btnSchalen')?.addEventListener('click', () => openSchalen(null));
+    <p class="hint" style="text-align:center">Schalenwild zählt nicht zum Niederwild-Streckenbericht und nicht zum Jagdkönig.</p>`;
+  $('#btnSchalen')?.addEventListener('click', () => openSchalen(null, { art, kat: W.kat[0][0] }));
   $('#wbEdit')?.addEventListener('click', openGruppen);
   $('#btnSperre')?.addEventListener('click', openSperre);
+  wireFreigabe(el);
   $$('[data-sw]', el).forEach(li => li.addEventListener('click', () => openSchalen(li.dataset.sw)));
 }
 
@@ -1038,19 +1095,22 @@ function openSchalen(id, prefill = null) {
   const ich = state.cfg.ich && shooterById(state.cfg.ich) ? state.cfg.ich : '';
   const x = ex ? clone(ex) : Object.assign({ id: null, datum: todayISO(), art: 'reh', kat: 'rehbock', fallwild: false, schuetze: ich, ursache: '', bemerkung: '' }, prefill || {});
   const planAtOpen = wildbretPlan();
-  if (!x.wildbret || (x.art === 'damm' && ['schuetze', 'jg'].includes(x.wildbret))) x.wildbret = x.art === 'reh' ? (ex ? '' : 'schuetze') : ((ex && planAtOpen.map[ex.id]) || planAtOpen.next);
+  if (x.art === 'damm' && KAT_ALIAS[x.kat]) x.kat = KAT_ALIAS[x.kat];
+  const wbDefault = () => x.art === 'reh' ? (x.gemeinschaft ? 'jg' : 'schuetze') : x.art === 'damm' ? planAtOpen.next : '';
+  if (!x.wildbret || (x.art === 'damm' && ['schuetze', 'jg'].includes(x.wildbret)) || (x.art !== 'damm' && /^g\d+$|^keine$/.test(x.wildbret))) x.wildbret = x.art === 'reh' ? (ex ? '' : wbDefault()) : x.art === 'damm' ? ((ex && planAtOpen.map[ex.id]) || planAtOpen.next) : '';
   const draw = () => {
     const members = state.data.schuetzen.filter(s => isMember(s, x.datum ? seasonOf(x.datum) : (x.season || seasonOf(todayISO()))) || s.id === x.schuetze);
     const body = `
       ${datumFeld('sw', x.datum, x.season)}
-      <div class="seg seg2" role="radiogroup" aria-label="Wildart">
+      <div class="seg" role="radiogroup" aria-label="Wildart">
         ${Object.entries(SCHALEN).map(([k, v]) => `<button type="button" role="radio" aria-checked="${x.art === k}" class="${x.art === k ? 'on' : ''}" data-swart="${k}">${v.name}</button>`).join('')}
       </div>
       <label class="field"><span>Kategorie</span><select id="swKat">${SCHALEN[x.art].kat.map(([k, l]) => `<option value="${k}" ${k === x.kat ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      ${x.art === 'damm' && !x.fallwild && DAM_JAGDZEIT[x.kat] && damStatus(x.kat, x.datum || todayISO()).art !== 'frei' ? `<div class="alert fg-warn">⚠️ ${esc(DAM_FREI_LBL[x.kat])}: derzeit ${damStatus(x.kat, x.datum || todayISO()).art === 'gesetz' ? 'Schonzeit laut Jagdgesetz' : 'gesperrt nach unserer Regelung'}.</div>` : ''}
       <label class="check-row"><input type="checkbox" id="swFall" ${x.fallwild ? 'checked' : ''}> <span><b>Fallwild</b><small>z. B. Verkehrsunfall – ohne Schützen</small></span></label>
       ${x.fallwild
         ? `<label class="field"><span>Ursache (optional)</span><input type="text" id="swUrs" list="swUrsList" value="${esc(x.ursache || '')}" placeholder="z. B. Verkehrsunfall"><datalist id="swUrsList">${FALLWILD_URSACHEN.map(u => `<option value="${u}">`).join('')}</datalist></label>`
-        : `<label class="field"><span>Schütze</span><select id="swSchuetze"><option value="">Schütze wählen …</option>${x.art === 'reh' ? `<option value="__gemein" ${x.gemeinschaft ? 'selected' : ''}>Gemeinschaftsansitz (Schütze unbekannt)</option>` : ''}${members.map(s => `<option value="${esc(s.id)}" ${s.id === x.schuetze && !x.gemeinschaft ? 'selected' : ''}>${esc(s.vollname || s.name)}</option>`).join('')}</select></label>`}
+        : `<label class="field"><span>Schütze</span><select id="swSchuetze"><option value="">Schütze wählen …</option>${MIT_GEMEINSCHAFT.includes(x.art) ? `<option value="__gemein" ${x.gemeinschaft ? 'selected' : ''}>Gemeinschaftsansitz (Schütze unbekannt)</option>` : ''}${members.map(s => `<option value="${esc(s.id)}" ${s.id === x.schuetze && !x.gemeinschaft ? 'selected' : ''}>${esc(s.vollname || s.name)}</option>`).join('')}</select></label>`}
       ${x.art === 'reh' && !x.fallwild ? `<div class="field wb-field"><span>🥩 Wildbret geht an</span>
         <div class="seg seg2" role="radiogroup" aria-label="Wildbret">
           <button type="button" data-rwb="schuetze" class="${x.wildbret === 'schuetze' ? 'on' : ''}">den Schützen</button>
@@ -1062,7 +1122,7 @@ function openSchalen(id, prefill = null) {
       <label class="field"><span>Bemerkung (optional)</span><input type="text" id="swBem" value="${esc(x.bemerkung || '')}" placeholder="z. B. Ort, Gewicht"></label>`;
     const foot = ex ? `<button class="btn danger" id="swDel">Löschen</button><button class="btn" id="swSave">Speichern</button>`
                     : `<button class="btn secondary" data-close>Abbrechen</button><button class="btn" id="swSave">Speichern</button>`;
-    openSheet(ex ? 'Eintrag bearbeiten' : 'Reh- / Dammwild eintragen', body, foot);
+    openSheet(ex ? 'Eintrag bearbeiten' : `${SCHALEN[x.art].name} eintragen`, body, foot);
     const sync = () => {
       const dt = readDatumFeld('sw'); if (dt) { x.datum = dt.datum; x.season = dt.season; }
       x.kat = $('#swKat').value;
@@ -1071,7 +1131,8 @@ function openSchalen(id, prefill = null) {
       if ($('#swUrs')) x.ursache = $('#swUrs').value.trim();
       if ($('#swWb')) x.wildbret = $('#swWb').value;
     };
-    $$('[data-swart]').forEach(b => b.addEventListener('click', () => { sync(); if (x.art !== b.dataset.swart) { x.art = b.dataset.swart; x.kat = SCHALEN[x.art].kat[0][0]; x.wildbret = x.art === 'reh' ? 'schuetze' : planAtOpen.next; if (x.art === 'damm' && x.gemeinschaft) { x.gemeinschaft = false; x.schuetze = ''; } } draw(); }));
+    $$('[data-swart]').forEach(b => b.addEventListener('click', () => { sync(); if (x.art !== b.dataset.swart) { x.art = b.dataset.swart; x.kat = SCHALEN[x.art].kat[0][0]; if (!MIT_GEMEINSCHAFT.includes(x.art) && x.gemeinschaft) { x.gemeinschaft = false; x.schuetze = ''; } x.wildbret = wbDefault(); } draw(); }));
+    $('#swKat').addEventListener('change', () => { sync(); if (x.art === 'damm') draw(); });
     $$('[data-rwb]').forEach(b => b.addEventListener('click', () => { sync(); x.wildbret = b.dataset.rwb; draw(); }));
     $('#swFall').addEventListener('change', e => { sync(); x.fallwild = e.target.checked; draw(); });
     $('#swDate').addEventListener('change', () => { sync(); draw(); });
@@ -1080,20 +1141,21 @@ function openSchalen(id, prefill = null) {
     $('#swSave').addEventListener('click', () => {
       sync();
       if (!readDatumFeld('sw')) { toast('Bitte ein Datum wählen oder „Datum unbekannt“ ankreuzen.'); return; }
-      if (!x.fallwild && !x.schuetze && !(x.art === 'reh' && x.gemeinschaft)) { toast('Bitte den Schützen wählen oder „Fallwild“ ankreuzen.'); return; }
+      if (!x.fallwild && !x.schuetze && !(MIT_GEMEINSCHAFT.includes(x.art) && x.gemeinschaft)) { toast('Bitte den Schützen wählen oder „Fallwild“ ankreuzen.'); return; }
       const rec = { id: ex?.id || `sw-${Date.now().toString(36)}`, datum: x.datum, art: x.art, kat: x.kat, fallwild: !!x.fallwild };
       if (!x.datum) rec.season = x.season;
       if (x.fallwild) { if (x.ursache) rec.ursache = x.ursache; }
-      else if (x.art === 'reh' && x.gemeinschaft) { rec.gemeinschaft = true; rec.schuetze = ''; }
+      else if (MIT_GEMEINSCHAFT.includes(x.art) && x.gemeinschaft) { rec.gemeinschaft = true; rec.schuetze = ''; }
       else rec.schuetze = x.schuetze;
       if (x.bemerkung) rec.bemerkung = x.bemerkung;
-      if (!rec.fallwild && x.wildbret && (rec.art === 'damm' ? !['schuetze', 'jg'].includes(x.wildbret) : ['schuetze', 'jg'].includes(x.wildbret))) rec.wildbret = x.wildbret;
+      if (!rec.fallwild && x.wildbret && (rec.art === 'damm' ? !['schuetze', 'jg'].includes(x.wildbret) : rec.art === 'reh' && ['schuetze', 'jg'].includes(x.wildbret))) rec.wildbret = x.wildbret;
       if (x.gemeldetVon) rec.gemeldetVon = x.gemeldetVon;
       rec.von = ex?.von || ich || undefined;
       if (ex && ich && ich !== ex.von) rec.geaendertVon = ich;
       rec.zeit = new Date().toISOString();
       queueSchalenOp({ type: 'upsert', rec });
       state.season = recSeason(rec);
+      state.schalenArt = rec.art;
       closeSheet(); switchTab('schalen'); render();
       pushSchalen(`${SCHALEN[rec.art].name}: ${katName(rec.art, rec.kat)}${rec.fallwild ? ' (Fallwild)' : ''} ${datumText(rec.datum)}${ich ? ` – eingetragen von ${shooterName(ich)}` : ''}`).then(ok => { if (ok) finishMeldung(); });
     });
@@ -1102,7 +1164,7 @@ function openSchalen(id, prefill = null) {
       if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Wirklich löschen?'; return; }
       queueSchalenOp({ type: 'delete', id: ex.id });
       closeSheet(); render();
-      pushSchalen(`Reh-/Dammwild-Eintrag gelöscht${ich ? ` von ${shooterName(ich)}` : ''}`);
+      pushSchalen(`Schalenwild-Eintrag gelöscht${ich ? ` von ${shooterName(ich)}` : ''}`);
     });
   };
   draw();
@@ -1796,7 +1858,7 @@ function applyAiResult(res, photo) {
 function openSettings() {
   const c = state.cfg;
   const body = `
-    <div class="alert info">${isAdmin() ? '<b>Voller Zugang.</b> Du kannst alles erfassen und verwalten.' : canSchalen() ? '<b>Zugang Reh & Damm.</b> Du kannst Reh- und Dammwild eintragen, alles andere nur ansehen.' : '<b>Ansichtsmodus.</b> Zum Ansehen brauchst du nichts einzutragen.'}</div>
+    <div class="alert info">${isAdmin() ? '<b>Voller Zugang.</b> Du kannst alles erfassen und verwalten.' : canSchalen() ? '<b>Zugang Schalenwild.</b> Du kannst Reh-, Dam- und Schwarzwild eintragen, alles andere nur ansehen.' : '<b>Ansichtsmodus.</b> Zum Ansehen brauchst du nichts einzutragen.'}</div>
     <fieldset><legend>Zugang</legend>
       <label class="field"><span>Ich bin</span>
         <select id="cfIch"><option value="">– bitte wählen –</option>${state.data.schuetzen.filter(s => isMember(s, seasonOf(todayISO())) || s.id === c.ich).map(s => `<option value="${esc(s.id)}" ${s.id === c.ich ? 'selected' : ''}>${esc(s.vollname || s.name)}</option>`).join('')}</select>
@@ -1804,7 +1866,7 @@ function openSettings() {
       <label class="field"><span>Berechtigung</span>
         <select id="cfMode">
           <option value="" ${!c.mode ? 'selected' : ''}>Nur ansehen</option>
-          <option value="schalen" ${c.mode === 'schalen' ? 'selected' : ''}>Reh- & Dammwild eintragen</option>
+          <option value="schalen" ${c.mode === 'schalen' ? 'selected' : ''}>Schalenwild eintragen</option>
           <option value="voll" ${c.mode === 'voll' ? 'selected' : ''}>Voller Zugang (Verwaltung)</option>
         </select>
       </label>
@@ -1815,7 +1877,7 @@ function openSettings() {
           <label class="field"><span>Konto</span><input id="cfOwner" value="${esc(c.owner)}" autocapitalize="off" autocorrect="off"></label>
           <label class="field"><span>Repository Hauptdaten</span><input id="cfRepo" value="${esc(c.repo)}" autocapitalize="off" autocorrect="off"></label>
         </div>
-        <label class="field" style="margin-top:10px"><span>Repository Reh- & Dammwild</span><input id="cfRepo2" value="${esc(c.repo2)}" autocapitalize="off" autocorrect="off"></label>
+        <label class="field" style="margin-top:10px"><span>Repository Schalenwild</span><input id="cfRepo2" value="${esc(c.repo2)}" autocapitalize="off" autocorrect="off"></label>
       </details>` : ''}
     </fieldset>
     <fieldset><legend>Termine</legend>
@@ -1853,7 +1915,7 @@ function openSettings() {
     </fieldset>
     <fieldset><legend>Datensicherung</legend>
       <div class="btn-row"><button class="btn secondary" id="cfExport">Sicherung speichern</button><button class="btn secondary" id="cfImport">Sicherung einspielen</button></div>
-      <p class="hint">Die Sicherung enthält Niederwild <b>und</b> Reh- &amp; Dammwild – <b>unverschlüsselt</b>. Nur im eigenen Ordner aufbewahren (z. B. OneDrive), nicht weitergeben. Mit ihr lässt sich auch ein vergessenes Passwort zurücksetzen.</p>
+      <p class="hint">Die Sicherung enthält Niederwild <b>und</b> Schalenwild – <b>unverschlüsselt</b>. Nur im eigenen Ordner aufbewahren (z. B. OneDrive), nicht weitergeben. Mit ihr lässt sich auch ein vergessenes Passwort zurücksetzen.</p>
       <input type="file" id="cfImportFile" accept="application/json,.json" hidden>
     </fieldset>` : ''}
     <p class="hint" style="text-align:center">Version ${APP_VERSION}</p>`;
@@ -1902,7 +1964,7 @@ function openSettings() {
       const src = parseBackup(JSON.parse(await e.target.files[0].text()));
       closeSheet();
       await restoreData(src);
-      toast(src.schalen ? 'Sicherung eingespielt (Niederwild + Reh & Damm).' : 'Sicherung eingespielt (nur Niederwild).', 4000);
+      toast(src.schalen ? 'Sicherung eingespielt (Niederwild + Schalenwild).' : 'Sicherung eingespielt (nur Niederwild).', 4000);
     } catch (err) { toast('Import fehlgeschlagen: ' + err.message, 4000); }
   });
   $('#cfSave').addEventListener('click', async () => {
@@ -1945,7 +2007,7 @@ function openSettings() {
     closeSheet();
     if (pwChanged) {
       await persist('Daten verschlüsselt');
-      await pushSchalen('Reh-/Dammwild verschlüsselt', true);
+      await pushSchalen('Schalenwild verschlüsselt', true);
       if (canMelden()) { try { await changeMeldungen(l => l, 'Meldungen neu verschlüsselt'); } catch { /* egal */ } }
       await reencryptDocs();
       state.pwOld = '';
@@ -2005,7 +2067,7 @@ function openReset() {
     <p class="sub" style="text-align:left">Nur für den vollen Zugang (Verwaltung). Du spielst einen bekannten Stand ein und vergibst ein neues Passwort. Danach müssen alle Jäger das neue Passwort einmal eingeben.</p>
     ${isAdmin() ? '' : `<label class="field" style="text-align:left"><span>Dein GitHub-Token (voller Zugang)</span><input type="password" id="rsToken" placeholder="github_pat_…" autocomplete="off"></label>`}
     <fieldset style="text-align:left"><legend>Welcher Stand?</legend>
-      ${hasCache ? `<label class="check-row"><input type="radio" name="rsSrc" value="cache" checked> <span><b>Stand auf diesem Gerät</b><small>zuletzt geladen: ${cachedMain.stand ? new Date(cachedMain.stand).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) : 'unbekannt'}${cachedSch?.eintraege ? ` · ${cachedSch.eintraege.length} Reh-/Dammwild-Einträge` : ''}</small></span></label>` : ''}
+      ${hasCache ? `<label class="check-row"><input type="radio" name="rsSrc" value="cache" checked> <span><b>Stand auf diesem Gerät</b><small>zuletzt geladen: ${cachedMain.stand ? new Date(cachedMain.stand).toLocaleString('de-DE', { dateStyle: 'medium', timeStyle: 'short' }) : 'unbekannt'}${cachedSch?.eintraege ? ` · ${cachedSch.eintraege.length} Schalenwild-Einträge` : ''}</small></span></label>` : ''}
       <label class="check-row"><input type="radio" name="rsSrc" value="file" ${hasCache ? '' : 'checked'}> <span><b>Sicherungsdatei einspielen</b><small>aus „Sicherung speichern“</small></span></label>
       <input type="file" id="rsFile" accept="application/json,.json">
     </fieldset>
@@ -2308,9 +2370,9 @@ async function exportSchalen(season) {
     toast('PDF wird erstellt …');
     const st = schalenStats(season);
     const plan = wildbretPlan();
-    const doc = await pdfBase('Reh- & Dammwild', season);
+    const doc = await pdfBase('Schalenwild', season);
     let y = 45;
-    for (const art of ['reh', 'damm']) {
+    for (const art of Object.keys(SCHALEN)) {
       y = sectionTitle(doc, SCHALEN[art].name, y);
       const t = st.tot(art);
       doc.autoTable({ ...tableStyle, startY: y, tableWidth: 120,
@@ -2339,13 +2401,13 @@ async function exportSchalen(season) {
       y = doc.lastAutoTable.finalY + 10;
       y = sectionTitle(doc, 'Je Schütze', y);
       doc.autoTable({ ...tableStyle, startY: y,
-        head: [['Schütze', 'Rehwild', 'Dammwild', 'Erlegt']],
-        body: sh.sort((a, b) => (b[1].reh + b[1].damm) - (a[1].reh + a[1].damm)).map(([id, p]) => [shooterName(id), String(p.reh), String(p.damm), p.list.map(x => `${katName(x.art, x.kat)} (${datumText(x.datum)})`).join(', ')]),
-        columnStyles: { 1: { halign: 'right', cellWidth: 20 }, 2: { halign: 'right', cellWidth: 22 } }, didParseCell: numRight(1, 2),
+        head: [['Schütze', 'Reh', 'Dam', 'Sau', 'Erlegt']],
+        body: sh.sort((a, b) => (b[1].reh + b[1].damm + b[1].schwarz) - (a[1].reh + a[1].damm + a[1].schwarz)).map(([id, p]) => [shooterName(id), String(p.reh), String(p.damm), String(p.schwarz), p.list.map(x => `${katName(x.art, x.kat)} (${datumText(x.datum)})`).join(', ')]),
+        columnStyles: { 1: { halign: 'right', cellWidth: 14 }, 2: { halign: 'right', cellWidth: 14 }, 3: { halign: 'right', cellWidth: 14 } }, didParseCell: numRight(1, 3),
       });
     }
     pdfFooter(doc);
-    await shareOrDownload(doc.output('blob'), `Reh-Dammwild_${safeSeason(season)}.pdf`);
+    await shareOrDownload(doc.output('blob'), `Schalenwild_${safeSeason(season)}.pdf`);
   } catch (e) { toast('Export fehlgeschlagen: ' + e.message, 4500); }
 }
 
@@ -2368,7 +2430,7 @@ async function exportGesamt(season) {
     // Schalenwild
     y = sectionTitle(doc, 'Schalenwild', y);
     const body = [];
-    for (const art of ['reh', 'damm']) {
+    for (const art of Object.keys(SCHALEN)) {
       const t = sw.tot(art);
       body.push([{ content: SCHALEN[art].name, colSpan: 4, styles: { fillColor: PDF.soft, fontStyle: 'bold' } }]);
       const cats = SCHALEN[art].kat.filter(([k]) => { const c = sw.cnt[art]?.[k]; return c && (c.erlegt || c.fallwild); });
@@ -2376,11 +2438,11 @@ async function exportGesamt(season) {
       cats.forEach(([k, l]) => { const c = sw.cnt[art][k]; body.push([l, String(c.erlegt), String(c.fallwild), String(c.erlegt + c.fallwild)]); });
       body.push([{ content: `Summe ${SCHALEN[art].name}`, styles: { fontStyle: 'bold' } }, String(t.erlegt), String(t.fallwild), { content: String(t.erlegt + t.fallwild), styles: { fontStyle: 'bold' } }]);
     }
-    const tr = sw.tot('reh'), td = sw.tot('damm');
+    const all = Object.keys(SCHALEN).map(a => sw.tot(a)).reduce((a, c) => ({ erlegt: a.erlegt + c.erlegt, fallwild: a.fallwild + c.fallwild }), { erlegt: 0, fallwild: 0 });
     doc.autoTable({ ...tableStyle, startY: y, tableWidth: 140, alternateRowStyles: {},
       head: [['Kategorie', 'Erlegt', 'Fallwild', 'Gesamt']],
       body,
-      foot: [['Gesamt Schalenwild', String(tr.erlegt + td.erlegt), String(tr.fallwild + td.fallwild), String(tr.erlegt + tr.fallwild + td.erlegt + td.fallwild)]],
+      foot: [['Gesamt Schalenwild', String(all.erlegt), String(all.fallwild), String(all.erlegt + all.fallwild)]],
       columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' } }, didParseCell: numRight(1),
     });
     y = doc.lastAutoTable.finalY + 8;
@@ -2393,8 +2455,10 @@ async function exportGesamt(season) {
 
 /* ================= Navigation ================= */
 /** Bereiche: Start → Niederwild (Strecke, Jagdtage, Jagdkönig) oder Schalenwild (Reh & Damm) */
-const sectionOf = tab => tab === 'start' ? 'start' : tab === 'schalen' ? 'schalen' : tab === 'berichte' ? 'berichte' : tab === 'termine' ? 'termine' : 'nieder';
+const sectionOf = tab => tab === 'start' ? 'start' : tab.startsWith('schalen') ? 'schalen' : tab === 'berichte' ? 'berichte' : tab === 'termine' ? 'termine' : 'nieder';
 function switchTab(tab, fromPop = false) {
+  if (tab === 'schalen') tab = `schalen-${state.schalenArt || 'reh'}`;
+  if (tab.startsWith('schalen-')) state.schalenArt = tab.slice(8);
   const sec = sectionOf(tab);
   if (!fromPop) {
     if (sec !== 'start' && histLvl() < 1) history.pushState({ sb: 1 }, '');
@@ -2403,7 +2467,9 @@ function switchTab(tab, fromPop = false) {
   state.tab = tab;
   $('.tabbar').hidden = sec === 'start';
   $$('.tab').forEach(t => { t.classList.toggle('active', t.dataset.tab === tab); t.hidden = !!t.dataset.sec && t.dataset.sec !== sec; });
-  $$('.view').forEach(v => (v.hidden = v.dataset.view !== tab));
+  const view = tab.startsWith('schalen') ? 'schalen' : tab;
+  $$('.view').forEach(v => (v.hidden = v.dataset.view !== view));
+  if (view === 'schalen') renderSchalen();
   document.body.classList.toggle('on-start', sec === 'start');
   if (tab === 'start') renderStart();
   if (tab === 'berichte') renderBerichte();
@@ -2532,7 +2598,9 @@ const terminLeitung = t => t.leitungGruppe ? gruppeLabel(t.leitungGruppe).replac
 const JAGD_ARTEN = ['jagdtag', 'treibjagd', 'venslage', 'drueckjagd'];
 const leitungArt = t => JAGD_ARTEN.includes(t.art) ? 'Jagdleitung' : 'Organisator';
 const sortTermine = l => [...l].sort((a, b) => (a.datum + (a.zeit || '')).localeCompare(b.datum + (b.zeit || '')));
-const kommendeTermine = () => sortTermine((state.data?.termine || []).filter(t => t.datum >= todayISO()));
+/** vorbei: 4 Stunden nach Beginn bzw. (ohne Uhrzeit) ab dem Folgetag */
+const terminVorbei = t => { if (!t.zeit) return t.datum < todayISO(); const [y, m, d] = t.datum.split('-').map(Number), [h, mi] = t.zeit.split(':').map(Number); return Date.now() > new Date(y, m - 1, d, h + 4, mi).getTime(); };
+const kommendeTermine = () => sortTermine((state.data?.termine || []).filter(t => !terminVorbei(t)));
 function inTagen(iso) {
   const [y, m, d] = iso.split('-').map(Number), [ty, tm, td] = todayISO().split('-').map(Number);
   const n = Math.round((new Date(y, m - 1, d) - new Date(ty, tm - 1, td)) / 864e5);
@@ -2541,7 +2609,7 @@ function inTagen(iso) {
 function terminCard(t, admin) {
   const [y, m, d] = t.datum.split('-').map(Number);
   const dt = new Date(y, m - 1, d);
-  const past = t.datum < todayISO();
+  const past = terminVorbei(t);
   const lei = terminLeitung(t);
   return `<div class="card tm-card ${past ? 'past' : ''}" data-tm="${esc(t.id)}">
     <div class="tm-date"><span class="tm-wd">${dt.toLocaleDateString('de-DE', { weekday: 'short' })}</span><span class="tm-d">${d}</span><span class="tm-m">${dt.toLocaleDateString('de-DE', { month: 'short' })}</span></div>
@@ -2559,14 +2627,20 @@ function renderTermine() {
   if (!el || !state.data) return;
   const admin = isAdmin();
   const kommend = kommendeTermine();
-  const vergangen = sortTermine(state.data.termine.filter(t => t.datum < todayISO())).reverse().slice(0, 30);
+  const vergangen = sortTermine(state.data.termine.filter(terminVorbei)).reverse();
+  const vSeasons = [...new Set(vergangen.map(t => seasonOf(t.datum)))].sort().reverse();
+  if (!vSeasons.includes(state.tmPastSeason)) state.tmPastSeason = vSeasons[0];
   el.innerHTML = `
     <h2 class="section" style="margin-top:4px">Termine</h2>
     ${admin ? '<div class="btn-row tm-admin"><button class="btn" id="tmNew">+ Termin eintragen</button><button class="btn secondary" id="tmImport">Aus .ics importieren</button></div>' : ''}
     ${kommend.length ? kommend.map(t => terminCard(t, admin)).join('') : '<div class="card pad empty"><img src="icons/logo.png" alt=""><p>Zurzeit sind keine Termine eingetragen.</p></div>'}
-    ${vergangen.length ? `<details class="tm-past"><summary>Vergangene Termine (${vergangen.length})</summary>${vergangen.map(t => terminCard(t, admin)).join('')}</details>` : ''}`;
+    ${vergangen.length ? `<details class="tm-past" ${state.tmPastOpen ? 'open' : ''}><summary>Vergangene Termine (${vergangen.length})</summary>
+      <label class="field tm-season"><span>Jagdjahr</span><select id="tmPastSeason">${vSeasons.map(x => `<option value="${x}" ${x === state.tmPastSeason ? 'selected' : ''}>${x} (${vergangen.filter(t => seasonOf(t.datum) === x).length})</option>`).join('')}</select></label>
+      ${vergangen.filter(t => seasonOf(t.datum) === state.tmPastSeason).map(t => terminCard(t, admin)).join('')}</details>` : ''}`;
   $('#tmNew')?.addEventListener('click', () => openTermin(null));
   $('#tmImport')?.addEventListener('click', pickIcs);
+  $('.tm-past')?.addEventListener('toggle', e => { state.tmPastOpen = e.target.open; });
+  $('#tmPastSeason')?.addEventListener('change', e => { state.tmPastSeason = e.target.value; state.tmPastOpen = true; renderTermine(); });
   $$('[data-tmedit]', el).forEach(b => b.addEventListener('click', () => openTermin(b.dataset.tmedit)));
   $$('[data-ics]', el).forEach(b => b.addEventListener('click', () => { const t = state.data.termine.find(x => x.id === b.dataset.ics); if (t) terminToCalendar(t); }));
 }
@@ -2750,7 +2824,7 @@ function renderBerichte() {
   const reports = [
     ['gesamt', 'Gesamtstreckenbericht', 'Niederwild und Schalenwild – nur die Gesamtstrecke'],
     ['strecke', 'Streckenbericht Niederwild', 'Gesamtstrecke und alle Jagdtage'],
-    ['schalen', 'Streckenbericht Reh- & Dammwild', 'Erlegungen und Fallwild'],
+    ['schalen', 'Streckenbericht Schalenwild', 'Reh-, Dam- und Schwarzwild mit Fallwild'],
     ['koenig', 'Jagdkönig', 'Rangliste mit Wild je Schütze'],
   ];
   el.innerHTML = `
@@ -2817,15 +2891,13 @@ function renderStart() {
       <span class="st-go" aria-hidden="true">›</span>
     </button>
     <div class="st-grid">
-      <button class="start-tile st-half" data-go="strecke">
+      <button class="start-tile st-half st-sym" data-go="strecke">
+        <span class="st-icon" aria-hidden="true">🐇</span>
         <span class="st-title">Niederwild</span>
-        <span class="st-big">${st.total}</span>
-        <span class="st-meta">Stück · ${st.days.length} Jagdtag${st.days.length === 1 ? '' : 'e'}</span>
       </button>
-      <button class="start-tile st-half" data-go="schalen">
+      <button class="start-tile st-half st-sym" data-go="schalen">
+        <span class="st-icon" aria-hidden="true">🦌</span>
         <span class="st-title">Schalenwild</span>
-        <span class="st-big">${reh.erlegt + reh.fallwild + damm.erlegt + damm.fallwild}</span>
-        <span class="st-meta">Reh ${reh.erlegt + reh.fallwild} · Damm ${damm.erlegt + damm.fallwild}</span>
       </button>
     </div>
     <button class="start-tile" data-go="berichte">
