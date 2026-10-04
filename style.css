@@ -550,3 +550,22 @@ body.on-start .topbar .season { display: none; } /* Jagdjahr steht auf der Start
 .fg-k:first-child { margin-left: 0; }
 .fg-warn { margin: -4px 0 12px; }
 .tm-season { margin: 8px 0 0; }
+/* 2.16.1: stilisierte Symbole, kompakte Freigabe */
+.st-icon { width: 54px; height: 54px; color: var(--green); font-size: 0; }
+.st-icon svg { width: 100%; height: 100%; display: block; }
+.tab svg { width: 26px; height: 26px; }
+.fgc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; }
+.fgc { display: grid; gap: 0; padding: 7px 10px; border-radius: 10px; border-left: 5px solid; background: var(--paper); box-shadow: var(--shadow); min-width: 0; }
+.fgc b { font-size: 14px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fgc small { font-size: 12px; font-weight: 600; }
+.fgc.fg-frei { border-color: #3d8b3f; background: #e6efd9; } .fgc.fg-frei small { color: #2f6b31; }
+.fgc.fg-regel { border-color: #c98a1a; background: #f6ecd2; } .fgc.fg-regel small { color: #8a5d0c; }
+.fgc.fg-gesetz { border-color: #a3452f; background: #f5e1d8; } .fgc.fg-gesetz small { color: #a3452f; }
+.fg-legend { margin: 6px 2px 0; font-size: 12px; }
+#sheet .fg-list { margin: 0 -4px; }
+
+/* Freigabe noch kompakter: eine Zeile je Kategorie */
+.fgc { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; padding: 6px 9px; border-left-width: 4px; box-shadow: none; border-radius: 8px; }
+.fgc b { font-size: 13.5px; }
+.fgc small { font-size: 11.5px; white-space: nowrap; }
+.fgc-grid { gap: 5px; }

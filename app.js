@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.16.0';
+const APP_VERSION = '2.16.1';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -842,35 +842,49 @@ function damStatus(k, iso = todayISO()) {
   const frei = !!state.data?.damFreigabe?.[k];
   return { legal, frei, art: !legal ? 'gesetz' : frei ? 'frei' : 'regel' };
 }
+function freigabeStatusText(k, st, heute, lang = false) {
+  if (st.art === 'frei') return 'frei';
+  if (st.art === 'regel') return lang ? 'gesperrt · unsere Regelung' : 'gesperrt';
+  if (!lang) return 'Schonzeit';
+  return `Schonzeit · Gesetz, bis ${dateDE(naechsterBeginn(DAM_JAGDZEIT[k], heute)).slice(0, 6).replace(/^(\d+)\.(\d+)\.$/, (m, d, mo) => { const dt = new Date(2000, +mo - 1, +d - 1); return `${dt.getDate()}.${dt.getMonth() + 1}.`; })}`;
+}
+/** Kompakte Übersicht für alle: farbige Kacheln je Kategorie */
 function freigabeCard() {
-  const admin = isAdmin(), heute = todayISO();
-  const rows = Object.keys(DAM_JAGDZEIT).map(k => {
+  const heute = todayISO(), stand = state.data?.damFreigabeStand;
+  const chips = Object.keys(DAM_JAGDZEIT).map(k => {
     const st = damStatus(k, heute);
-    const txt = st.art === 'frei' ? '<b>frei</b>'
-      : st.art === 'regel' ? '<b>gesperrt</b> · unsere Regelung'
-      : `<b>Schonzeit</b> · Gesetz, wieder ab ${dateDE(naechsterBeginn(DAM_JAGDZEIT[k], heute)).slice(0, 6)}${admin ? ` <i>(danach ${st.frei ? 'frei' : 'gesperrt'})</i>` : ''}`;
-    return `<li class="fg-${st.art}">
-      <span class="fg-dot" aria-hidden="true"></span>
-      <span class="fg-name">${esc(DAM_FREI_LBL[k])}<small>Jagdzeit ${jagdzeitText(DAM_JAGDZEIT[k])}</small></span>
-      <span class="fg-st">${txt}</span>
-      ${admin ? `<button class="btn ${st.frei ? 'secondary' : ''} fg-btn" data-fg="${k}">${st.frei ? 'sperren' : 'freigeben'}</button>` : ''}
-    </li>`;
+    return `<div class="fgc fg-${st.art}"><b>${esc(DAM_FREI_LBL[k])}</b><small>${freigabeStatusText(k, st, heute)}</small></div>`;
   }).join('');
-  const stand = state.data?.damFreigabeStand;
   return `<h2 class="section">Freigabe Damwild</h2>
-    <div class="card fg-card"><ul class="fg-list">${rows}</ul>
-      <p class="hint fg-legend"><span class="fg-k fg-frei"></span> frei <span class="fg-k fg-regel"></span> gesperrt (unsere Regelung) <span class="fg-k fg-gesetz"></span> Schonzeit (Niedersächsisches Jagdgesetz)${stand ? ` · Stand ${dateDE(stand)}` : ''}</p>
-    </div>`;
+    <div class="fgc-grid">${chips}</div>
+    <p class="hint fg-legend"><span class="fg-k fg-frei"></span>frei <span class="fg-k fg-regel"></span>gesperrt nach unserer Regelung <span class="fg-k fg-gesetz"></span>Schonzeit laut Jagdgesetz${stand ? ` · Stand ${dateDE(stand)}` : ''}</p>
+    ${isAdmin() ? '<button class="btn secondary block" id="fgEdit" style="margin-top:4px">Freigabe ändern</button>' : ''}`;
+}
+/** Admin: Freigabe je Kategorie umschalten */
+function openFreigabe() {
+  const heute = todayISO();
+  const draw = () => {
+    openSheet('Freigabe Damwild', `<p class="hint">„Schonzeit“ setzt die App automatisch nach dem Niedersächsischen Jagdgesetz. Deine Einstellung gilt, sobald die Jagdzeit läuft.</p>
+      <ul class="fg-list">${Object.keys(DAM_JAGDZEIT).map(k => {
+        const st = damStatus(k, heute);
+        return `<li class="fg-${st.art}"><span class="fg-dot" aria-hidden="true"></span>
+          <span class="fg-name">${esc(DAM_FREI_LBL[k])}<small>Jagdzeit ${jagdzeitText(DAM_JAGDZEIT[k])}</small></span>
+          <span class="fg-st">${freigabeStatusText(k, st, heute, true)}${st.art === 'gesetz' ? ` <i>(danach ${st.frei ? 'frei' : 'gesperrt'})</i>` : ''}</span>
+          <button class="btn ${st.frei ? 'secondary' : ''} fg-btn" data-fg="${k}">${st.frei ? 'sperren' : 'freigeben'}</button></li>`;
+      }).join('')}</ul>`, '<button class="btn" data-close>Fertig</button>');
+    $$('[data-fg]').forEach(b => b.addEventListener('click', () => {
+      const k = b.dataset.fg;
+      state.data.damFreigabe = Object.assign({}, state.data.damFreigabe);
+      state.data.damFreigabe[k] = !state.data.damFreigabe[k];
+      state.data.damFreigabeStand = todayISO();
+      persist(`Freigabe Damwild: ${DAM_FREI_LBL[k]} ${state.data.damFreigabe[k] ? 'frei' : 'gesperrt'}`);
+      draw();
+    }));
+  };
+  draw();
 }
 function wireFreigabe(el) {
-  $$('[data-fg]', el).forEach(b => b.addEventListener('click', () => {
-    const k = b.dataset.fg;
-    state.data.damFreigabe = Object.assign({}, state.data.damFreigabe);
-    state.data.damFreigabe[k] = !state.data.damFreigabe[k];
-    state.data.damFreigabeStand = todayISO();
-    persist(`Freigabe Damwild: ${DAM_FREI_LBL[k]} ${state.data.damFreigabe[k] ? 'frei' : 'gesperrt'}`);
-    renderSchalen();
-  }));
+  $('#fgEdit', el)?.addEventListener('click', openFreigabe);
 }
 const FALLWILD_URSACHEN = ['Verkehrsunfall', 'Mähtod', 'Krankheit', 'Hund', 'Zaun', 'Unbekannt'];
 
@@ -2892,11 +2906,11 @@ function renderStart() {
     </button>
     <div class="st-grid">
       <button class="start-tile st-half st-sym" data-go="strecke">
-        <span class="st-icon" aria-hidden="true">🐇</span>
+        <span class="st-icon"><svg viewBox="0 0 64 64" fill="currentColor" aria-hidden="true"> <ellipse cx="29" cy="42" rx="17" ry="11.5" transform="rotate(-18 29 42)"/> <ellipse cx="22" cy="47" rx="10.5" ry="8.5"/> <ellipse cx="25" cy="56" rx="12" ry="3.2"/> <rect x="40.5" y="42" width="4.2" height="16" rx="2.1"/> <ellipse cx="47" cy="28.5" rx="8.6" ry="6.6" transform="rotate(-22 47 28.5)"/> <ellipse cx="39.5" cy="14" rx="3.2" ry="11.5" transform="rotate(-28 39.5 14)"/> <ellipse cx="44.5" cy="13.5" rx="2.8" ry="10.5" transform="rotate(-12 44.5 13.5)"/> <circle cx="11" cy="39" r="3.6"/> </svg></span>
         <span class="st-title">Niederwild</span>
       </button>
       <button class="start-tile st-half st-sym" data-go="schalen">
-        <span class="st-icon" aria-hidden="true">🦌</span>
+        <span class="st-icon"><svg viewBox="0 0 64 64" fill="currentColor" aria-hidden="true"> <path d="M24 26c0-2 3.5-4 8-4s8 2 8 4l-2 18c-.5 4-3 8-6 8s-5.5-4-6-8z"/> <ellipse cx="20" cy="28" rx="6" ry="2.6" transform="rotate(20 20 28)"/> <ellipse cx="44" cy="28" rx="6" ry="2.6" transform="rotate(-20 44 28)"/> <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"> <path d="M27 23C22 17 18 13 17 4M20.5 15.5 12 12M18 9.5 12 4.5M23 19.5 15 20"/> <path d="M37 23c5-6 9-10 10-19M43.5 15.5 52 12M46 9.5l6-5M41 19.5 49 20"/> </g> </svg></span>
         <span class="st-title">Schalenwild</span>
       </button>
     </div>
