@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.16.1';
+const APP_VERSION = '2.17.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -34,7 +34,9 @@ const LS_SCHALEN = 'sb.schalen.v1';
 const LS_SCHALEN_OPS = 'sb.schalen.ops.v1';
 const SCHALEN_PATH = 'schalenwild.json';
 /* Alte Damwild-Kategorien (bis 2.15) → neue 8 Kategorien */
-const KAT_ALIAS = { 'hirsch-1b': 'hirsch-1a', 'hirsch-2b': 'hirsch-2a', 'hirsch-3a': 'hirsch-3b', hirschkalb: 'kalb' };
+const KAT_ALIAS = { 'hirsch-3a': 'hirsch-3b', hirschkalb: 'kalb' };
+/* Hirsch 2b und 1b: werden nie freigegeben – nur zum korrekten Eintragen (z. B. Fehlabschuss) */
+const DAM_NIE_FREI = ['hirsch-2b', 'hirsch-1b'];
 const FALLBACK_MODEL = 'claude-sonnet-4-6';
 
 /* ================= Hilfsfunktionen ================= */
@@ -814,7 +816,7 @@ const speciesName = id => species().find(w => w.id === id)?.name || id;
 const SCHALEN = {
   reh: { name: 'Rehwild', kat: [['rehbock', 'Rehbock'], ['ricke', 'Ricke'], ['schmalreh', 'Schmalreh'], ['kitz', 'Kitz']] },
   damm: { name: 'Damwild', kat: [['alttier', 'Damtier'], ['kalb', 'Kalb'], ['schmaltier', 'Schmaltier'], ['schmalspiesser', 'Schmalspießer'],
-    ['spiesser', 'Spießer (3b)'], ['hirsch-3b', 'Hirsch 3b'], ['hirsch-2a', 'Hirsch 2a'], ['hirsch-1a', 'Hirsch 1a']] },
+    ['spiesser', 'Spießer (3b)'], ['hirsch-3b', 'Hirsch 3b'], ['hirsch-2a', 'Hirsch 2a'], ['hirsch-2b', 'Hirsch 2b'], ['hirsch-1a', 'Hirsch 1a'], ['hirsch-1b', 'Hirsch 1b']] },
   schwarz: { name: 'Schwarzwild', kat: [['sau', 'Sau'], ['keiler', 'Keiler'], ['ueberlaeufer', 'Überläufer'], ['frischling', 'Frischling']] },
 };
 const katName = (art, k) => SCHALEN[art]?.kat.find(x => x[0] === (KAT_ALIAS[k] || k))?.[1] || k;
@@ -1120,6 +1122,7 @@ function openSchalen(id, prefill = null) {
         ${Object.entries(SCHALEN).map(([k, v]) => `<button type="button" role="radio" aria-checked="${x.art === k}" class="${x.art === k ? 'on' : ''}" data-swart="${k}">${v.name}</button>`).join('')}
       </div>
       <label class="field"><span>Kategorie</span><select id="swKat">${SCHALEN[x.art].kat.map(([k, l]) => `<option value="${k}" ${k === x.kat ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+      ${x.art === 'damm' && !x.fallwild && DAM_NIE_FREI.includes(x.kat) ? `<div class="alert fg-warn">⚠️ ${esc(katName('damm', x.kat))} ist nicht freigegeben – bitte trotzdem korrekt eintragen (z. B. Fehlabschuss).</div>` : ''}
       ${x.art === 'damm' && !x.fallwild && DAM_JAGDZEIT[x.kat] && damStatus(x.kat, x.datum || todayISO()).art !== 'frei' ? `<div class="alert fg-warn">⚠️ ${esc(DAM_FREI_LBL[x.kat])}: derzeit ${damStatus(x.kat, x.datum || todayISO()).art === 'gesetz' ? 'Schonzeit laut Jagdgesetz' : 'gesperrt nach unserer Regelung'}.</div>` : ''}
       <label class="check-row"><input type="checkbox" id="swFall" ${x.fallwild ? 'checked' : ''}> <span><b>Fallwild</b><small>z. B. Verkehrsunfall – ohne Schützen</small></span></label>
       ${x.fallwild
