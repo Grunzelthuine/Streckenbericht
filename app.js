@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.17.0';
+const APP_VERSION = '2.17.1';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -777,7 +777,7 @@ function renderStrecke() {
       <div><div class="big">${st.total}</div><div class="lbl">Stück Gesamtstrecke<br>Jagdjahr ${esc(state.season)}</div></div>
     </div>
     <div class="species-grid">
-      ${species().map(w => {
+      ${species().filter(w => st.perSpecies[w.id]).map(w => {
         const n = st.perSpecies[w.id] || 0;
         const nt = st.perNachtrag[w.id] || 0;
         return `<div class="card sp ${n ? '' : 'zero'}"><div class="n">${n}</div><div class="t">${esc(w.name)}</div>${nt ? `<div class="p">davon ${nt} außerh. Jagdtage</div>` : ''}</div>`;
@@ -2282,7 +2282,7 @@ async function exportStrecke(season) {
     const hasNt = st.totalNachtrag > 0;
     doc.autoTable({ ...tableStyle, startY: y,
       head: [['Wildart', ...(hasNt ? ['Jagdtage', 'Außerhalb'] : []), 'Stück', ...(hundTotal ? ['davon Hund'] : [])]],
-      body: species().map(w => [w.name, ...(hasNt ? [String(st.perSpeciesTage[w.id] || 0), String(st.perNachtrag[w.id] || 0)] : []), String(st.perSpecies[w.id] || 0), ...(hundTotal ? [String(st.perSpeciesHund[w.id] || '')] : [])]),
+      body: cols.length ? cols.map(w => [w.name, ...(hasNt ? [String(st.perSpeciesTage[w.id] || '–'), String(st.perNachtrag[w.id] || '–')] : []), String(st.perSpecies[w.id]), ...(hundTotal ? [String(st.perSpeciesHund[w.id] || '')] : [])]) : [[{ content: 'Keine Strecke', colSpan: 2 + (hasNt ? 2 : 0) + (hundTotal ? 1 : 0) }]],
       foot: [['Gesamt', ...(hasNt ? [String(st.totalTage), String(st.totalNachtrag)] : []), String(st.total), ...(hundTotal ? [String(hundTotal)] : [])]],
       columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right' }, 4: { halign: 'right' } },
       tableWidth: hasNt ? 140 : 100, didParseCell: numRight(1),
@@ -2297,7 +2297,7 @@ async function exportStrecke(season) {
       body: st.days.map(d => { const ds = dayStats(d); return [dateDE(d.datum) + (isVenslage(d) ? '\nmit Venslage*' : isTreibjagd(d) ? '\nGr. Treibjagd**' : ''), ...cols.map(w => ds.perSpecies[w.id] ? String(ds.perSpecies[w.id]) + (ds.perSpeciesHund[w.id] ? ` (${ds.perSpeciesHund[w.id]} H)` : '') : '–'), String(ds.total)]; }),
       foot: [
         ...(hasNt ? [['Außerhalb d. Jagdtage', ...cols.map(w => String(st.perNachtrag[w.id] || '–')), String(st.totalNachtrag)]] : []),
-        ['Gesamt', ...cols.map(w => String(st.perSpecies[w.id] || 0)), String(st.total)]],
+        ['Gesamt', ...cols.map(w => String(st.perSpecies[w.id])), String(st.total)]],
       columnStyles: Object.fromEntries([...cols.map((_, i) => [i + 1, { halign: 'right' }]), [cols.length + 1, { halign: 'right', fontStyle: 'bold' }]]),
       didParseCell: numRight(1),
     });
@@ -2389,12 +2389,14 @@ async function exportSchalen(season) {
     const plan = wildbretPlan();
     const doc = await pdfBase('Schalenwild', season);
     let y = 45;
-    for (const art of Object.keys(SCHALEN)) {
+    const arten = Object.keys(SCHALEN).filter(a => { const t = st.tot(a); return t.erlegt + t.fallwild; });
+    if (!arten.length) { doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(...PDF.muted); doc.text('In diesem Jagdjahr wurde noch kein Schalenwild erlegt.', 14, y); y += 10; }
+    for (const art of arten) {
       y = sectionTitle(doc, SCHALEN[art].name, y);
       const t = st.tot(art);
       doc.autoTable({ ...tableStyle, startY: y, tableWidth: 120,
         head: [['Kategorie', 'Erlegt', 'Fallwild', 'Gesamt']],
-        body: SCHALEN[art].kat.map(([k, l]) => { const c = st.cnt[art]?.[k] || { erlegt: 0, fallwild: 0 }; return [l, String(c.erlegt), String(c.fallwild), String(c.erlegt + c.fallwild)]; }),
+        body: (b => b.length ? b : [[{ content: 'Keine Strecke', colSpan: 4 }]])(SCHALEN[art].kat.map(([k, l]) => ({ l, c: st.cnt[art]?.[k] || { erlegt: 0, fallwild: 0 } })).filter(r => r.c.erlegt + r.c.fallwild).map(({ l, c }) => [l, String(c.erlegt || '–'), String(c.fallwild || '–'), String(c.erlegt + c.fallwild)])),
         foot: [['Gesamt', String(t.erlegt), String(t.fallwild), String(t.erlegt + t.fallwild)]],
         columnStyles: { 1: { halign: 'right' }, 2: { halign: 'right' }, 3: { halign: 'right', fontStyle: 'bold' } }, didParseCell: numRight(1),
       });
@@ -2419,7 +2421,7 @@ async function exportSchalen(season) {
       y = sectionTitle(doc, 'Je Schütze', y);
       doc.autoTable({ ...tableStyle, startY: y,
         head: [['Schütze', 'Reh', 'Dam', 'Sau', 'Erlegt']],
-        body: sh.sort((a, b) => (b[1].reh + b[1].damm + b[1].schwarz) - (a[1].reh + a[1].damm + a[1].schwarz)).map(([id, p]) => [shooterName(id), String(p.reh), String(p.damm), String(p.schwarz), p.list.map(x => `${katName(x.art, x.kat)} (${datumText(x.datum)})`).join(', ')]),
+        body: sh.sort((a, b) => (b[1].reh + b[1].damm + b[1].schwarz) - (a[1].reh + a[1].damm + a[1].schwarz)).map(([id, p]) => [shooterName(id), String(p.reh || '–'), String(p.damm || '–'), String(p.schwarz || '–'), p.list.map(x => `${katName(x.art, x.kat)} (${datumText(x.datum)})`).join(', ')]),
         columnStyles: { 1: { halign: 'right', cellWidth: 14 }, 2: { halign: 'right', cellWidth: 14 }, 3: { halign: 'right', cellWidth: 14 } }, didParseCell: numRight(1, 3),
       });
     }
@@ -2447,14 +2449,15 @@ async function exportGesamt(season) {
     // Schalenwild
     y = sectionTitle(doc, 'Schalenwild', y);
     const body = [];
-    for (const art of Object.keys(SCHALEN)) {
+    for (const art of Object.keys(SCHALEN).filter(a => { const t = sw.tot(a); return t.erlegt + t.fallwild; })) {
       const t = sw.tot(art);
       body.push([{ content: SCHALEN[art].name, colSpan: 4, styles: { fillColor: PDF.soft, fontStyle: 'bold' } }]);
       const cats = SCHALEN[art].kat.filter(([k]) => { const c = sw.cnt[art]?.[k]; return c && (c.erlegt || c.fallwild); });
       if (!cats.length) body.push([{ content: 'Keine Strecke', colSpan: 4 }]);
-      cats.forEach(([k, l]) => { const c = sw.cnt[art][k]; body.push([l, String(c.erlegt), String(c.fallwild), String(c.erlegt + c.fallwild)]); });
+      cats.forEach(([k, l]) => { const c = sw.cnt[art][k]; body.push([l, String(c.erlegt || '–'), String(c.fallwild || '–'), String(c.erlegt + c.fallwild)]); });
       body.push([{ content: `Summe ${SCHALEN[art].name}`, styles: { fontStyle: 'bold' } }, String(t.erlegt), String(t.fallwild), { content: String(t.erlegt + t.fallwild), styles: { fontStyle: 'bold' } }]);
     }
+    if (!body.length) body.push([{ content: 'Keine Strecke', colSpan: 4 }]);
     const all = Object.keys(SCHALEN).map(a => sw.tot(a)).reduce((a, c) => ({ erlegt: a.erlegt + c.erlegt, fallwild: a.fallwild + c.fallwild }), { erlegt: 0, fallwild: 0 });
     doc.autoTable({ ...tableStyle, startY: y, tableWidth: 140, alternateRowStyles: {},
       head: [['Kategorie', 'Erlegt', 'Fallwild', 'Gesamt']],
