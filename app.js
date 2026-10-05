@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.17.1';
+const APP_VERSION = '2.18.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -1097,8 +1097,7 @@ function renderSchalen() {
     <div class="table-wrap"><table>
       <thead><tr><th>Schütze</th><th>Anzahl</th><th>Was / wann</th></tr></thead>
       <tbody>${shooters.map(([id, p]) => `<tr><td>${esc(shooterName(id))}</td><td>${p[art]}</td><td class="wrap">${p.list.filter(x => x.art === art).map(x => `${esc(katName(x.art, x.kat))} (${x.datum ? dateDE(x.datum).slice(0, 6) : 'o. D.'})`).join(', ')}</td></tr>`).join('')}</tbody>
-    </table></div>` : ''}
-    <p class="hint" style="text-align:center">Schalenwild zählt nicht zum Niederwild-Streckenbericht und nicht zum Jagdkönig.</p>`;
+    </table></div>` : ''}`;
   $('#btnSchalen')?.addEventListener('click', () => openSchalen(null, { art, kat: W.kat[0][0] }));
   $('#wbEdit')?.addEventListener('click', openGruppen);
   $('#btnSperre')?.addEventListener('click', openSperre);
@@ -2912,7 +2911,7 @@ function renderStart() {
     </button>
     <div class="st-grid">
       <button class="start-tile st-half st-sym" data-go="strecke">
-        <span class="st-icon"><svg viewBox="0 0 64 64" fill="currentColor" aria-hidden="true"> <ellipse cx="29" cy="42" rx="17" ry="11.5" transform="rotate(-18 29 42)"/> <ellipse cx="22" cy="47" rx="10.5" ry="8.5"/> <ellipse cx="25" cy="56" rx="12" ry="3.2"/> <rect x="40.5" y="42" width="4.2" height="16" rx="2.1"/> <ellipse cx="47" cy="28.5" rx="8.6" ry="6.6" transform="rotate(-22 47 28.5)"/> <ellipse cx="39.5" cy="14" rx="3.2" ry="11.5" transform="rotate(-28 39.5 14)"/> <ellipse cx="44.5" cy="13.5" rx="2.8" ry="10.5" transform="rotate(-12 44.5 13.5)"/> <circle cx="11" cy="39" r="3.6"/> </svg></span>
+        <span class="st-icon st-wide"><svg viewBox="0 0 120 64" fill="currentColor" aria-hidden="true"><path d="M46 43c4-4 9-7 15-9l11-4c4-1 7-3 9-5l3-4c1-2 3-3 6-3 2 0 4 1 5 2l4 1-3 2c-1 1-2 2-4 2l-2 1c-1 2-2 4-4 5 1 3 0 6-1 8-2 5-7 8-12 9-7 2-15 2-22 1z"/><path d="M52 41 34 46 14 52 2 57l14-2 20-6 18-5z"/><path d="M50 44 30 50 4 61l18-5 22-7z"/><path d="M62 33c-3-4-6-9-7-14l-3-11 4 4-1-9 4 6 1-9 3 7 2-8 2 8 3-7 1 8 3-5-1 8 4-4-1 8 4-2-3 7 4 0-4 5c-3 4-7 6-12 6z"/><path d="M68 46c3 2 6 5 8 8l3 4 1-3 2 4 1-3 3 4 1-3 3 3-1-3 4 1-3-3c-3-3-7-6-11-8-4-2-8-2-12-1z"/></svg></span>
         <span class="st-title">Niederwild</span>
       </button>
       <button class="start-tile st-half st-sym" data-go="schalen">

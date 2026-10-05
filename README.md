@@ -44,7 +44,6 @@ Beim Öffnen erscheint die **Startseite** mit dem Logo und zwei Bereichen:
 - **Reh- & Dammwild:** Auf der Seite „Reh & Damm“ unter „+ Erlegung / Fallwild eintragen“ Datum, Wildart, Kategorie und Schütze eintragen. Bei Fallwild wählst du statt des Schützen optional eine Ursache.
   - Rehwild: Rehbock, Ricke, Schmalreh, Kitz.
   - Dammwild: Hirsch 1a–3b, Alttier, Schmaltier, Spießer, Kalb, Hirschkalb.
-  - Reh- und Dammwild zählt nicht zum Niederwild-Streckenbericht und nicht zum Jagdkönig.
 
 ## Einrichtung (einmalig, ca. 10 Minuten)
 
@@ -171,7 +170,7 @@ Beim Speichern ohne Netz bleiben die Daten auf dem Gerät, und oben erscheint �
 Auf iPhone/Android öffnen sich alle PDFs (Berichte, Protokolle) direkt in der App (pdf.js, `vendor/pdf.min.js` + `vendor/pdf.worker.min.js`). Oben links ✕ schließt, oben rechts „Teilen/Sichern“ öffnet das Teilen-Menü. Am PC wird weiter direkt heruntergeladen.
 
 ## Neue Version einspielen
-Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-2.17.0'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
+Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-2.18.0'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
 
 ## Daten
 Alle Daten liegen in `data/strecke.json`. Jede Speicherung ist ein Commit in GitHub, dadurch gibt es automatisch eine Versionshistorie. Zusätzlich gibt es in den Einstellungen **„Sicherung speichern“ / „Sicherung einspielen“**. Die Sicherung enthält Niederwild und Reh- & Dammwild **unverschlüsselt**, gehört also nur in deinen eigenen Ordner.
