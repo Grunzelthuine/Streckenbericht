@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.19.0';
+const APP_VERSION = '2.19.1';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -1882,7 +1882,7 @@ function openSettings() {
       <label class="field"><span>Berechtigung</span>
         <select id="cfMode">
           <option value="" ${!c.mode ? 'selected' : ''}>Nur ansehen</option>
-          <option value="schalen" ${c.mode === 'schalen' ? 'selected' : ''}>Schalenwild eintragen</option>
+          ${c.mode === 'schalen' ? '<option value="schalen" selected>Schalenwild eintragen</option>' : ''}
           <option value="voll" ${c.mode === 'voll' ? 'selected' : ''}>Voller Zugang (Verwaltung)</option>
         </select>
       </label>
