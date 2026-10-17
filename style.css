@@ -601,3 +601,8 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .inst-alt p { margin-top: 8px; line-height: 1.45; }
 .inst-ico { width: 20px; height: 20px; vertical-align: -5px; border-radius: 5px; }
 .imp-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+
+/* v2.20.1 Hersteller-Hinweis */
+.inst-hst { padding: 10px 12px; border-radius: 12px; background: #f6ecd9; border: 1px solid #e6cfa6; }
+.inst-hst summary { color: #6a3d10; }
+.inst-hst p { margin: 8px 0 0; }

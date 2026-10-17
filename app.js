@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.20.0';
+const APP_VERSION = '2.20.1';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -2902,7 +2902,7 @@ var LS_INST_HIDE = 'sb.installHide';
 window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; refreshInstallUi(); });
 window.addEventListener('appinstalled', () => {
   installPrompt = null; refreshInstallUi();
-  if (!$('#sheet').hidden && $('#instHelp')) closeSheet();
+  if (!$('#sheet').hidden && $('#instHelp') && !hersteller) closeSheet();
   toast('App installiert – ab jetzt über das Symbol „Jagd Thuine“ öffnen.', 6000);
 });
 function isStandalone() { return matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true; }
@@ -2936,10 +2936,43 @@ function refreshInstallUi() {
 }
 function appLink() { return location.origin + location.pathname.replace(/index\.html$/, ''); }
 function chromeIntent() { return `intent://${location.host}${location.pathname.replace(/index\.html$/, '')}?installieren#Intent;scheme=https;package=com.android.chrome;end`; }
+/* Hersteller mit eigener Sperre für Startbildschirm-Symbole (Xiaomi, Huawei/Honor, Oppo/Realme, Vivo) */
+var hersteller = '';
+const HERSTELLER = {
+  xiaomi: { name: 'Xiaomi / Redmi / POCO', weg: 'Einstellungen → <b>Apps</b> → <b>Apps verwalten</b> → <b>Chrome</b> → <b>Weitere Berechtigungen</b> (evtl. unter „App-Berechtigungen“) → <b>„Verknüpfungen auf dem Startbildschirm“</b> → <b>Zulassen</b>' },
+  huawei: { name: 'Huawei / Honor', weg: 'Einstellungen → <b>Apps</b> → <b>Apps</b> → <b>Chrome</b> → <b>Berechtigungen</b> → <b>„Verknüpfungen auf dem Startbildschirm erstellen“</b> → <b>Zulassen</b>' },
+  oppo: { name: 'Oppo / Realme / OnePlus', weg: 'Einstellungen → <b>Apps</b> → <b>App-Verwaltung</b> → <b>Chrome</b> → <b>Berechtigungen</b> → <b>„Verknüpfungen erstellen“</b> → <b>Zulassen</b>' },
+  vivo: { name: 'Vivo', weg: 'Einstellungen → <b>Apps</b> → <b>Chrome</b> → <b>Berechtigungen</b> → <b>„Desktop-Verknüpfungen“</b> → <b>Zulassen</b>' },
+};
+function herstellerAus(t) {
+  t = String(t || '');
+  if (/xiaomi|redmi|poco|\bmi \d|miui|^m?2\d{3}[a-z0-9]{3,}$|^\d{5}[a-z0-9]{3,}$/i.test(t)) return 'xiaomi';
+  if (/huawei|honor|^[a-z]{3}-[a-z]{1,2}\d{1,2}[a-z]?$/i.test(t)) return 'huawei';
+  if (/oppo|realme|oneplus|^cph\d{4}|^rmx\d{4}|^pe[a-z]\d{3}/i.test(t)) return 'oppo';
+  if (/vivo|^v\d{4}[a-z]?$/i.test(t)) return 'vivo';
+  return '';
+}
+(async function erkenneHersteller() {
+  if (!/Android/i.test(navigator.userAgent)) return;
+  hersteller = herstellerAus(navigator.userAgent) || (navigator.userAgent.match(/Android [\d.]+; ([^;)]+)/) ? herstellerAus(navigator.userAgent.match(/Android [\d.]+; ([^;)]+)/)[1].replace(/ Build.*/, '').trim()) : '');
+  if (hersteller) return;
+  try { const h = await navigator.userAgentData?.getHighEntropyValues?.(['model']); hersteller = herstellerAus(h && h.model); } catch { /* egal */ }
+})();
+function herstellerHinweis(offen) {
+  const list = hersteller ? [hersteller] : Object.keys(HERSTELLER);
+  return `<details class="inst-alt inst-hst"${offen ? ' open' : ''}><summary>${hersteller ? `Wichtig bei ${HERSTELLER[hersteller].name}` : 'Kein Symbol erschienen?'}</summary>
+    <p>${hersteller ? 'Bei diesen Handys darf Chrome anfangs oft <b>keine Symbole</b> auf den Startbildschirm legen. Einmal erlauben:' : 'Manche Hersteller sperren das anfangs. Einmal erlauben:'}</p>
+    ${list.map(k => `<p>${hersteller ? '' : `<b>${HERSTELLER[k].name}:</b><br>`}${HERSTELLER[k].weg}</p>`).join('')}
+    <p class="hint">Die Bezeichnungen weichen je nach Modell etwas ab. Benutzt du einen anderen Browser, gilt dasselbe für diesen statt für Chrome. Danach die Installation noch einmal starten.</p></details>`;
+}
+function openHerstellerCheck() {
+  openSheet('Symbol da?', `<div id="instHelp" class="inst-help"><p>Liegt das Symbol <b>„Jagd Thuine“</b> <img src="icons/icon-180.png" alt="" class="inst-ico"> jetzt auf dem Startbildschirm (evtl. auf der letzten Seite)?</p>${herstellerHinweis(true)}</div>`, '<button class="btn" data-close>Ja, alles da</button>');
+}
+
 async function startInstall(vonStart = false) {
   if (installPrompt) {
     const p = installPrompt; installPrompt = null;
-    try { p.prompt(); const r = await p.userChoice; if (r && r.outcome === 'accepted') toast('Wird installiert …'); } catch { openInstallHilfe(vonStart); }
+    try { p.prompt(); const r = await p.userChoice; if (r && r.outcome === 'accepted') { toast('Wird installiert …'); if (hersteller) setTimeout(openHerstellerCheck, 2500); } } catch { openInstallHilfe(vonStart); }
     refreshInstallUi();
     return;
   }
@@ -2980,6 +3013,7 @@ function openInstallHilfe(vonStart = false) {
   } else {
     html = `<p>Am PC in Chrome oder Edge rechts in der Adresszeile auf das Installieren-Symbol <span class="key">⤓</span> klicken. Auf dem Handy den Link öffnen und dort auf „App installieren“ tippen.</p>`;
   }
+  if (b.android && !b.inApp) html = (hersteller ? herstellerHinweis(true) : '') + html + (hersteller ? '' : herstellerHinweis(false));
   html = `<div id="instHelp" class="inst-help">${html}
     <p class="hint">Danach die App immer über das Symbol <b>„Jagd Thuine“</b> <img src="icons/icon-180.png" alt="" class="inst-ico"> öffnen.</p>
     <button type="button" class="btn ghost block" id="instCopy">🔗 Link kopieren</button></div>`;
