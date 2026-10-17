@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.19.1';
+const APP_VERSION = '2.20.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -152,6 +152,12 @@ function ensureLockDom() {
     </form>
     <div class="lock-box" id="resetBox" hidden></div>
   </div>`);
+}
+function ensureLockInstallBtn() {
+  const f = $('#lockForm');
+  if (!f || $('#lockInstall')) return;
+  f.insertAdjacentHTML('beforeend', '<button type="button" class="btn secondary lock-inst" id="lockInstall" hidden>📲 App auf dem Handy installieren</button>');
+  $('#lockInstall').addEventListener('click', startInstall);
 }
 function showLock(reason) {
   const el = $('#lock');
@@ -1343,6 +1349,7 @@ function openSheet(title, body, foot = '') {
 function closeSheet(fromPop = false) {
   if (!fromPop && !$('#sheet').hidden && history.state && history.state.sheet) histBack();
   $('#sheet').hidden = true; document.body.style.overflow = '';
+  $('#sheet').classList.remove('over-lock');
   editor = null;
 }
 document.addEventListener('click', e => { if (e.target.closest('[data-close]')) closeSheet(); });
@@ -1939,8 +1946,15 @@ function openSettings() {
       <p>Entwickelt von <b>Sebastian Bruns</b>, Thuine.</p>
       <p class="hint">Die App ist ein privates, nicht-kommerzielles Angebot für die Mitglieder der Jagdgemeinschaft Thuine. Die Daten werden verschlüsselt gespeichert und sind nur mit dem Passwort der Jagdgemeinschaft lesbar.</p>
       <p class="hint">© ${new Date().getFullYear()} Sebastian Bruns · Fragen und Wünsche bitte direkt an Sebastian.</p>
+      <div class="imp-btns">
+        <button type="button" class="btn secondary" id="cfInvite">🔗 Einrichtungs-Link kopieren</button>
+        ${isStandalone() ? '' : '<button type="button" class="btn secondary" id="cfInstall">📲 App installieren</button>'}
+      </div>
+      <p class="hint">Der Einrichtungs-Link öffnet die App mit der Installationshilfe – gut zum Weiterschicken (z. B. per WhatsApp).</p>
     </fieldset>`;
   openSheet('Einstellungen', body, `<button class="btn secondary" data-close>Abbrechen</button><button class="btn" id="cfSave">Übernehmen</button>`);
+  $('#cfInvite')?.addEventListener('click', () => kopiereLink(appLink() + '?installieren'));
+  $('#cfInstall')?.addEventListener('click', () => { lsSet(LS_INST_HIDE, undefined); closeSheet(); renderStart(); setTimeout(() => startInstall(), 50); });
 
   const removed = new Set();
   $('#cfNtfyNew')?.addEventListener('click', () => { $('#cfNtfy').value = newNtfyTopic(); toast('Neuer Kanal – jetzt in der ntfy-App abonnieren und „Übernehmen“ tippen.', 4500); });
@@ -2882,6 +2896,119 @@ function renderBerichte() {
   }));
 }
 
+/* ---------- Installationshilfe (Android ohne Chrome als Standard, iPhone, In-App-Browser) ---------- */
+var installPrompt = null;
+var LS_INST_HIDE = 'sb.installHide';
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; refreshInstallUi(); });
+window.addEventListener('appinstalled', () => {
+  installPrompt = null; refreshInstallUi();
+  if (!$('#sheet').hidden && $('#instHelp')) closeSheet();
+  toast('App installiert – ab jetzt über das Symbol „Jagd Thuine“ öffnen.', 6000);
+});
+function isStandalone() { return matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true; }
+function browserInfo() {
+  const ua = navigator.userAgent;
+  const ios = /iPhone|iPad|iPod/i.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const android = /Android/i.test(ua);
+  const inApp = /FBAN|FBAV|FB_IAB|Instagram|Line\/|WhatsApp|Snapchat|; wv\)/i.test(ua);
+  let name = 'other';
+  if (/SamsungBrowser/i.test(ua)) name = 'samsung';
+  else if (/EdgA|EdgiOS/i.test(ua)) name = 'edge';
+  else if (/Firefox|FxiOS/i.test(ua)) name = 'firefox';
+  else if (/OPR\/|OPT\/|Opera/i.test(ua)) name = 'opera';
+  else if (/MiuiBrowser|XiaoMi/i.test(ua)) name = 'miui';
+  else if (/HuaweiBrowser|HONOR/i.test(ua)) name = 'huawei';
+  else if (/CriOS/i.test(ua)) name = 'chrome-ios';
+  else if (android && /Chrome\//.test(ua)) name = 'chrome';
+  else if (ios && /Safari/i.test(ua)) name = 'safari';
+  return { ios, android, inApp, name };
+}
+function installAngebot(start = false) {
+  if (isStandalone()) return false;
+  if (start && lsGet(LS_INST_HIDE, false)) return false;
+  return !!installPrompt || /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+}
+function refreshInstallUi() {
+  ensureLockInstallBtn();
+  const b = $('#lockInstall');
+  if (b) b.hidden = !installAngebot();
+  if (state.tab === 'start') renderStart();
+}
+function appLink() { return location.origin + location.pathname.replace(/index\.html$/, ''); }
+function chromeIntent() { return `intent://${location.host}${location.pathname.replace(/index\.html$/, '')}?installieren#Intent;scheme=https;package=com.android.chrome;end`; }
+async function startInstall(vonStart = false) {
+  if (installPrompt) {
+    const p = installPrompt; installPrompt = null;
+    try { p.prompt(); const r = await p.userChoice; if (r && r.outcome === 'accepted') toast('Wird installiert …'); } catch { openInstallHilfe(vonStart); }
+    refreshInstallUi();
+    return;
+  }
+  openInstallHilfe(vonStart);
+}
+function openInstallHilfe(vonStart = false) {
+  const b = browserInfo();
+  const step = t => `<li>${t}</li>`;
+  const chromeBtn = `<a class="btn block inst-chrome" href="${esc(chromeIntent())}">In Chrome öffnen</a>
+    <p class="hint">Chrome ist auf fast jedem Android-Handy vorhanden, auch wenn ein anderer Browser Standard ist. Dort dann auf <b>„App installieren“</b> tippen. Fehlt Chrome, öffnet sich der Play Store.</p>`;
+  const ohneChrome = {
+    samsung: 'Unten auf das Menü <span class="key">☰</span> tippen → <b>„Seite hinzufügen zu“</b> → <b>„Startbildschirm“</b>. Oder oben in der Adresszeile das Installieren-Symbol <span class="key">⤓</span> antippen.',
+    firefox: 'Oben/unten auf <span class="key">⋮</span> tippen → <b>„Installieren“</b> bzw. <b>„Zum Startbildschirm hinzufügen“</b>.',
+    edge: 'Unten auf <span class="key">…</span> tippen → <b>„Zum Telefon hinzufügen“</b> bzw. <b>„App installieren“</b>.',
+    opera: 'Auf <span class="key">⋮</span> tippen → <b>„Zum Startbildschirm“</b>.',
+  }[b.name] || 'Im Menü des Browsers nach <b>„Zum Startbildschirm hinzufügen“</b> oder <b>„Installieren“</b> suchen.';
+  let html = '';
+  if (b.inApp && b.android) {
+    html = `<p><b>Du bist im eingebauten Browser einer anderen App</b> (z. B. WhatsApp). Von dort lässt sich nicht installieren.</p>${chromeBtn}
+      <p class="hint">Alternativ oben rechts <span class="key">⋮</span> → <b>„Im Browser öffnen“</b>.</p>`;
+  } else if (b.inApp && b.ios) {
+    html = `<p><b>Du bist im eingebauten Browser einer anderen App</b> (z. B. WhatsApp). Von dort lässt sich nicht installieren.</p>
+      <ol class="inst-steps">${step('Unten rechts auf das Kompass-Symbol bzw. <b>„In Safari öffnen“</b> tippen.')}${step('Dann in Safari wieder auf <b>„App installieren“</b> tippen.')}</ol>`;
+  } else if (b.android && b.name === 'chrome') {
+    html = `<ol class="inst-steps">${step('Oben rechts auf die drei Punkte <span class="key">⋮</span> tippen.')}${step('<b>„App installieren“</b> oder <b>„Zum Startbildschirm hinzufügen“</b> antippen.')}${step('Mit <b>„Installieren“</b> bestätigen.')}</ol>
+      <p class="hint">Steht im Menü <b>„App öffnen“</b>, ist die App schon installiert – dann das Symbol „Jagd Thuine“ auf dem Startbildschirm benutzen.</p>`;
+  } else if (b.android) {
+    html = `<p><b>Am einfachsten:</b></p>${chromeBtn}
+      <details class="inst-alt"><summary>Ohne Chrome installieren</summary><p>${ohneChrome}</p></details>`;
+  } else if (b.ios) {
+    const wo = b.name === 'safari' ? 'Unten in der Mitte' : (b.name === 'chrome-ios' ? 'Oben rechts in der Adresszeile' : 'Im Browser');
+    html = `<ol class="inst-steps">
+        ${step(`${wo} auf das <b>Teilen-Symbol</b> <span class="key">⬆︎</span> tippen (bei neueren iPhones evtl. erst <span class="key">…</span>).`)}
+        ${step('Nach unten wischen und <b>„Zum Home-Bildschirm“</b> antippen.')}
+        ${step('Oben rechts <b>„Hinzufügen“</b> tippen.')}</ol>
+      ${b.name === 'safari' ? '' : '<p class="hint">Klappt das nicht, den Link in <b>Safari</b> öffnen (Link kopieren, in Safari einfügen).</p>'}
+      <p class="hint">Wichtig beim iPhone: Das Passwort erst in der installierten App eingeben – Safari und App merken es sich getrennt.</p>`;
+  } else {
+    html = `<p>Am PC in Chrome oder Edge rechts in der Adresszeile auf das Installieren-Symbol <span class="key">⤓</span> klicken. Auf dem Handy den Link öffnen und dort auf „App installieren“ tippen.</p>`;
+  }
+  html = `<div id="instHelp" class="inst-help">${html}
+    <p class="hint">Danach die App immer über das Symbol <b>„Jagd Thuine“</b> <img src="icons/icon-180.png" alt="" class="inst-ico"> öffnen.</p>
+    <button type="button" class="btn ghost block" id="instCopy">🔗 Link kopieren</button></div>`;
+  openSheet('App installieren', html, `${vonStart ? '<button class="btn ghost" id="instHide">Nicht mehr anzeigen</button>' : ''}<button class="btn" data-close>Schließen</button>`);
+  if (!$('#lock').hidden) $('#sheet').classList.add('over-lock');
+  $('#instCopy').addEventListener('click', () => kopiereLink(appLink()));
+  $('#instHide')?.addEventListener('click', () => { lsSet(LS_INST_HIDE, true); closeSheet(); renderStart(); toast('Ausgeblendet – unter Einstellungen → „Über die App“ wieder zu finden.', 4500); });
+}
+async function kopiereLink(url) {
+  try { await navigator.clipboard.writeText(url); toast('Link kopiert'); }
+  catch { prompt('Link kopieren:', url); }
+}
+function checkInstallParam() {
+  const q = new URLSearchParams(location.search);
+  if (!q.has('installieren')) return;
+  q.delete('installieren');
+  history.replaceState(history.state, '', location.pathname + (q.toString() ? '?' + q : '') + location.hash);
+  if (isStandalone()) return;
+  setTimeout(() => { if (!installPrompt || !$('#sheet').hidden) openInstallHilfeOrPrompt(); }, 900);
+}
+function openInstallHilfeOrPrompt() {
+  if (installPrompt) {
+    // prompt() braucht einen Tipp – deshalb ein großer Knopf
+    openSheet('App installieren', `<div id="instHelp" class="inst-help"><p>Mit einem Tipp liegt <b>Jagd Thuine</b> auf dem Startbildschirm.</p><button type="button" class="btn block" id="instNow">📲 Jetzt installieren</button></div>`, '<button class="btn secondary" data-close>Später</button>');
+    if (!$('#lock').hidden) $('#sheet').classList.add('over-lock');
+    $('#instNow').addEventListener('click', () => { closeSheet(); startInstall(); });
+  } else openInstallHilfe();
+}
+
 function renderStart() {
   const el = $('#view-start');
   if (!el || !state.data) return;
@@ -2900,6 +3027,7 @@ function renderStart() {
     </div>
     ${sperreBanner()}
     ${erinnerungBanner()}
+    ${installAngebot(true) ? `<button class="start-tile inst-tile" id="btnInstall"><span class="st-title">📲 App installieren</span><span class="st-meta">${installPrompt ? 'Ein Tipp – dann liegt Jagd Thuine auf dem Startbildschirm' : 'So kommt Jagd Thuine auf den Startbildschirm'}</span><span class="st-go" aria-hidden="true">›</span></button>` : ''}
     ${isAdmin() && state.meldungen.length ? `<button class="start-tile ml-tile" id="btnMeldungen"><span class="st-title">📬 ${state.meldungen.length} neue Meldung${state.meldungen.length === 1 ? '' : 'en'}</span><span class="st-meta">antippen zum Prüfen und Übernehmen</span><span class="st-go" aria-hidden="true">›</span></button>` : ''}
     ${canMelden() ? `<button class="start-tile melden-tile" id="btnMelden">
       <span class="st-title"><span class="mt-plus" aria-hidden="true">+</span> Wild melden</span>
@@ -2930,6 +3058,7 @@ function renderStart() {
       <span class="st-go" aria-hidden="true">›</span>
     </button>`;
   $('#btnMelden')?.addEventListener('click', openMelden);
+  $('#btnInstall')?.addEventListener('click', () => startInstall(true));
   $('#btnMeldungen')?.addEventListener('click', openMeldungen);
   const setSeason = v => { const sel = $('#seasonSelect'); sel.value = v; sel.dispatchEvent(new Event('change')); };
   $('#heroSeason')?.addEventListener('change', e => setSeason(e.target.value));
@@ -2940,6 +3069,9 @@ $$('.tab').forEach(t => t.addEventListener('click', () => switchTab(t.dataset.ta
 $('#seasonSelect').addEventListener('change', e => { state.season = e.target.value; renderTage(); renderStrecke(); renderKoenig(); renderSchalen(); renderStart(); });
 $('#settingsBtn').addEventListener('click', openSettings);
 ensureLockDom();
+ensureLockInstallBtn();
+refreshInstallUi();
+checkInstallParam();
 $('#lockForm')?.addEventListener('submit', unlock);
 $('#forgotPw')?.addEventListener('click', openReset);
 /* ---------- Aktualisieren: beim Zurückkehren, alle 5 Minuten im Vordergrund und per Knopf ---------- */
