@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.18.0';
+const APP_VERSION = '2.19.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -1934,7 +1934,12 @@ function openSettings() {
       <p class="hint">Die Sicherung enthält Niederwild <b>und</b> Schalenwild – <b>unverschlüsselt</b>. Nur im eigenen Ordner aufbewahren (z. B. OneDrive), nicht weitergeben. Mit ihr lässt sich auch ein vergessenes Passwort zurücksetzen.</p>
       <input type="file" id="cfImportFile" accept="application/json,.json" hidden>
     </fieldset>` : ''}
-    <p class="hint" style="text-align:center">Version ${APP_VERSION}</p>`;
+    <fieldset class="impressum"><legend>Über die App</legend>
+      <div class="imp-head"><img src="icons/logo.png" alt=""><div><b>Jagd Thuine</b><small>App der Jagdgemeinschaft Thuine · Version ${APP_VERSION}</small></div></div>
+      <p>Entwickelt von <b>Sebastian Bruns</b>, Thuine.</p>
+      <p class="hint">Die App ist ein privates, nicht-kommerzielles Angebot für die Mitglieder der Jagdgemeinschaft Thuine. Die Daten werden verschlüsselt gespeichert und sind nur mit dem Passwort der Jagdgemeinschaft lesbar.</p>
+      <p class="hint">© ${new Date().getFullYear()} Sebastian Bruns · Fragen und Wünsche bitte direkt an Sebastian.</p>
+    </fieldset>`;
   openSheet('Einstellungen', body, `<button class="btn secondary" data-close>Abbrechen</button><button class="btn" id="cfSave">Übernehmen</button>`);
 
   const removed = new Set();

@@ -580,3 +580,10 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .sheet-body { overflow-x: hidden; }
 .st-icon.st-wide { width: 84px; }
 .tab svg { width: 30px; height: 26px; }
+
+/* Über die App / Impressum */
+.impressum p { margin: 6px 0; }
+.imp-head { display: flex; align-items: center; gap: 12px; }
+.imp-head img { width: 48px; height: auto; flex: none; }
+.imp-head b { display: block; font: 600 18px/1.2 var(--serif); color: var(--green); }
+.imp-head small { color: var(--muted); font-size: 12.5px; }
