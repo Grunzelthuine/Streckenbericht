@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.20.1';
+const APP_VERSION = '2.21.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -35,8 +35,6 @@ const LS_SCHALEN_OPS = 'sb.schalen.ops.v1';
 const SCHALEN_PATH = 'schalenwild.json';
 /* Alte Damwild-Kategorien (bis 2.15) → neue 8 Kategorien */
 const KAT_ALIAS = { 'hirsch-3a': 'hirsch-3b', hirschkalb: 'kalb' };
-/* Hirsch 2b und 1b: werden nie freigegeben – nur zum korrekten Eintragen (z. B. Fehlabschuss) */
-const DAM_NIE_FREI = ['hirsch-2b', 'hirsch-1b'];
 const FALLBACK_MODEL = 'claude-sonnet-4-6';
 
 /* ================= Hilfsfunktionen ================= */
@@ -834,9 +832,27 @@ const MIT_GEMEINSCHAFT = ['reh', 'schwarz']; // Gemeinschaftsansitz möglich
 const DAM_JAGDZEIT = {
   alttier: [['09-01', '01-31']], kalb: [['09-01', '01-31']],
   schmaltier: [['04-01', '05-15'], ['08-01', '01-31']], schmalspiesser: [['04-01', '05-15'], ['08-01', '01-31']],
-  spiesser: [['08-01', '01-31']], 'hirsch-3b': [['08-01', '01-31']], 'hirsch-2a': [['08-01', '01-31']], 'hirsch-1a': [['08-01', '01-31']],
+  spiesser: [['08-01', '01-31']], 'hirsch-3b': [['08-01', '01-31']], 'hirsch-2a': [['08-01', '01-31']], 'hirsch-2b': [['08-01', '01-31']],
+  'hirsch-1a': [['08-01', '01-31']], 'hirsch-1b': [['08-01', '01-31']],
 };
-const DAM_FREI_LBL = { alttier: 'Damtiere', kalb: 'Kälber', schmaltier: 'Schmaltiere', schmalspiesser: 'Schmalspießer', spiesser: 'Spießer (3b)', 'hirsch-3b': 'Hirsch 3b', 'hirsch-2a': 'Hirsch 2a', 'hirsch-1a': 'Hirsch 1a' };
+const DAM_FREI_LBL = { alttier: 'Damtiere', kalb: 'Kälber', schmaltier: 'Schmaltiere', schmalspiesser: 'Schmalspießer', spiesser: 'Spießer (3b)', 'hirsch-3b': 'Hirsch 3b', 'hirsch-2a': 'Hirsch 2a', 'hirsch-2b': 'Hirsch 2b', 'hirsch-1a': 'Hirsch 1a', 'hirsch-1b': 'Hirsch 1b' };
+/* Welches Wild in der Freigabe steht – Admin kann es unter Einstellungen ändern (data.damFreigabeKats) */
+const DAM_FG_STANDARD = ['alttier', 'kalb', 'schmaltier', 'spiesser', 'hirsch-3b', 'hirsch-2b', 'hirsch-1a', 'hirsch-1b'];
+const GANZJAHR = [['01-01', '12-31']];
+function fgKats() {
+  const l = state.data?.damFreigabeKats;
+  const arr = Array.isArray(l) ? l : DAM_FG_STANDARD.map(k => ({ k }));
+  return arr.filter(x => x && x.k).map(x => ({
+    k: x.k,
+    lbl: x.lbl || DAM_FREI_LBL[x.k] || katName('damm', x.k),
+    jz: (Array.isArray(x.jz) && x.jz.length ? x.jz : DAM_JAGDZEIT[x.k]) || GANZJAHR,
+    eigen: !DAM_JAGDZEIT[x.k],
+  }));
+}
+function fgItem(k) {
+  return fgKats().find(x => x.k === k) || (DAM_JAGDZEIT[k] ? { k, lbl: DAM_FREI_LBL[k] || katName('damm', k), jz: DAM_JAGDZEIT[k], eigen: false } : null);
+}
+const fgInListe = k => fgKats().some(x => x.k === k);
 const inJagdzeit = (ranges, iso) => { const md = iso.slice(5); return ranges.some(([a, b]) => a <= b ? md >= a && md <= b : md >= a || md <= b); };
 const mdText = md => { const [m, d] = md.split('-').map(Number); return `${d}.${m}.`; };
 const jagdzeitText = ranges => ranges.map(([a, b]) => `${mdText(a)}–${mdText(b)}`).join(' und ');
@@ -846,7 +862,7 @@ function naechsterBeginn(ranges, iso) {
   return cands[0];
 }
 function damStatus(k, iso = todayISO()) {
-  const legal = inJagdzeit(DAM_JAGDZEIT[k], iso);
+  const legal = inJagdzeit(fgItem(k)?.jz || GANZJAHR, iso);
   const frei = !!state.data?.damFreigabe?.[k];
   return { legal, frei, art: !legal ? 'gesetz' : frei ? 'frei' : 'regel' };
 }
@@ -854,17 +870,19 @@ function freigabeStatusText(k, st, heute, lang = false) {
   if (st.art === 'frei') return 'frei';
   if (st.art === 'regel') return lang ? 'gesperrt · unsere Regelung' : 'gesperrt';
   if (!lang) return 'Schonzeit';
-  return `Schonzeit · Gesetz, bis ${dateDE(naechsterBeginn(DAM_JAGDZEIT[k], heute)).slice(0, 6).replace(/^(\d+)\.(\d+)\.$/, (m, d, mo) => { const dt = new Date(2000, +mo - 1, +d - 1); return `${dt.getDate()}.${dt.getMonth() + 1}.`; })}`;
+  return `Schonzeit${fgItem(k)?.eigen ? '' : ' · Gesetz'}, bis ${dateDE(naechsterBeginn(fgItem(k)?.jz || GANZJAHR, heute)).slice(0, 6).replace(/^(\d+)\.(\d+)\.$/, (m, d, mo) => { const dt = new Date(2000, +mo - 1, +d - 1); return `${dt.getDate()}.${dt.getMonth() + 1}.`; })}`;
 }
 /** Kompakte Übersicht für alle: farbige Kacheln je Kategorie */
 function freigabeCard() {
   const heute = todayISO(), stand = state.data?.damFreigabeStand;
-  const chips = Object.keys(DAM_JAGDZEIT).map(k => {
+  const liste = fgKats();
+  if (!liste.length && !isAdmin()) return '';
+  const chips = liste.map(({ k, lbl }) => {
     const st = damStatus(k, heute);
-    return `<div class="fgc fg-${st.art}"><b>${esc(DAM_FREI_LBL[k])}</b><small>${freigabeStatusText(k, st, heute)}</small></div>`;
+    return `<div class="fgc fg-${st.art}"><b>${esc(lbl)}</b><small>${freigabeStatusText(k, st, heute)}</small></div>`;
   }).join('');
   return `<h2 class="section">Freigabe Damwild</h2>
-    <div class="fgc-grid">${chips}</div>
+    ${liste.length ? `<div class="fgc-grid">${chips}</div>` : '<p class="hint">Kein Wild für die Freigabe ausgewählt (Einstellungen → Freigabe Damwild).</p>'}
     <p class="hint fg-legend"><span class="fg-k fg-frei"></span>frei <span class="fg-k fg-regel"></span>gesperrt nach unserer Regelung <span class="fg-k fg-gesetz"></span>Schonzeit laut Jagdgesetz${stand ? ` · Stand ${dateDE(stand)}` : ''}</p>
     ${isAdmin() ? '<button class="btn secondary block" id="fgEdit" style="margin-top:4px">Freigabe ändern</button>' : ''}`;
 }
@@ -873,21 +891,77 @@ function openFreigabe() {
   const heute = todayISO();
   const draw = () => {
     openSheet('Freigabe Damwild', `<p class="hint">„Schonzeit“ setzt die App automatisch nach dem Niedersächsischen Jagdgesetz. Deine Einstellung gilt, sobald die Jagdzeit läuft.</p>
-      <ul class="fg-list">${Object.keys(DAM_JAGDZEIT).map(k => {
+      <ul class="fg-list">${fgKats().map(({ k, lbl, jz }) => {
         const st = damStatus(k, heute);
         return `<li class="fg-${st.art}"><span class="fg-dot" aria-hidden="true"></span>
-          <span class="fg-name">${esc(DAM_FREI_LBL[k])}<small>Jagdzeit ${jagdzeitText(DAM_JAGDZEIT[k])}</small></span>
+          <span class="fg-name">${esc(lbl)}<small>${jz === GANZJAHR || (jz.length === 1 && jz[0][0] === '01-01' && jz[0][1] === '12-31') ? 'ganzjährig' : `Jagdzeit ${jagdzeitText(jz)}`}</small></span>
           <span class="fg-st">${freigabeStatusText(k, st, heute, true)}${st.art === 'gesetz' ? ` <i>(danach ${st.frei ? 'frei' : 'gesperrt'})</i>` : ''}</span>
           <button class="btn ${st.frei ? 'secondary' : ''} fg-btn" data-fg="${k}">${st.frei ? 'sperren' : 'freigeben'}</button></li>`;
-      }).join('')}</ul>`, '<button class="btn" data-close>Fertig</button>');
+      }).join('')}</ul>`, '<button class="btn secondary" id="fgWild">Wild bearbeiten</button><button class="btn" data-close>Fertig</button>');
+    $('#fgWild')?.addEventListener('click', () => openFreigabeWild());
     $$('[data-fg]').forEach(b => b.addEventListener('click', () => {
       const k = b.dataset.fg;
       state.data.damFreigabe = Object.assign({}, state.data.damFreigabe);
       state.data.damFreigabe[k] = !state.data.damFreigabe[k];
       state.data.damFreigabeStand = todayISO();
-      persist(`Freigabe Damwild: ${DAM_FREI_LBL[k]} ${state.data.damFreigabe[k] ? 'frei' : 'gesperrt'}`);
+      persist(`Freigabe Damwild: ${fgItem(k)?.lbl || k} ${state.data.damFreigabe[k] ? 'frei' : 'gesperrt'}`);
       draw();
     }));
+  };
+  draw();
+}
+/** Admin: welches Wild steht in der Freigabe (Reihenfolge, Namen, eigene Einträge) */
+const mdAus = t => { const m = String(t || '').trim().match(/^(\d{1,2})\.(\d{1,2})\.?$/); if (!m) return null; const d = +m[1], mo = +m[2]; if (mo < 1 || mo > 12 || d < 1 || d > 31) return null; return `${String(mo).padStart(2, '0')}-${String(d).padStart(2, '0')}`; };
+function openFreigabeWild() {
+  let liste = fgKats().map(x => ({ k: x.k, lbl: x.lbl, jz: x.eigen ? x.jz : null, eigen: x.eigen }));
+  const draw = () => {
+    const frei = SCHALEN.damm.kat.filter(([k]) => !liste.some(x => x.k === k));
+    openSheet('Freigabe Damwild – Wild', `<p class="hint">Hier legst du fest, welches Wild in der Freigabe-Übersicht steht. Namen kannst du direkt ändern. Die gesetzliche Jagdzeit setzt die App beim bekannten Damwild selbst.</p>
+      <ul class="fgw-list">${liste.map((x, i) => `<li>
+        <input type="text" class="fgw-lbl" data-i="${i}" value="${esc(x.lbl)}" aria-label="Name">
+        <small>${x.eigen ? (x.jz ? `eigener Eintrag · ${jagdzeitText(x.jz)}` : 'eigener Eintrag · ganzjährig') : `${esc(katName('damm', x.k))} · Jagdzeit ${jagdzeitText(DAM_JAGDZEIT[x.k])}`}</small>
+        <span class="fgw-btns"><button type="button" class="icon-btn sm" data-up="${i}" ${i ? '' : 'disabled'} aria-label="nach oben">↑</button><button type="button" class="icon-btn sm" data-down="${i}" ${i < liste.length - 1 ? '' : 'disabled'} aria-label="nach unten">↓</button><button type="button" class="icon-btn sm fgw-del" data-del="${i}" aria-label="entfernen">✕</button></span>
+      </li>`).join('') || '<li class="hint">Noch kein Wild ausgewählt.</li>'}</ul>
+      <h3 class="fgw-h">Hinzufügen</h3>
+      ${frei.length ? `<div class="fgw-add"><select id="fgwKat">${frei.map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join('')}</select><button type="button" class="btn secondary" id="fgwAdd">+ Hinzufügen</button></div>` : ''}
+      <details class="fgw-eigen"><summary>Eigenen Eintrag anlegen</summary>
+        <label class="field"><span>Name</span><input id="fgwName" type="text" placeholder="z. B. Hirsch 4. Kopf"></label>
+        <div class="fgw-jz"><label class="field"><span>Jagdzeit von</span><input id="fgwVon" type="text" inputmode="decimal" placeholder="1.8."></label><label class="field"><span>bis</span><input id="fgwBis" type="text" inputmode="decimal" placeholder="31.1."></label></div>
+        <p class="hint">Jagdzeit leer lassen = ganzjährig (keine Schonzeit-Anzeige).</p>
+        <button type="button" class="btn secondary block" id="fgwEigen">+ Eigenen Eintrag hinzufügen</button>
+      </details>
+      <button type="button" class="btn ghost block" id="fgwReset">Auf Standard zurücksetzen</button>`,
+    '<button class="btn secondary" data-close>Abbrechen</button><button class="btn" id="fgwSave">Speichern</button>');
+    const sync = () => $$('.fgw-lbl').forEach(inp => { liste[+inp.dataset.i].lbl = inp.value.trim(); });
+    $$('[data-up]').forEach(b => b.addEventListener('click', () => { sync(); const i = +b.dataset.up; [liste[i - 1], liste[i]] = [liste[i], liste[i - 1]]; draw(); }));
+    $$('[data-down]').forEach(b => b.addEventListener('click', () => { sync(); const i = +b.dataset.down; [liste[i + 1], liste[i]] = [liste[i], liste[i + 1]]; draw(); }));
+    $$('[data-del]').forEach(b => b.addEventListener('click', () => { sync(); liste.splice(+b.dataset.del, 1); draw(); }));
+    $('#fgwAdd')?.addEventListener('click', () => { sync(); const k = $('#fgwKat').value; liste.push({ k, lbl: DAM_FREI_LBL[k] || katName('damm', k), jz: null, eigen: false }); draw(); });
+    $('#fgwEigen').addEventListener('click', () => {
+      sync();
+      const name = $('#fgwName').value.trim();
+      if (!name) { toast('Bitte einen Namen eingeben.'); return; }
+      const vT = $('#fgwVon').value.trim(), bT = $('#fgwBis').value.trim();
+      let jz = null;
+      if (vT || bT) { const a = mdAus(vT), b = mdAus(bT); if (!a || !b) { toast('Jagdzeit bitte als Tag.Monat eingeben, z. B. 1.8. bis 31.1.', 4000); return; } jz = [[a, b]]; }
+      liste.push({ k: 'eigen-' + Date.now().toString(36), lbl: name, jz, eigen: true });
+      draw();
+    });
+    $('#fgwReset').addEventListener('click', () => { liste = DAM_FG_STANDARD.map(k => ({ k, lbl: DAM_FREI_LBL[k], jz: null, eigen: false })); draw(); });
+    $('#fgwSave').addEventListener('click', () => {
+      sync();
+      if (liste.some(x => !x.lbl)) { toast('Jeder Eintrag braucht einen Namen.'); return; }
+      state.data.damFreigabeKats = liste.map(x => {
+        const o = { k: x.k };
+        if (x.eigen || x.lbl !== (DAM_FREI_LBL[x.k] || katName('damm', x.k))) o.lbl = x.lbl;
+        if (x.eigen && x.jz) o.jz = x.jz;
+        return o;
+      });
+      persist('Freigabe Damwild: Wild-Auswahl geändert');
+      closeSheet();
+      renderSchalen();
+      toast('Freigabe-Liste gespeichert');
+    });
   };
   draw();
 }
@@ -1127,8 +1201,8 @@ function openSchalen(id, prefill = null) {
         ${Object.entries(SCHALEN).map(([k, v]) => `<button type="button" role="radio" aria-checked="${x.art === k}" class="${x.art === k ? 'on' : ''}" data-swart="${k}">${v.name}</button>`).join('')}
       </div>
       <label class="field"><span>Kategorie</span><select id="swKat">${SCHALEN[x.art].kat.map(([k, l]) => `<option value="${k}" ${k === x.kat ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
-      ${x.art === 'damm' && !x.fallwild && DAM_NIE_FREI.includes(x.kat) ? `<div class="alert fg-warn">⚠️ ${esc(katName('damm', x.kat))} ist nicht freigegeben – bitte trotzdem korrekt eintragen (z. B. Fehlabschuss).</div>` : ''}
-      ${x.art === 'damm' && !x.fallwild && DAM_JAGDZEIT[x.kat] && damStatus(x.kat, x.datum || todayISO()).art !== 'frei' ? `<div class="alert fg-warn">⚠️ ${esc(DAM_FREI_LBL[x.kat])}: derzeit ${damStatus(x.kat, x.datum || todayISO()).art === 'gesetz' ? 'Schonzeit laut Jagdgesetz' : 'gesperrt nach unserer Regelung'}.</div>` : ''}
+      ${x.art === 'damm' && !x.fallwild && !fgInListe(x.kat) ? `<div class="alert fg-warn">⚠️ ${esc(katName('damm', x.kat))} steht nicht in der Freigabe – bitte trotzdem korrekt eintragen (z. B. Fehlabschuss).</div>` : ''}
+      ${x.art === 'damm' && !x.fallwild && fgInListe(x.kat) && damStatus(x.kat, x.datum || todayISO()).art !== 'frei' ? `<div class="alert fg-warn">⚠️ ${esc(fgItem(x.kat).lbl)}: derzeit ${damStatus(x.kat, x.datum || todayISO()).art === 'gesetz' ? 'Schonzeit laut Jagdgesetz' : 'gesperrt nach unserer Regelung'}.</div>` : ''}
       <label class="check-row"><input type="checkbox" id="swFall" ${x.fallwild ? 'checked' : ''}> <span><b>Fallwild</b><small>z. B. Verkehrsunfall – ohne Schützen</small></span></label>
       ${x.fallwild
         ? `<label class="field"><span>Ursache (optional)</span><input type="text" id="swUrs" list="swUrsList" value="${esc(x.ursache || '')}" placeholder="z. B. Verkehrsunfall"><datalist id="swUrsList">${FALLWILD_URSACHEN.map(u => `<option value="${u}">`).join('')}</datalist></label>`
@@ -1914,6 +1988,10 @@ function openSettings() {
       <p class="hint">In der kostenlosen App <b>ntfy</b> auf „+“ tippen und genau diesen Kanalnamen abonnieren (Server ntfy.sh). Dann kommt bei jeder Meldung eine Push-Nachricht – ohne Namen, nur Wildart und Datum.</p>
       ${'setAppBadge' in navigator && 'Notification' in window ? `<button type="button" class="btn secondary block" id="cfBadge" style="margin-top:8px">${Notification.permission === 'granted' ? '✓ Zahl am App-Symbol aktiv' : 'Zahl am App-Symbol erlauben'}</button>` : ''}
     </fieldset>` : ''}
+    ${isAdmin() ? `<fieldset><legend>Freigabe Damwild</legend>
+      <p class="hint">In der Übersicht: ${esc(fgKats().map(x => x.lbl).join(', ') || '– nichts –')}</p>
+      <button type="button" class="btn secondary block" id="cfFgWild">Wild für die Freigabe bearbeiten</button>
+    </fieldset>` : ''}
     ${isAdmin() ? `<fieldset><legend>Datenschutz</legend>
       <label class="field"><span>Passwort der Jagdgemeinschaft</span><input id="cfPw" type="text" value="${esc(state.pw)}" placeholder="mind. 6 Zeichen" autocomplete="off" autocapitalize="off" autocorrect="off"></label>
       <p class="hint">${state.pw ? 'Die Daten werden verschlüsselt gespeichert. Alle Jäger brauchen dieses Passwort zum Ansehen.' : '<b>Noch kein Passwort gesetzt – die Daten sind im Klartext lesbar.</b>'} Ändern: neues Passwort eintragen und übernehmen, danach müssen alle Jäger das neue Passwort einmal eingeben. <b>Passwort gut aufbewahren – ohne es sind die Daten nicht mehr lesbar.</b></p>
@@ -1953,6 +2031,7 @@ function openSettings() {
       <p class="hint">Der Einrichtungs-Link öffnet die App mit der Installationshilfe – gut zum Weiterschicken (z. B. per WhatsApp).</p>
     </fieldset>`;
   openSheet('Einstellungen', body, `<button class="btn secondary" data-close>Abbrechen</button><button class="btn" id="cfSave">Übernehmen</button>`);
+  $('#cfFgWild')?.addEventListener('click', () => { closeSheet(); setTimeout(openFreigabeWild, 50); });
   $('#cfInvite')?.addEventListener('click', () => kopiereLink(appLink() + '?installieren'));
   $('#cfInstall')?.addEventListener('click', () => { lsSet(LS_INST_HIDE, undefined); closeSheet(); renderStart(); setTimeout(() => startInstall(), 50); });
 

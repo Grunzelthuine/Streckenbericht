@@ -127,7 +127,8 @@ Alle PDF-Downloads liegen auf der Startseite unter **Streckenberichte**, nach Ja
 
 ## Neu in 2.16
 - Schalenwild in drei Seiten: Rehwild, Damwild, Schwarzwild (Reiter unten). Schwarzwild: Sau, Keiler, Überläufer, Frischling – wie Rehwild, ohne Wildbret-Auswahl; auch bei „Wild melden“.
-- Damwild: 8 Kategorien (Damtier, Kalb, Schmaltier, Schmalspießer, Spießer (3b), Hirsch 3b/2a/2b/1a/1b; 2b und 1b nur zum Eintragen, nicht in der Freigabe); alte Einträge: 3a→3b, Hirschkalb→Kalb.
+- Damwild-Kategorien zum Eintragen: Damtier, Kalb, Schmaltier, Schmalspießer, Spießer (3b), Hirsch 3b/2a/2b/1a/1b; alte Einträge: 3a→3b, Hirschkalb→Kalb.
+- Freigabe Damwild (ab 2.21.0): Welches Wild in der Übersicht steht, legt der Admin unter Einstellungen → „Freigabe Damwild“ fest: Reihenfolge und Namen ändern, Damwild-Kategorien hinzufügen oder entfernen, eigene Einträge mit eigener Jagdzeit anlegen. Gespeichert wird das in `data.damFreigabeKats` ([{k, lbl?, jz?}]). Standard: Damtiere, Kälber, Schmaltiere, Spießer (3b), Hirsch 3b, 2b, 1a, 1b. Kategorien außerhalb der Liste bekommen im Formular den Hinweis „steht nicht in der Freigabe“.
 - Freigabe Damwild oben auf der Damwild-Seite: je Kategorie „frei“ / „gesperrt – unsere Regelung“ (Admin schaltet) / „Schonzeit – Gesetz“ (automatisch nach DVO-NJagdG § 3, Stand 18.01.2021; Alttiere nach Bundes-JagdzeitV). Bei Gesetzesänderung `DAM_JAGDZEIT` in app.js anpassen.
 - Termine rutschen 4 Std. nach Beginn (ohne Uhrzeit: am Folgetag) in „Vergangene Termine“, dort Auswahl nach Jagdjahr.
 - Startseite: Niederwild/Schalenwild nur mit Symbol.
@@ -170,9 +171,22 @@ Beim Speichern ohne Netz bleiben die Daten auf dem Gerät, und oben erscheint �
 Auf iPhone/Android öffnen sich alle PDFs (Berichte, Protokolle) direkt in der App (pdf.js, `vendor/pdf.min.js` + `vendor/pdf.worker.min.js`). Oben links ✕ schließt, oben rechts „Teilen/Sichern“ öffnet das Teilen-Menü. Am PC wird weiter direkt heruntergeladen.
 
 ## Neue Version einspielen
-Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-2.18.0'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
+Nach jeder Änderung an den App-Dateien in `sw.js` die Zeile `VERSION = 'sb-2.19.1'` hochzählen. Die Nutzer sehen dann den Hinweis **„Neue Version verfügbar – Neu laden“**.
 
 ## Daten
 Alle Daten liegen in `data/strecke.json`. Jede Speicherung ist ein Commit in GitHub, dadurch gibt es automatisch eine Versionshistorie. Zusätzlich gibt es in den Einstellungen **„Sicherung speichern“ / „Sicherung einspielen“**. Die Sicherung enthält Niederwild und Reh- & Dammwild **unverschlüsselt**, gehört also nur in deinen eigenen Ordner.
 
 Enthalten sind die Jagdtage 18.10., 03.11., 08.11. und 29.11.2025, übernommen von den Erlegerlisten.
+
+## Installationshilfe (ab 2.20.0)
+
+Die App hilft selbst beim Installieren, vor allem auf Android-Handys, bei denen Chrome nicht der Standard-Browser ist:
+
+- **Wo:** Knopf „📲 App auf dem Handy installieren“ auf dem Passwort-Bildschirm, Kachel „App installieren“ auf der Startseite (nur auf dem Handy und nur, solange die App nicht installiert ist), außerdem unter Einstellungen → „Über die App“.
+- **Chrome, Edge, Samsung Internet:** Bietet der Browser die Installation an (`beforeinstallprompt`), reicht ein Tipp.
+- **Andere Android-Browser:** Der Knopf „In Chrome öffnen“ öffnet die App per `intent://…;package=com.android.chrome` direkt in Chrome. Eine Anleitung für den eigenen Browser gibt es zusätzlich.
+- **WhatsApp und andere In-App-Browser:** Die App zeigt den Hinweis „Im Browser öffnen“.
+- **iPhone:** Die Schritte für Safari werden angezeigt. Das Passwort sollte erst in der installierten App eingegeben werden.
+- **Einrichtungs-Link:** `https://grunzelthuine.github.io/Streckenbericht/?installieren` öffnet die Hilfe sofort. Unter Einstellungen → „Über die App“ → „Einrichtungs-Link kopieren“.
+- **Ausblenden:** „Nicht mehr anzeigen“ blendet die Kachel aus (`sb.installHide`). Über die Einstellungen wird sie wieder eingeblendet.
+- **Hersteller-Sperre (ab 2.20.1):** Bei Xiaomi/Redmi/POCO, Huawei/Honor, Oppo/Realme/OnePlus und Vivo darf Chrome anfangs oft keine Startbildschirm-Symbole anlegen. Die App erkennt den Hersteller (User-Agent bzw. `navigator.userAgentData` → `model`) und zeigt in der Installationshilfe den Weg zur Berechtigung „Verknüpfungen auf dem Startbildschirm“. Nach einer Ein-Tipp-Installation fragt sie dort „Symbol da?“. Bei unbekanntem Hersteller gibt es den Hinweis eingeklappt unter „Kein Symbol erschienen?“.
