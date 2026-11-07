@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.21.0';
+const APP_VERSION = '2.22.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -1080,8 +1080,15 @@ function wildbretCard() {
   const gs = wvGruppen(), plan = wildbretPlan();
   const last = {}; // Gruppe → letztes Stück
   plan.list.forEach(x => { const g = plan.map[x.id]; if (g && g !== 'keine') last[g] = x; });
+  const akt = plan.list[plan.list.length - 1]; // zuletzt erlegtes Stück
+  const aktTile = akt ? `<div class="wb-next wb-akt">
+        <span class="sub">Aktuelles Stück · ${esc(datumText(akt.datum))}</span>
+        <b>${esc(gruppeLabel(plan.map[akt.id] || 'keine'))}</b>
+        <small>${esc(katName('damm', akt.kat))} · erlegt von ${esc(schuetzeText(akt) || 'unbekannt')}</small>
+      </div>` : '';
   return `<h2 class="section">Wildbret-Verteilung Damwild</h2>
     <div class="card wb-card">
+      ${aktTile}
       <div class="wb-next"><span class="sub">Als Nächstes dran</span><b>${esc(gruppeLabel(plan.next))}</b></div>
       <ol class="wb-list">${gs.map(g => `<li class="${g.id === plan.next ? 'next' : ''}">
         <span class="wb-names">${esc(gruppeLabel(g.id))}</span>

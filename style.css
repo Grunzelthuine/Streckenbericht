@@ -623,3 +623,8 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .fgw-eigen summary { cursor: pointer; font-weight: 600; color: var(--green); }
 .fgw-eigen .field { margin-top: 8px; }
 .fgw-jz { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+
+/* v2.22 Kachel „Aktuelles Stück“ über „Als Nächstes dran“ */
+.wb-next.wb-akt { background: #f4ecd0; color: var(--ink); border: 1px solid #d8c48f; }
+.wb-next.wb-akt .sub { color: #7a6224; }
+.wb-next small { font-size: 13px; opacity: .85; }
