@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.22.0';
+const APP_VERSION = '2.23.0';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -881,8 +881,7 @@ function freigabeCard() {
     const st = damStatus(k, heute);
     return `<div class="fgc fg-${st.art}"><b>${esc(lbl)}</b><small>${freigabeStatusText(k, st, heute)}</small></div>`;
   }).join('');
-  return `<h2 class="section">Freigabe Damwild</h2>
-    ${liste.length ? `<div class="fgc-grid">${chips}</div>` : '<p class="hint">Kein Wild für die Freigabe ausgewählt (Einstellungen → Freigabe Damwild).</p>'}
+  return `${liste.length ? `<div class="fgc-grid">${chips}</div>` : '<p class="hint">Kein Wild für die Freigabe ausgewählt (Einstellungen → Freigabe Damwild).</p>'}
     <p class="hint fg-legend"><span class="fg-k fg-frei"></span>frei <span class="fg-k fg-regel"></span>gesperrt nach unserer Regelung <span class="fg-k fg-gesetz"></span>Schonzeit laut Jagdgesetz${stand ? ` · Stand ${dateDE(stand)}` : ''}</p>
     ${isAdmin() ? '<button class="btn secondary block" id="fgEdit" style="margin-top:4px">Freigabe ändern</button>' : ''}`;
 }
@@ -1086,16 +1085,31 @@ function wildbretCard() {
         <b>${esc(gruppeLabel(plan.map[akt.id] || 'keine'))}</b>
         <small>${esc(katName('damm', akt.kat))} · erlegt von ${esc(schuetzeText(akt) || 'unbekannt')}</small>
       </div>` : '';
-  return `<h2 class="section">Wildbret-Verteilung Damwild</h2>
-    <div class="card wb-card">
+  return `<div class="wb-card">
       ${aktTile}
       <div class="wb-next"><span class="sub">Als Nächstes dran</span><b>${esc(gruppeLabel(plan.next))}</b></div>
       <ol class="wb-list">${gs.map(g => `<li class="${g.id === plan.next ? 'next' : ''}">
         <span class="wb-names">${esc(gruppeLabel(g.id))}</span>
         <small>${last[g.id] ? `zuletzt ${datumText(last[g.id].datum)} · ${esc(katName('damm', last[g.id].kat))}` : '–'}</small></li>`).join('')}</ol>
       ${isAdmin() ? '<button class="btn secondary block" id="wbEdit">Gruppen bearbeiten</button>' : ''}
-    </div>
-    <p class="hint">Erlegtes Damwild geht der Reihe nach an die Gruppen – unabhängig vom Schützen und über das Jagdjahr hinaus. Fallwild wird nicht verteilt.</p>`;
+      <p class="hint">Erlegtes Damwild geht der Reihe nach an die Gruppen – unabhängig vom Schützen und über das Jagdjahr hinaus. Fallwild wird nicht verteilt.</p>
+    </div>`;
+}
+
+/* ---------- Aufklappbare Kacheln (Schalenwild) ----------
+   Offen/zu wird je Gerät gemerkt (nur Bequemlichkeit, kein gemeinsamer Stand). */
+const LS_KACHELN = 'sb.kacheln.v1';
+const kachelOffen = (key, standard) => { const m = lsGet(LS_KACHELN, {}); return key in m ? !!m[key] : standard; };
+function klappKachel(key, titel, meta, inhalt, standardOffen = false) {
+  return `<details class="kk" data-kk="${esc(key)}" ${kachelOffen(key, standardOffen) ? 'open' : ''}>
+    <summary><span class="kk-t">${titel}</span>${meta ? `<span class="kk-m">${meta}</span>` : ''}<span class="kk-chev" aria-hidden="true">›</span></summary>
+    <div class="kk-body">${inhalt}</div>
+  </details>`;
+}
+function wireKacheln(el) {
+  $$('details.kk', el).forEach(d => d.addEventListener('toggle', () => {
+    const m = lsGet(LS_KACHELN, {}); m[d.dataset.kk] = d.open; lsSet(LS_KACHELN, m);
+  }));
 }
 function openGruppen() {
   const gs = clone(wvGruppen());
@@ -1161,10 +1175,27 @@ function renderSchalen() {
   const erlegt = st.erlegt.filter(x => x.art === art), fallwild = st.fallwild.filter(x => x.art === art);
   const shooters = Object.entries(st.perShooter).filter(([, p]) => p[art]).sort((a, b) => b[1][art] - a[1][art] || shooterName(a[0]).localeCompare(shooterName(b[0]), 'de'));
   const aktuell = state.season === seasonOf(todayISO());
+  const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
+  const fgListe = art === 'damm' ? fgKats() : [];
+  const fgFrei = fgListe.filter(x => damStatus(x.k).art === 'frei').length;
+  const fgInhalt = art === 'damm' ? freigabeCard() : '';
+  const kacheln = [
+    art === 'damm' && fgInhalt ? klappKachel(`${art}-freigabe`, 'Freigabe Damwild', fgListe.length ? `${fgFrei} von ${fgListe.length} frei` : '', fgInhalt, true) : '',
+    art === 'damm' && aktuell ? klappKachel(`${art}-wildbret`, 'Wildbret-Verteilung', `dran: ${esc(gruppeLabel(plan.next, true).replace(/^\d+\.\s*/, ''))}`, wildbretCard()) : '',
+    klappKachel(`${art}-uebersicht`, `Übersicht ${esc(state.season)}`, 'nach Kategorie', catTable),
+    klappKachel(`${art}-erlegt`, 'Erlegt', plural(erlegt.length, 'Stück', 'Stück'),
+      erlegt.length ? `<ul class="nt-list">${[...erlegt].reverse().map(item).join('')}</ul>` : '<p class="sub kk-leer">Noch nichts erlegt in diesem Jagdjahr.</p>'),
+    klappKachel(`${art}-fallwild`, 'Fallwild', plural(fallwild.length, 'Stück', 'Stück'),
+      fallwild.length ? `<ul class="nt-list">${[...fallwild].reverse().map(item).join('')}</ul>` : '<p class="sub kk-leer">Kein Fallwild in diesem Jagdjahr.</p>'),
+    klappKachel(`${art}-schuetzen`, 'Je Schütze · was & wann', plural(shooters.length, 'Schütze', 'Schützen'),
+      shooters.length ? `<div class="table-wrap"><table>
+      <thead><tr><th>Schütze</th><th>Anzahl</th><th>Was / wann</th></tr></thead>
+      <tbody>${shooters.map(([id, p]) => `<tr><td>${esc(shooterName(id))}</td><td>${p[art]}</td><td class="wrap">${p.list.filter(x => x.art === art).map(x => `${esc(katName(x.art, x.kat))} (${x.datum ? dateDE(x.datum).slice(0, 6) : 'o. D.'})`).join(', ')}</td></tr>`).join('')}</tbody>
+    </table></div>` : '<p class="sub kk-leer">Noch kein Schütze mit Strecke in diesem Jagdjahr.</p>'),
+  ].filter(Boolean).join('');
   el.innerHTML = `
     ${art === 'damm' ? sperreBanner() : ''}
-    ${art === 'damm' ? freigabeCard().replace('<h2 class="section">', '<h2 class="section" style="margin-top:2px">') : ''}
-    <h2 class="section" ${art === 'damm' ? '' : 'style="margin-top:2px"'}>${W.name} ${esc(state.season)}</h2>
+    <h2 class="section" style="margin-top:2px">${W.name} ${esc(state.season)}</h2>
     <div class="stats">
       <div class="card stat"><div class="v">${t.erlegt}</div><div class="l">erlegt</div></div>
       <div class="card stat"><div class="v">${t.fallwild}</div><div class="l">Fallwild</div></div>
@@ -1173,18 +1204,8 @@ function renderSchalen() {
     ${canSchalen() ? `<button class="btn block" id="btnSchalen">+ ${W.name} eintragen</button>` : ''}
     ${art === 'damm' && isAdmin() ? `<button class="btn ${hirschSperre() ? 'danger' : 'secondary'} block" id="btnSperre" style="margin-top:8px">${hirschSperre() ? '⛔ Sperre Hirschjagd ändern / aufheben' : 'Hirschjagd sperren (Fehlabschuss)'}</button>` : ''}
     ${state.schalenOps.length ? `<div class="alert">${state.schalenOps.length} Änderung(en) noch nicht hochgeladen.</div>` : ''}
-    ${art === 'damm' && aktuell ? wildbretCard() : ''}
-    <h2 class="section">Übersicht ${esc(state.season)}</h2>
-    ${catTable}
-    <h2 class="section">Erlegt</h2>
-    ${erlegt.length ? `<div class="card"><ul class="nt-list">${[...erlegt].reverse().map(item).join('')}</ul></div>` : '<p class="sub" style="text-align:center">Noch nichts erlegt in diesem Jagdjahr.</p>'}
-    <h2 class="section">Fallwild</h2>
-    ${fallwild.length ? `<div class="card"><ul class="nt-list">${[...fallwild].reverse().map(item).join('')}</ul></div>` : '<p class="sub" style="text-align:center">Kein Fallwild in diesem Jagdjahr.</p>'}
-    ${shooters.length ? `<h2 class="section">Je Schütze</h2>
-    <div class="table-wrap"><table>
-      <thead><tr><th>Schütze</th><th>Anzahl</th><th>Was / wann</th></tr></thead>
-      <tbody>${shooters.map(([id, p]) => `<tr><td>${esc(shooterName(id))}</td><td>${p[art]}</td><td class="wrap">${p.list.filter(x => x.art === art).map(x => `${esc(katName(x.art, x.kat))} (${x.datum ? dateDE(x.datum).slice(0, 6) : 'o. D.'})`).join(', ')}</td></tr>`).join('')}</tbody>
-    </table></div>` : ''}`;
+    <div class="kk-stack">${kacheln}</div>`;
+  wireKacheln(el);
   $('#btnSchalen')?.addEventListener('click', () => openSchalen(null, { art, kat: W.kat[0][0] }));
   $('#wbEdit')?.addEventListener('click', openGruppen);
   $('#btnSperre')?.addEventListener('click', openSperre);
