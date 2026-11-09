@@ -654,3 +654,4 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .kk-leer { text-align: center; margin: 4px 0; }
 .kk-t { flex: 0 0 auto; max-width: 68%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kk-m { flex: 1 1 auto; max-width: none; }
+.wb-akt-top { margin-top: 14px; margin-bottom: 0; box-shadow: var(--shadow); }

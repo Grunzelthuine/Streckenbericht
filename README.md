@@ -141,7 +141,7 @@ Alle PDF-Downloads liegen auf der Startseite unter **Streckenberichte**, nach Ja
 - „Nachträge“ heißen jetzt „Außerhalb der Jagdtage erlegt“.
 - Jagdkönig-PDF: Wildarten im Tabellenkopf senkrecht, keine abgebrochenen Wörter mehr.
 
-- Schalenwild-Seiten übersichtlicher (2.23): Freigabe, Wildbret-Verteilung, Übersicht, Erlegt, Fallwild und „Je Schütze · was & wann“ sind aufklappbare Kacheln. Die Kopfzeile zeigt schon die Kurzinfo (z. B. „1 von 8 frei“, „dran: …“, Anzahl). Welche Kacheln offen sind, merkt sich jedes Handy; standardmäßig ist nur die Freigabe offen.
+- Schalenwild-Seiten übersichtlicher (2.23): Wildbret-Verteilung, Übersicht, Erlegt, Fallwild und „Je Schütze · was & wann“ sind aufklappbare Kacheln mit Kurzinfo im Kopf (z. B. „dran: …“, Anzahl). Welche Kacheln offen sind, merkt sich jedes Handy. Beim Damwild stehen die Freigabe und das aktuell erlegte Stück (mit Wildbret-Gruppe) immer sichtbar oben.
 
 ## Wildbret-Verteilung Dammwild
 Erlegtes Dammwild (kein Fallwild) geht der Reihe nach an 9 feste Gruppen, fortlaufend über das Jagdjahr hinaus. Die Seite Reh & Damm zeigt im laufenden Jagdjahr die Gruppen und wer als Nächstes dran ist; bei jedem Stück steht „🥩 Wildbret: …“. Beim Eintragen schlägt die App die nächste Gruppe vor (änderbar, auch „keine Verteilung“). Gruppen ändert der Admin über „Gruppen bearbeiten“ (Gruppe 7: Schmees / N. N. – Nachfolge Röttering). Startpunkt: das letzte vor dem Update erfasste Stück = Gruppe 4 (Geerdes W. / Heskamp).

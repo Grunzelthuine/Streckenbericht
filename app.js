@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.23.0';
+const APP_VERSION = '2.23.1';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -1079,14 +1079,7 @@ function wildbretCard() {
   const gs = wvGruppen(), plan = wildbretPlan();
   const last = {}; // Gruppe → letztes Stück
   plan.list.forEach(x => { const g = plan.map[x.id]; if (g && g !== 'keine') last[g] = x; });
-  const akt = plan.list[plan.list.length - 1]; // zuletzt erlegtes Stück
-  const aktTile = akt ? `<div class="wb-next wb-akt">
-        <span class="sub">Aktuelles Stück · ${esc(datumText(akt.datum))}</span>
-        <b>${esc(gruppeLabel(plan.map[akt.id] || 'keine'))}</b>
-        <small>${esc(katName('damm', akt.kat))} · erlegt von ${esc(schuetzeText(akt) || 'unbekannt')}</small>
-      </div>` : '';
   return `<div class="wb-card">
-      ${aktTile}
       <div class="wb-next"><span class="sub">Als Nächstes dran</span><b>${esc(gruppeLabel(plan.next))}</b></div>
       <ol class="wb-list">${gs.map(g => `<li class="${g.id === plan.next ? 'next' : ''}">
         <span class="wb-names">${esc(gruppeLabel(g.id))}</span>
@@ -1094,6 +1087,16 @@ function wildbretCard() {
       ${isAdmin() ? '<button class="btn secondary block" id="wbEdit">Gruppen bearbeiten</button>' : ''}
       <p class="hint">Erlegtes Damwild geht der Reihe nach an die Gruppen – unabhängig vom Schützen und über das Jagdjahr hinaus. Fallwild wird nicht verteilt.</p>
     </div>`;
+}
+
+/** Zuletzt erlegtes Stück Damwild (kein Fallwild) und an wen das Wildbret geht – steht immer sichtbar oben */
+function aktuellesStueck() {
+  const plan = wildbretPlan(), akt = plan.list[plan.list.length - 1];
+  return akt ? `<div class="wb-next wb-akt wb-akt-top">
+        <span class="sub">Aktuelles Stück · ${esc(datumText(akt.datum))}</span>
+        <b>🥩 ${esc(gruppeLabel(plan.map[akt.id] || 'keine'))}</b>
+        <small>${esc(katName('damm', akt.kat))} · erlegt von ${esc(schuetzeText(akt) || 'unbekannt')}</small>
+      </div>` : '';
 }
 
 /* ---------- Aufklappbare Kacheln (Schalenwild) ----------
@@ -1176,11 +1179,8 @@ function renderSchalen() {
   const shooters = Object.entries(st.perShooter).filter(([, p]) => p[art]).sort((a, b) => b[1][art] - a[1][art] || shooterName(a[0]).localeCompare(shooterName(b[0]), 'de'));
   const aktuell = state.season === seasonOf(todayISO());
   const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
-  const fgListe = art === 'damm' ? fgKats() : [];
-  const fgFrei = fgListe.filter(x => damStatus(x.k).art === 'frei').length;
   const fgInhalt = art === 'damm' ? freigabeCard() : '';
   const kacheln = [
-    art === 'damm' && fgInhalt ? klappKachel(`${art}-freigabe`, 'Freigabe Damwild', fgListe.length ? `${fgFrei} von ${fgListe.length} frei` : '', fgInhalt, true) : '',
     art === 'damm' && aktuell ? klappKachel(`${art}-wildbret`, 'Wildbret-Verteilung', `dran: ${esc(gruppeLabel(plan.next, true).replace(/^\d+\.\s*/, ''))}`, wildbretCard()) : '',
     klappKachel(`${art}-uebersicht`, `Übersicht ${esc(state.season)}`, 'nach Kategorie', catTable),
     klappKachel(`${art}-erlegt`, 'Erlegt', plural(erlegt.length, 'Stück', 'Stück'),
@@ -1195,7 +1195,9 @@ function renderSchalen() {
   ].filter(Boolean).join('');
   el.innerHTML = `
     ${art === 'damm' ? sperreBanner() : ''}
-    <h2 class="section" style="margin-top:2px">${W.name} ${esc(state.season)}</h2>
+    ${fgInhalt ? `<h2 class="section" style="margin-top:2px">Freigabe Damwild</h2>${fgInhalt}` : ''}
+    ${art === 'damm' && aktuell ? aktuellesStueck() : ''}
+    <h2 class="section" ${fgInhalt ? '' : 'style="margin-top:2px"'}>${W.name} ${esc(state.season)}</h2>
     <div class="stats">
       <div class="card stat"><div class="v">${t.erlegt}</div><div class="l">erlegt</div></div>
       <div class="card stat"><div class="v">${t.fallwild}</div><div class="l">Fallwild</div></div>
