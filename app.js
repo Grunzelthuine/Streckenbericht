@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.23.1';
+const APP_VERSION = '2.23.2';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -1196,7 +1196,6 @@ function renderSchalen() {
   el.innerHTML = `
     ${art === 'damm' ? sperreBanner() : ''}
     ${fgInhalt ? `<h2 class="section" style="margin-top:2px">Freigabe Damwild</h2>${fgInhalt}` : ''}
-    ${art === 'damm' && aktuell ? aktuellesStueck() : ''}
     <h2 class="section" ${fgInhalt ? '' : 'style="margin-top:2px"'}>${W.name} ${esc(state.season)}</h2>
     <div class="stats">
       <div class="card stat"><div class="v">${t.erlegt}</div><div class="l">erlegt</div></div>
@@ -1206,6 +1205,7 @@ function renderSchalen() {
     ${canSchalen() ? `<button class="btn block" id="btnSchalen">+ ${W.name} eintragen</button>` : ''}
     ${art === 'damm' && isAdmin() ? `<button class="btn ${hirschSperre() ? 'danger' : 'secondary'} block" id="btnSperre" style="margin-top:8px">${hirschSperre() ? '⛔ Sperre Hirschjagd ändern / aufheben' : 'Hirschjagd sperren (Fehlabschuss)'}</button>` : ''}
     ${state.schalenOps.length ? `<div class="alert">${state.schalenOps.length} Änderung(en) noch nicht hochgeladen.</div>` : ''}
+    ${art === 'damm' && aktuell ? aktuellesStueck() : ''}
     <div class="kk-stack">${kacheln}</div>`;
   wireKacheln(el);
   $('#btnSchalen')?.addEventListener('click', () => openSchalen(null, { art, kat: W.kat[0][0] }));
