@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.23.2';
+const APP_VERSION = '2.23.3';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
@@ -1035,15 +1035,22 @@ async function migrateWildverteilung() {
 /* ---------- Sperre Hirschjagd (nach Fehlabschuss, i. d. R. 4 Wochen) ---------- */
 const hirschSperre = () => { const sp = state.data?.hirschSperre; return sp?.bis && sp.bis >= todayISO() ? sp : null; };
 function addDaysISO(iso, n) { const [y, m, d] = iso.split('-').map(Number); const t = new Date(y, m - 1, d + n); return `${t.getFullYear()}-${String(t.getMonth() + 1).padStart(2, '0')}-${String(t.getDate()).padStart(2, '0')}`; }
-function sperreBanner() {
+/* Startseite: Jeder kann die Sperre für sich als „gelesen“ bestätigen – dann verschwindet sie dort (nur auf diesem Gerät).
+   Eine neue oder geänderte Sperre erscheint wieder. Auf der Damwild-Seite bleibt sie immer sichtbar. */
+const LS_SPERRE_OK = 'sb.sperreGelesen.v1';
+const sperreKey = sp => [sp.seit || '', sp.bis, sp.grund || ''].join('|');
+const sperreGelesen = sp => lsGet(LS_SPERRE_OK, '') === sperreKey(sp);
+function sperreBanner(start = false) {
   const sp = hirschSperre(); if (!sp) return '';
+  if (start && sperreGelesen(sp)) return '';
   const [y, m, d] = sp.bis.split('-').map(Number), [ty, tm, td] = todayISO().split('-').map(Number);
   const rest = Math.round((new Date(y, m - 1, d) - new Date(ty, tm - 1, td)) / 864e5) + 1;
   return `<div class="sperre" role="alert">
     <div class="sp-icon" aria-hidden="true">⛔</div>
-    <div><b class="sp-title">Hirschjagd gesperrt</b>
+    <div class="sp-txt"><b class="sp-title">Hirschjagd gesperrt</b>
       <span>bis einschließlich <b>${esc(dateDE(sp.bis, true))}</b> · noch ${rest} Tag${rest === 1 ? '' : 'e'}</span>
       ${sp.grund ? `<small>${esc(sp.grund)}</small>` : ''}</div>
+    ${start ? '<button type="button" class="sp-ok" id="spGesehen" aria-label="Gelesen – vom Startbildschirm ausblenden">✓ Gelesen</button>' : ''}
   </div>`;
 }
 function openSperre() {
@@ -3168,7 +3175,7 @@ function renderStart() {
         ${state.season === seasonOf(todayISO()) ? '<span class="hs-now">aktuelles Jagdjahr</span>' : `<button type="button" class="hs-back" id="heroNow">zurück zu ${seasonOf(todayISO())}</button>`}
       </label>
     </div>
-    ${sperreBanner()}
+    ${sperreBanner(true)}
     ${erinnerungBanner()}
     ${installAngebot(true) ? `<button class="start-tile inst-tile" id="btnInstall"><span class="st-title">📲 App installieren</span><span class="st-meta">${installPrompt ? 'Ein Tipp – dann liegt Jagd Thuine auf dem Startbildschirm' : 'So kommt Jagd Thuine auf den Startbildschirm'}</span><span class="st-go" aria-hidden="true">›</span></button>` : ''}
     ${isAdmin() && state.meldungen.length ? `<button class="start-tile ml-tile" id="btnMeldungen"><span class="st-title">📬 ${state.meldungen.length} neue Meldung${state.meldungen.length === 1 ? '' : 'en'}</span><span class="st-meta">antippen zum Prüfen und Übernehmen</span><span class="st-go" aria-hidden="true">›</span></button>` : ''}
@@ -3201,6 +3208,7 @@ function renderStart() {
       <span class="st-go" aria-hidden="true">›</span>
     </button>`;
   $('#btnMelden')?.addEventListener('click', openMelden);
+  $('#spGesehen')?.addEventListener('click', () => { const sp = hirschSperre(); if (sp) lsSet(LS_SPERRE_OK, sperreKey(sp)); renderStart(); toast('Ausgeblendet – die Sperre steht weiter auf der Damwild-Seite.', 3500); });
   $('#btnInstall')?.addEventListener('click', () => startInstall(true));
   $('#btnMeldungen')?.addEventListener('click', openMeldungen);
   const setSeason = v => { const sel = $('#seasonSelect'); sel.value = v; sel.dispatchEvent(new Event('change')); };

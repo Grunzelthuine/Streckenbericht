@@ -657,3 +657,8 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .wb-akt-top { margin-top: 14px; margin-bottom: 0; box-shadow: var(--shadow); }
 .wb-akt-top { margin-top: 16px; }
 .wb-akt-top + .kk-stack { margin-top: 10px; }
+
+/* v2.23.3 Sperre auf der Startseite als „gelesen“ ausblenden */
+.sperre .sp-ok { flex: none; align-self: center; margin-left: auto; min-height: 40px; padding: 6px 12px; border: 1px solid rgba(255,255,255,.6); border-radius: 10px; background: rgba(255,255,255,.15); color: #fff; font: 600 14px/1 var(--sans); white-space: nowrap; cursor: pointer; }
+.sperre .sp-ok:active { background: rgba(255,255,255,.3); }
+.sperre .sp-txt { display: grid; gap: 3px; min-width: 0; }
