@@ -493,7 +493,7 @@ window.Konto = (() => {
   }
   const nurKonten = () => !!(inf?.nurKonten || CFG.nurKonto);
   /** Foto-Auswertung über den Server (Schlüssel bleibt dort) */
-  const kiServer = () => !!(inf?.ki && isAdmin());
+  const kiServer = () => !!(inf?.ki && can('jagdtage'));
   const ki = (bild, text, signal) => api('POST', '/ki/erlegerliste', { bild, text }, { signal });
   /** Beim App-Start: wer angemeldet ist und noch keine Benachrichtigungen hat, wird gefragt (bei „Später“ erst nach 7 Tagen wieder) */
   const LSF = (CFG.lsPrefix || '') + 'konto.pushfrage.v1';

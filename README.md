@@ -7,7 +7,7 @@ Web-App (PWA) für die Erlegerliste. Du erfasst die Jagdtage, alle anderen sehen
 ## Neu ab 2.25.0: eigene Konten, Benachrichtigungen, Jagdzeiten
 
 - **Konten:** Jeder Jäger legt sich ein Konto mit Vor- und Nachnamen und eigenem Passwort an. Sebastian gibt es frei. Kein GitHub-Token mehr auf den Handys. Das gemeinsame Passwort gilt im Übergang weiter. Wer noch kein Konto hat, sieht auf der Startseite den Hinweis „Bitte eigenes Konto anlegen“.
-- **Rechte:** Admin (alles) oder Einzelrechte je Person: Termine eintragen, Damwild-Freigabe ändern, Hirschjagd-Sperre setzen, Reh-/Dam-/Schwarzwild eintragen (inkl. Wildmeldungen für Schalenwild).
+- **Rechte:** Admin (alles) oder Einzelrechte je Person: Termine eintragen, Damwild-Freigabe ändern, Hirschjagd-Sperre setzen, Reh-/Dam-/Schwarzwild eintragen (inkl. Wildmeldungen für Schalenwild), Jagdtage erfassen und bearbeiten (auch per Foto).
 - **Benachrichtigungen (Push):** neue und geänderte Termine, Damwild-Freigabe, Hirschjagd-Sperre, erlegtes Damwild mit Wildbret-Gruppe, Wildmeldungen. Auf dem iPhone nur in der installierten App nach „Erlauben“.
 - **Konten-Server:** Cloudflare Worker (`config.js` → `api`). Er prüft die Rechte und speichert in die Repos. Tokens und Schlüssel liegen nur dort.
 - **„Wer bist du?“** wird beim ersten Öffnen einmal abgefragt (bei passendem Kontonamen automatisch).

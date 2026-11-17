@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.25.0';
+const APP_VERSION = '2.25.1';
 /* Einstellungen je Installation (config.js): Konten-Server, Test-Umgebung, abweichende Speicherorte */
 const CONF = self.JAGD_CFG || {};
 const LSP = CONF.lsPrefix || '';
@@ -244,7 +244,9 @@ const canRecht = r => isAdmin() || !!window.Konto?.can(r);
 const canTermine = () => canRecht('termine');
 const canFreigabe = () => canRecht('freigabe');
 const canSperre = () => canRecht('sperre');
-const canSpeichern = () => isAdmin() || canTermine() || canFreigabe() || canSperre();
+/** Jagdtage erfassen/bearbeiten (inkl. Foto-Auswertung) – Löschen bleibt beim Admin */
+const canJagdtage = () => canRecht('jagdtage');
+const canSpeichern = () => isAdmin() || canTermine() || canFreigabe() || canSperre() || canJagdtage();
 const canSchalen = () => !!((((state.cfg.mode === 'voll' || state.cfg.mode === 'schalen') && state.cfg.token && !CONF.api) || window.Konto?.isAdmin() || window.Konto?.can('schalen')) && state.cfg.owner && state.cfg.repo2);
 /** Wer Wildmeldungen sieht und übernimmt: Admins alle, Konten mit Einzelrecht „Schalenwild eintragen“ die Schalenwild-Meldungen */
 const canMeldungen = () => isAdmin() || !!window.Konto?.can('schalen');
@@ -842,7 +844,7 @@ function renderTage() {
         ? `<div class="card stat leader"><div class="v">🔒</div><div class="l">Jagdkönig noch geheim</div></div>`
         : `<div class="card stat leader"><div class="v">${leader ? `<span class="crown">♛</span> ${names(leaders.map(l => l.id))}` : '–'}</div><div class="l">${leader ? `führt mit ${fmt(leader.punkte)} Pkt.` : 'Jagdkönig'}</div></div>`}
     </div>`;
-  if (isAdmin()) {
+  if (canJagdtage()) {
     html += `<div class="btn-row">
       <button class="btn" id="btnPhoto">📷 Erlegerliste fotografieren</button>
       <button class="btn secondary" id="btnManual">Manuell erfassen</button>
@@ -1601,7 +1603,7 @@ function openDay(id) {
     ${d.bemerkung ? `<div class="card pad"><div class="sub">Bemerkung</div>${esc(d.bemerkung)}</div>` : ''}`;
   const foot = isAdmin()
     ? `<button class="btn danger" id="delDay">Löschen</button><button class="btn" id="editDay">Bearbeiten</button>`
-    : '';
+    : canJagdtage() ? '<button class="btn secondary" data-close>Schließen</button><button class="btn" id="editDay">Bearbeiten</button>' : '';
   openSheet(`Jagdtag ${dateDE(d.datum, true)}`, body, foot);
   $('#editDay')?.addEventListener('click', () => openEditor(d.id));
   $('#delDay')?.addEventListener('click', e => {
@@ -2179,7 +2181,7 @@ function ichFrage() {
 function openSettings() {
   const c = state.cfg;
   const body = `
-    <div class="alert info">${viaKonto() && isAdmin() ? '<b>Admin (über dein Konto).</b> Du kannst alles erfassen und verwalten.' : viaKonto() ? `<b>Angemeldet mit Konto.</b> Du kannst alles ansehen und Wild melden${[canTermine() && 'Termine eintragen', canFreigabe() && 'die Damwild-Freigabe ändern', canSperre() && 'die Hirschjagd-Sperre setzen', window.Konto?.can('schalen') && 'Reh-, Dam- und Schwarzwild eintragen'].filter(Boolean).map(t => ', ' + t).join('')}.` : isAdmin() ? '<b>Voller Zugang.</b> Du kannst alles erfassen und verwalten.' : canSchalen() ? '<b>Zugang Schalenwild.</b> Du kannst Reh-, Dam- und Schwarzwild eintragen, alles andere nur ansehen.' : '<b>Ansichtsmodus.</b> Zum Ansehen brauchst du nichts einzutragen.'}</div>
+    <div class="alert info">${viaKonto() && isAdmin() ? '<b>Admin (über dein Konto).</b> Du kannst alles erfassen und verwalten.' : viaKonto() ? `<b>Angemeldet mit Konto.</b> Du kannst alles ansehen und Wild melden${[canTermine() && 'Termine eintragen', canFreigabe() && 'die Damwild-Freigabe ändern', canSperre() && 'die Hirschjagd-Sperre setzen', window.Konto?.can('schalen') && 'Reh-, Dam- und Schwarzwild eintragen', window.Konto?.can('jagdtage') && 'Jagdtage erfassen (auch per Foto)'].filter(Boolean).map(t => ', ' + t).join('')}.` : isAdmin() ? '<b>Voller Zugang.</b> Du kannst alles erfassen und verwalten.' : canSchalen() ? '<b>Zugang Schalenwild.</b> Du kannst Reh-, Dam- und Schwarzwild eintragen, alles andere nur ansehen.' : '<b>Ansichtsmodus.</b> Zum Ansehen brauchst du nichts einzutragen.'}</div>
     ${window.Konto?.settingsHtml() || ''}
     <fieldset><legend>${CONF.api ? 'Auf diesem Gerät' : 'Zugang'}</legend>
       <label class="field"><span>Ich bin</span>
