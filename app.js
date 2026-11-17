@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.25.2';
+const APP_VERSION = '2.25.3';
 /* Einstellungen je Installation (config.js): Konten-Server, Test-Umgebung, abweichende Speicherorte */
 const CONF = self.JAGD_CFG || {};
 const LSP = CONF.lsPrefix || '';
@@ -3035,7 +3035,7 @@ function jzStartMeta() {
   if (!state.jz) return 'Niedersachsen';
   const heute = todayISO();
   const n = state.jz.gruppen.flatMap(g => g.arten).filter(a => a.klassen.some(k => !k.ganz && !k.sonder && jzStatus(k, heute).offen)).length;
-  return `${esc(state.jz.land || 'Niedersachsen')} · Stand ${esc(mdDE(state.jz.stand))}${state.jz.stand.slice(0, 4)} · heute ${n} Arten offen`;
+  return `${esc(state.jz.land || 'Niedersachsen')} · heute bei ${n} Wildarten Jagdzeit`;
 }
 function renderJagdzeiten() {
   const el = $('#view-jagdzeiten');
