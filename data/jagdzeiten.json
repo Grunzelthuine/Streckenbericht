@@ -1,0 +1,726 @@
+{
+ "land": "Niedersachsen",
+ "stand": "2026-10-06",
+ "rechtsgrundlage": "DVO-NJagdG vom 23. Mai 2008 (Nds. GVBl. S. 194), zuletzt geändert durch Verordnung vom 5. Oktober 2026 (Nds. GVBl. Nr. 84), und Bundes-Jagdzeitenverordnung",
+ "quelle": {
+  "titel": "Nds. Landwirtschaftsministerium: Aktuelle Jagdzeiten in Niedersachsen (konsolidierte Fassung)",
+  "url": "https://www.ml.niedersachsen.de/startseite/themen/wald_holz_jagd/jagd_in_niedersachsen/gesetze-und-andere-bestimmungen-rund-um-das-thema-jagd-und-jager-5137.html",
+  "pdfs": [
+   {
+    "titel": "Aktuelle Jagdzeiten in Niedersachsen, konsolidierte Fassung (Stand 06.10.2026)",
+    "url": "https://www.ml.niedersachsen.de/download/163729/Aktuelle_Jagdzeiten_in_Niedersachsen_Stand_06.10.2026_.pdf"
+   },
+   {
+    "titel": "Verordnung zur Durchführung des NJagdG (DVO-NJagdG), zuletzt geändert am 5. Oktober 2026",
+    "url": "https://www.ml.niedersachsen.de/download/179303/Verordnung_zur_Durchfuehrung_des_NJagdG_zuletzt_geaendert_durch_Verordnung_vom_5._Oktober_2026_Nds._GVBl._Nr._84_.pdf"
+   }
+  ]
+ },
+ "geprueft": "2026-11-17",
+ "gruppen": [
+  {
+   "name": "Schalenwild",
+   "arten": [
+    {
+     "name": "Rotwild",
+     "klassen": [
+      {
+       "name": "Hirsche",
+       "jz": [
+        [
+         "08-01",
+         "01-31"
+        ]
+       ]
+      },
+      {
+       "name": "Kälber, Alttiere",
+       "jz": [
+        [
+         "08-01",
+         "01-31"
+        ]
+       ]
+      },
+      {
+       "name": "Schmaltiere, Schmalspießer",
+       "jz": [
+        [
+         "04-01",
+         "05-15"
+        ],
+        [
+         "08-01",
+         "01-31"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Damwild",
+     "klassen": [
+      {
+       "name": "Hirsche",
+       "jz": [
+        [
+         "08-01",
+         "01-31"
+        ]
+       ]
+      },
+      {
+       "name": "Kälber, Alttiere",
+       "jz": [
+        [
+         "09-01",
+         "01-31"
+        ]
+       ]
+      },
+      {
+       "name": "Schmaltiere, Schmalspießer",
+       "jz": [
+        [
+         "04-01",
+         "05-15"
+        ],
+        [
+         "08-01",
+         "01-31"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Sikawild",
+     "klassen": [
+      {
+       "name": "Hirsche",
+       "jz": [
+        [
+         "08-01",
+         "01-31"
+        ]
+       ]
+      },
+      {
+       "name": "Kälber, Alttiere",
+       "jz": [
+        [
+         "09-01",
+         "01-31"
+        ]
+       ]
+      },
+      {
+       "name": "Schmaltiere, Schmalspießer",
+       "jz": [
+        [
+         "08-01",
+         "01-31"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Rehwild",
+     "klassen": [
+      {
+       "name": "Rehböcke",
+       "jz": [
+        [
+         "04-01",
+         "01-31"
+        ]
+       ]
+      },
+      {
+       "name": "Schmalrehe",
+       "jz": [
+        [
+         "04-01",
+         "05-15"
+        ],
+        [
+         "09-01",
+         "01-31"
+        ]
+       ]
+      },
+      {
+       "name": "Ricken, Kitze",
+       "jz": [
+        [
+         "09-01",
+         "01-31"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Muffelwild",
+     "klassen": [
+      {
+       "name": "Widder",
+       "jz": [
+        [
+         "08-01",
+         "01-31"
+        ]
+       ]
+      },
+      {
+       "name": "Schafe, Lämmer, Schmalschafe",
+       "jz": [
+        [
+         "08-01",
+         "01-31"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Schwarzwild",
+     "klassen": [
+      {
+       "name": "Keiler, Bachen",
+       "ganz": true,
+       "hinweis": "Elterntierschutz nach § 22 Abs. 4 BJagdG bleibt unberührt"
+      },
+      {
+       "name": "Überläufer, Frischlinge",
+       "ganz": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Hase & Kaninchen",
+   "arten": [
+    {
+     "name": "Feldhase",
+     "klassen": [
+      {
+       "name": "",
+       "jz": [
+        [
+         "10-01",
+         "12-31"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Wildkaninchen",
+     "klassen": [
+      {
+       "name": "Alttiere",
+       "jz": [
+        [
+         "10-01",
+         "02-15"
+        ]
+       ]
+      },
+      {
+       "name": "Jungkaninchen",
+       "ganz": true
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "name": "Raubwild & weiteres Haarwild",
+   "arten": [
+    {
+     "name": "Fuchs",
+     "klassen": [
+      {
+       "name": "Altfüchse",
+       "jz": [
+        [
+         "06-16",
+         "02-28"
+        ]
+       ]
+      },
+      {
+       "name": "Jungfüchse",
+       "ganz": true
+      }
+     ]
+    },
+    {
+     "name": "Dachs",
+     "klassen": [
+      {
+       "name": "Altdachse",
+       "jz": [
+        [
+         "08-01",
+         "01-31"
+        ]
+       ]
+      },
+      {
+       "name": "Jungdachse",
+       "ganz": true
+      }
+     ]
+    },
+    {
+     "name": "Stein- und Baummarder",
+     "klassen": [
+      {
+       "name": "",
+       "jz": [
+        [
+         "09-16",
+         "02-28"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Iltis",
+     "klassen": [
+      {
+       "name": "",
+       "jz": [
+        [
+         "08-01",
+         "02-28"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Hermelin",
+     "klassen": [
+      {
+       "name": "",
+       "jz": [
+        [
+         "08-01",
+         "02-28"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Mauswiesel",
+     "klassen": [
+      {
+       "name": "",
+       "geschont": true
+      }
+     ]
+    },
+    {
+     "name": "Waschbär",
+     "klassen": [
+      {
+       "name": "Altwaschbären",
+       "jz": [
+        [
+         "07-16",
+         "03-31"
+        ]
+       ]
+      },
+      {
+       "name": "Jungwaschbären",
+       "ganz": true
+      }
+     ]
+    },
+    {
+     "name": "Marderhund",
+     "klassen": [
+      {
+       "name": "Altmarderhunde",
+       "jz": [
+        [
+         "09-01",
+         "02-28"
+        ]
+       ]
+      },
+      {
+       "name": "Jungmarderhunde",
+       "ganz": true
+      }
+     ]
+    },
+    {
+     "name": "Mink",
+     "klassen": [
+      {
+       "name": "Altminks",
+       "jz": [
+        [
+         "08-01",
+         "02-28"
+        ]
+       ]
+      },
+      {
+       "name": "Jungminks",
+       "ganz": true
+      }
+     ]
+    },
+    {
+     "name": "Nutria",
+     "klassen": [
+      {
+       "name": "",
+       "ganz": true
+      }
+     ]
+    },
+    {
+     "name": "Wolf",
+     "klassen": [
+      {
+       "name": "Schnellabschuss, jedes Alter",
+       "jz": [
+        [
+         "07-01",
+         "02-29"
+        ]
+       ],
+       "sonder": true
+      },
+      {
+       "name": "Interventionsgebiet: Jungwölfe",
+       "jz": [
+        [
+         "07-01",
+         "02-29"
+        ]
+       ],
+       "sonder": true
+      },
+      {
+       "name": "Interventionsgebiet: übrige Wölfe",
+       "jz": [
+        [
+         "11-01",
+         "02-29"
+        ]
+       ],
+       "sonder": true
+      }
+     ],
+     "hinweis": "Nur wenn ein revierübergreifender Managementplan aufgestellt ist und nur in den von der obersten Jagdbehörde festgelegten Gebieten/Zeiträumen (Schnellabschuss erst nach festgestelltem Wolfsriss). Jeweils bis Ende Februar."
+    }
+   ]
+  },
+  {
+   "name": "Federwild",
+   "arten": [
+    {
+     "name": "Rebhuhn",
+     "klassen": [
+      {
+       "name": "",
+       "jz": [
+        [
+         "09-16",
+         "11-30"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Fasan",
+     "klassen": [
+      {
+       "name": "",
+       "jz": [
+        [
+         "10-01",
+         "01-15"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Ringeltaube",
+     "klassen": [
+      {
+       "name": "Alttauben",
+       "jz": [
+        [
+         "08-20",
+         "03-31"
+        ]
+       ],
+       "hinweis": "20.8.–31.10. und 21.2.–31.3. nur zur Schadensabwehr auf Trupps auf Ackerland oder Neueinsaaten"
+      },
+      {
+       "name": "Jungtauben",
+       "ganz": true,
+       "hinweis": "21.2.–31.3. nur zur Schadensabwehr auf Trupps"
+      }
+     ]
+    },
+    {
+     "name": "Türkentaube",
+     "klassen": [
+      {
+       "name": "",
+       "jz": [
+        [
+         "11-01",
+         "12-31"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Waldschnepfe",
+     "klassen": [
+      {
+       "name": "",
+       "jz": [
+        [
+         "10-16",
+         "12-31"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Stockente",
+     "klassen": [
+      {
+       "name": "",
+       "jz": [
+        [
+         "09-01",
+         "01-15"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Pfeifente",
+     "klassen": [
+      {
+       "name": "",
+       "jz": [
+        [
+         "10-01",
+         "01-15"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Krickente",
+     "klassen": [
+      {
+       "name": "",
+       "jz": [
+        [
+         "10-01",
+         "01-15"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Spieß-, Berg-, Reiher-, Tafel-, Samt- und Trauerente",
+     "klassen": [
+      {
+       "name": "",
+       "geschont": true
+      }
+     ]
+    },
+    {
+     "name": "Graugans",
+     "klassen": [
+      {
+       "name": "",
+       "jz": [
+        [
+         "07-16",
+         "02-15"
+        ]
+       ],
+       "hinweis": "In den Vogelschutzgebieten der Anlage zur DVO-NJagdG nur 16.7.–30.11."
+      }
+     ]
+    },
+    {
+     "name": "Kanadagans",
+     "klassen": [
+      {
+       "name": "",
+       "jz": [
+        [
+         "07-16",
+         "02-15"
+        ]
+       ],
+       "hinweis": "In den Vogelschutzgebieten der Anlage zur DVO-NJagdG nur 16.7.–30.11."
+      }
+     ]
+    },
+    {
+     "name": "Nilgans",
+     "klassen": [
+      {
+       "name": "Alttiere",
+       "jz": [
+        [
+         "07-16",
+         "01-31"
+        ]
+       ]
+      },
+      {
+       "name": "Jungnilgänse",
+       "ganz": true
+      }
+     ]
+    },
+    {
+     "name": "Nonnengans",
+     "klassen": [
+      {
+       "name": "",
+       "jz": [
+        [
+         "08-01",
+         "01-15"
+        ]
+       ],
+       "hinweis": "Nur mit artenschutzrechtlicher Ausnahme (§ 45 Abs. 7 BNatSchG): bis 31.10. nur nach behördlich festgelegter Abschusszahl, ab 1.11. nur in bestimmten Küstenlandkreisen zur Schadensabwehr",
+       "sonder": true
+      }
+     ]
+    },
+    {
+     "name": "Bläss-, Saat- und Ringelgans",
+     "klassen": [
+      {
+       "name": "",
+       "geschont": true
+      }
+     ]
+    },
+    {
+     "name": "Höckerschwan",
+     "klassen": [
+      {
+       "name": "",
+       "jz": [
+        [
+         "11-01",
+         "02-20"
+        ]
+       ],
+       "hinweis": "Nur zur Schadensabwehr auf Trupps auf Ackerland oder Grünland-Neueinsaaten; In den Vogelschutzgebieten der Anlage zur DVO-NJagdG nur bis 30.11."
+      }
+     ]
+    },
+    {
+     "name": "Blässhuhn",
+     "klassen": [
+      {
+       "name": "",
+       "jz": [
+        [
+         "09-11",
+         "02-20"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Silbermöwe",
+     "klassen": [
+      {
+       "name": "",
+       "jz": [
+        [
+         "10-01",
+         "02-10"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Lach-, Sturm-, Mantel- und Heringsmöwe",
+     "klassen": [
+      {
+       "name": "",
+       "geschont": true
+      }
+     ]
+    },
+    {
+     "name": "Rabenkrähe",
+     "klassen": [
+      {
+       "name": "",
+       "jz": [
+        [
+         "08-01",
+         "02-20"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Elster",
+     "klassen": [
+      {
+       "name": "",
+       "jz": [
+        [
+         "08-01",
+         "02-28"
+        ]
+       ]
+      }
+     ]
+    },
+    {
+     "name": "Wildtruthahn und -henne",
+     "klassen": [
+      {
+       "name": "",
+       "geschont": true
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

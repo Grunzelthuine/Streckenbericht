@@ -26,16 +26,19 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.23.3';
+const APP_VERSION = '2.25.0';
+/* Einstellungen je Installation (config.js): Konten-Server, Test-Umgebung, abweichende Speicherorte */
+const CONF = self.JAGD_CFG || {};
+const LSP = CONF.lsPrefix || '';
 const LS_DATA = 'sb.data.v1';
 const LS_PENDING = 'sb.pending.v1';
 const LS_CFG = 'sb.cfg.v1';
 const LS_SCHALEN = 'sb.schalen.v1';
 const LS_SCHALEN_OPS = 'sb.schalen.ops.v1';
-const SCHALEN_PATH = 'schalenwild.json';
+const SCHALEN_PATH = CONF.schalenPath || 'schalenwild.json';
 /* Alte Damwild-Kategorien (bis 2.15) → neue 8 Kategorien */
 const KAT_ALIAS = { 'hirsch-3a': 'hirsch-3b', hirschkalb: 'kalb' };
-const FALLBACK_MODEL = 'claude-sonnet-4-6';
+const FALLBACK_MODEL = 'claude-opus-5-5';
 
 /* ================= Hilfsfunktionen ================= */
 const $ = (sel, root = document) => root.querySelector(sel);
@@ -48,10 +51,10 @@ const slug = s => String(s).toLowerCase()
   .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'x';
 
 function lsGet(key, fallback) {
-  try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
+  try { const v = localStorage.getItem(LSP + key); return v ? JSON.parse(v) : fallback; } catch { return fallback; }
 }
 function lsSet(key, val) {
-  try { val === undefined ? localStorage.removeItem(key) : localStorage.setItem(key, JSON.stringify(val)); } catch { /* egal */ }
+  try { val === undefined ? localStorage.removeItem(LSP + key) : localStorage.setItem(LSP + key, JSON.stringify(val)); } catch { /* egal */ }
 }
 
 function dateDE(iso, long = false) {
@@ -157,9 +160,24 @@ function ensureLockInstallBtn() {
   f.insertAdjacentHTML('beforeend', '<button type="button" class="btn secondary lock-inst" id="lockInstall" hidden>📲 App auf dem Handy installieren</button>');
   $('#lockInstall').addEventListener('click', startInstall);
 }
+/** Sperrbildschirm: „Mit Konto anmelden“ (und ggf. kein Passwort-Feld mehr) */
+function refreshLockKonto() {
+  const f = $('#lockForm'); if (!f || !window.Konto?.enabled()) return;
+  if (!$('#lockKonto')) {
+    $('#lockBtn').insertAdjacentHTML('afterend', '<button type="button" class="btn secondary block" id="lockKonto" style="margin-top:8px">👤 Mit Konto anmelden</button>');
+    $('#lockKonto').addEventListener('click', () => Konto.openLogin({ over: true }));
+  }
+  const nur = Konto.nurKonten();
+  $('#lockPw').hidden = nur; $('#lockBtn').hidden = nur;
+  if ($('#forgotPw')) $('#forgotPw').hidden = nur;
+  $$('#lockForm > .hint').forEach(h => { h.hidden = nur; });
+  $('#lockKonto').className = nur ? 'btn block' : 'btn secondary block';
+  if (nur && !$('#lockMsg').classList.contains('err')) $('#lockMsg').textContent = 'Bitte mit deinem Konto anmelden.';
+}
 function showLock(reason) {
   const el = $('#lock');
   if (!el) return;
+  setTimeout(refreshLockKonto, 0);
   if (!el.hidden && reason !== 'falsch') return; // bereits gesperrt – Hinweis nicht überschreiben
   el.hidden = false;
   $('#lockMsg').textContent = reason === 'falsch' ? 'Passwort falsch oder geändert – bitte (neu) eingeben.' : 'Bitte das Passwort der Jagdgemeinschaft eingeben.';
@@ -177,6 +195,7 @@ async function unlock(e) {
     await load(true);
     if (!$('#lock').hidden) return; // weiterhin gesperrt → Passwort falsch
     lsSet(LS_PW, pw);
+    if (window.Konto?.isAdmin() && Konto.dataPw() !== pw) Konto.setDataPw(pw, true).catch(() => {});
     loadSchalen();
   } finally { $('#lockBtn').disabled = false; }
 }
@@ -203,16 +222,33 @@ function defaultCfg() {
     owner = location.hostname.split('.')[0];
     repo = location.pathname.split('/').filter(Boolean)[0] || `${owner}.github.io`;
   }
-  return { owner, repo, repo2: repo ? `${repo}-schalenwild` : '', branch: 'main', path: 'data/strecke.json', token: '', apiKey: '', model: '', mode: '', ich: '' };
+  if (CONF.owner) owner = CONF.owner;
+  if (CONF.repo) repo = CONF.repo;
+  return { owner, repo, repo2: CONF.repo2 || (repo ? `${repo}-schalenwild` : ''), branch: 'main', path: 'data/strecke.json', token: '', apiKey: '', model: '', mode: '', ich: '' };
 }
 // Rollen: 'voll' = alles bearbeiten (Sebastian), 'schalen' = nur Reh- & Dammwild eintragen, '' = nur ansehen
 if (state.cfg.token && !state.cfg.mode) state.cfg.mode = 'voll';
+// Mit Konten-Server gibt es keinen Token-Zugang mehr – alten Token vom Gerät entfernen
+if (CONF.api && (state.cfg.token || state.cfg.mode)) { state.cfg.token = ''; state.cfg.mode = ''; lsSet(LS_CFG, state.cfg); }
 // Ohne vollen Zugang gilt immer der Standard-Speicherort (aus dem Link) – versehentliche Änderungen werden so repariert
-if (state.cfg.mode !== 'voll' && location.hostname.endsWith('.github.io')) {
-  const d = defaultCfg(); Object.assign(state.cfg, { owner: d.owner, repo: d.repo, repo2: d.repo2 });
+// In der Test-Umgebung immer die Test-Speicherorte (nie versehentlich in die echten Daten schreiben)
+if ((state.cfg.mode !== 'voll' && location.hostname.endsWith('.github.io')) || CONF.test) {
+  const d = defaultCfg(); Object.assign(state.cfg, { owner: d.owner, repo: d.repo, repo2: d.repo2, path: d.path });
 }
-const isAdmin = () => !!(state.cfg.mode === 'voll' && state.cfg.token && state.cfg.owner && state.cfg.repo);
-const canSchalen = () => !!((state.cfg.mode === 'voll' || state.cfg.mode === 'schalen') && state.cfg.token && state.cfg.owner && state.cfg.repo2);
+/* Zugang: GitHub-Token auf dem Gerät (bisher) ODER Konto beim Konten-Server */
+const tokenAdmin = () => !CONF.api && !!(state.cfg.mode === 'voll' && state.cfg.token && state.cfg.owner && state.cfg.repo);
+const viaKonto = () => !tokenAdmin() && !!window.Konto?.hatZugang();
+const isAdmin = () => tokenAdmin() || !!(window.Konto?.isAdmin() && state.cfg.owner && state.cfg.repo);
+/** Einzelrechte (vom Admin je Person freigegeben): Termine, Damwild-Freigabe, Hirschjagd-Sperre */
+const canRecht = r => isAdmin() || !!window.Konto?.can(r);
+const canTermine = () => canRecht('termine');
+const canFreigabe = () => canRecht('freigabe');
+const canSperre = () => canRecht('sperre');
+const canSpeichern = () => isAdmin() || canTermine() || canFreigabe() || canSperre();
+const canSchalen = () => !!((((state.cfg.mode === 'voll' || state.cfg.mode === 'schalen') && state.cfg.token && !CONF.api) || window.Konto?.isAdmin() || window.Konto?.can('schalen')) && state.cfg.owner && state.cfg.repo2);
+/** Wer Wildmeldungen sieht und übernimmt: Admins alle, Konten mit Einzelrecht „Schalenwild eintragen“ die Schalenwild-Meldungen */
+const canMeldungen = () => isAdmin() || !!window.Konto?.can('schalen');
+const meineMeldungen = () => isAdmin() ? state.meldungen : state.meldungen.filter(m => m.typ === 'schalen');
 
 /* ================= Berechnungen ================= */
 const species = () => state.data.wildarten;
@@ -333,14 +369,19 @@ function seasonStats(season) {
 }
 
 /* ================= Daten laden / speichern ================= */
+const ghBase = () => viaKonto() ? Konto.ghBase() : 'https://api.github.com';
 function ghHeaders(auth) {
   const h = { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28' };
-  if (auth && state.cfg.token) h.Authorization = `Bearer ${state.cfg.token}`;
+  if (viaKonto()) h.Authorization = `Bearer ${Konto.token()}`;
+  else if (auth && state.cfg.token) h.Authorization = `Bearer ${state.cfg.token}`;
   return h;
 }
+/** Pfad im Repo (Test-Umgebung: Unterordner, z. B. „thuine/“) */
+const repoPath = (repo, path) => (CONF.base && repo === state.cfg.repo && !path.startsWith(CONF.base)) ? CONF.base + path : path;
+const encPath = p => p.split('/').map(encodeURIComponent).join('/');
 function ghUrl() {
   const { owner, repo, path, branch } = state.cfg;
-  return `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${path.split('/').map(encodeURIComponent).join('/')}?ref=${encodeURIComponent(branch || 'main')}`;
+  return `${ghBase()}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${encPath(repoPath(repo, path))}?ref=${encodeURIComponent(branch || 'main')}`;
 }
 
 async function fetchRemote() {
@@ -354,7 +395,7 @@ async function fetchRemote() {
         state.sha = j.sha;
         return JSON.parse(b64decodeUtf8(j.content));
       }
-      if (r.status === 401) toast('GitHub-Token ungültig – bitte in den Einstellungen prüfen.', 5000);
+      if (r.status === 401 && !viaKonto()) toast('GitHub-Token ungültig – bitte in den Einstellungen prüfen.', 5000);
     } catch { /* weiter mit Fallback */ }
   }
   // 2) Datei direkt von GitHub Pages / lokal
@@ -371,10 +412,21 @@ async function load(fromUnlock = false) {
     const remote = normalize(await openData(await fetchRemote()));
       if ($('#lock')) $('#lock').hidden = true;
     state.data = remote; lsSet(LS_DATA, remote);
+    pushMerken();
     render();
+    setTimeout(async () => { await kontoFrage(); await ichFrage(); }, 1200);
     if (state.schalenFresh) migrateSchalen();
   } catch (e) {
-    if (e instanceof NeedPassword) { if (!fromUnlock && state.pw) { state.pw = ''; lsSet(LS_PW, undefined); } showLock(e.message); return; }
+    if (e instanceof NeedPassword) {
+      if (!fromUnlock && state.pw) { state.pw = ''; lsSet(LS_PW, undefined); }
+      // Angemeldetes Konto: aktuelles Passwort vom Server holen (z. B. nach Passwortwechsel)
+      if (window.Konto?.loggedIn() && Date.now() - (load._kt || 0) > 60e3) {
+        load._kt = Date.now();
+        await Konto.refresh();
+        if ($('#lock').hidden && state.pw && state.data) return;
+      }
+      showLock(e.message); return;
+    }
     if (!cached) {
       $('#view-tage').innerHTML = `<div class="card pad empty"><img src="icons/logo.png" alt=""><p>Keine Daten erreichbar. Bitte Internetverbindung prüfen.</p></div>`;
     } else toast('Offline – zeige zuletzt geladenen Stand.');
@@ -417,7 +469,7 @@ async function persist(message) {
 }
 
 async function pushRemote(message = 'Streckenbericht aktualisiert') {
-  if (!isAdmin()) { showPendingBanner(); return false; }
+  if (!canSpeichern()) { showPendingBanner(); return false; }
   if (saving) return false;
   saving = true;
   showBanner('Speichere …', 'info');
@@ -430,17 +482,18 @@ async function pushRemote(message = 'Streckenbericht aktualisiert') {
       const body = { message, content: b64encodeUtf8(JSON.stringify(await sealData(state.data), null, 2) + '\n'), branch: state.cfg.branch || 'main' };
       if (sha) body.sha = sha;
       const { owner, repo, path } = state.cfg;
-      const r = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${path.split('/').map(encodeURIComponent).join('/')}`, {
+      const r = await fetch(`${ghBase()}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${encPath(repoPath(repo, path))}`, {
         method: 'PUT', headers: { ...ghHeaders(true), 'Content-Type': 'application/json' }, body: JSON.stringify(body),
       });
       if (r.ok) {
         state.sha = (await r.json()).content?.sha;
         state.pending = false; lsSet(LS_PENDING, undefined);
         hideBanner(); toast('Gespeichert ✓ – für alle sichtbar.');
+        pushNachSpeichern();
         return true;
       }
       if (r.status === 409 || r.status === 422) continue; // sha veraltet → nochmal
-      if (r.status === 401 || r.status === 403) throw new Error('Keine Schreibrechte (Token prüfen)');
+      if (r.status === 401 || r.status === 403) throw new Error(viaKonto() ? await serverFehler(r, 'Keine Schreibrechte') : 'Keine Schreibrechte (Token prüfen)');
       throw new Error(`GitHub ${r.status}`);
     }
     throw new Error('Konflikt beim Speichern');
@@ -451,10 +504,12 @@ async function pushRemote(message = 'Streckenbericht aktualisiert') {
 }
 
 /* ================= Reh- & Dammwild: eigenes Repository ================= */
-function ghFileUrl(repo, path, ref = true) {
+function ghFileUrl(repo, path, ref = true, base = ghBase()) {
   const { owner, branch } = state.cfg;
-  return `https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${path.split('/').map(encodeURIComponent).join('/')}` + (ref ? `?ref=${encodeURIComponent(branch || 'main')}` : '');
+  return `${base}/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/contents/${encPath(repoPath(repo, path))}` + (ref ? `?ref=${encodeURIComponent(branch || 'main')}` : '');
 }
+/** Fehlermeldung des Konten-Servers lesen (z. B. „Dafür fehlt dir das Recht“) */
+async function serverFehler(r, fallback) { try { const j = await r.clone().json(); return j.fehler || j.message || fallback; } catch { return fallback; } }
 /** Liest die Reh-/Dammwild-Datei; null-Inhalt = Datei existiert noch nicht */
 async function fetchSchalenRemote(auth) {
   const { owner, repo2, branch } = state.cfg;
@@ -466,7 +521,7 @@ async function fetchSchalenRemote(auth) {
     if (auth) throw new Error(`GitHub ${r.status}`);
   } catch (e) { if (auth || e instanceof NeedPassword) throw e; }
   // Fallback ohne API-Limit (kann bis zu 5 Min. verzögert sein)
-  const r = await fetch(`https://raw.githubusercontent.com/${owner}/${repo2}/${branch || 'main'}/${SCHALEN_PATH}?t=${Date.now()}`, { cache: 'no-store' });
+  const r = await fetch(`https://raw.githubusercontent.com/${owner}/${repo2}/${branch || 'main'}/${repoPath(repo2, SCHALEN_PATH)}?t=${Date.now()}`, { cache: 'no-store' });
   if (r.status === 404) return { data: normalizeSchalen(null) };
   if (!r.ok) throw new Error('Schalenwild-Daten nicht erreichbar');
   return { data: normalizeSchalen(await openData(await r.json())) };
@@ -522,6 +577,7 @@ async function pushSchalen(message = 'Schalenwild aktualisiert', force = false) 
         // immer den neuesten Stand holen und nur die eigenen Änderungen darauf anwenden
         ({ data, sha } = await fetchSchalenRemote(true));
       }
+      const vorher = new Set(data.eintraege.map(x => x.id));
       ops.forEach(op => applySchalenOp(data, op));
       data.stand = new Date().toISOString();
       const body = { message, content: b64encodeUtf8(JSON.stringify(await sealData(data), null, 2) + '\n'), branch: state.cfg.branch || 'main' };
@@ -533,10 +589,11 @@ async function pushSchalen(message = 'Schalenwild aktualisiert', force = false) 
         lsSet(LS_SCHALEN, state.schalen);
         hideBanner(); toast('Gespeichert ✓ – für alle sichtbar.');
         if (state.data) render();
+        if (!ops.some(op => op.type === 'replace')) pushDamwild(ops.filter(op => op.type === 'upsert' && op.rec?.art === 'damm' && !op.rec.fallwild && !vorher.has(op.rec.id)).map(op => op.rec));
         return true;
       }
       if (r.status === 409 || r.status === 422) continue;
-      if (r.status === 401 || r.status === 403 || r.status === 404) throw new Error('Keine Schreibrechte für Schalenwild (Token prüfen)');
+      if (r.status === 401 || r.status === 403 || r.status === 404) throw new Error(viaKonto() ? await serverFehler(r, 'Keine Schreibrechte für Schalenwild') : 'Keine Schreibrechte für Schalenwild (Token prüfen)');
       throw new Error(`GitHub ${r.status}`);
     }
     throw new Error('Konflikt beim Speichern – bitte erneut senden');
@@ -548,18 +605,62 @@ function showSchalenBanner(err) {
   $('#retrySchalen')?.addEventListener('click', () => pushSchalen());
 }
 
+/* ================= Push-Benachrichtigungen (über den Konten-Server) =================
+   Nach dem Speichern vergleicht die App den alten und neuen Stand und schickt bei
+   neuen/geänderten Terminen, Damwild-Freigabe, Hirschjagd-Sperre und neuem Damwild eine Nachricht.
+   Senden dürfen nur Admins mit Konto. Texte ohne Treffpunkt, Leitung und Schützen. */
+const pushStand = d => d ? clone({ termine: d.termine || [], fg: d.damFreigabe || {}, sp: d.hirschSperre || null }) : null;
+state.pushBase = null;
+function pushMerken() { state.pushBase = pushStand(state.data); }
+const terminWann = t => `${dateDE(t.datum, true)}${t.zeit ? `, ${t.zeit} Uhr` : ''}`;
+function pushNachSpeichern() {
+  const alt = state.pushBase, neu = pushStand(state.data);
+  state.pushBase = neu;
+  if (!alt || !CONF.push || !window.Konto?.loggedIn() || !canSpeichern()) return;
+  const msgs = [];
+  const ohneZeit = t => { const { erstellt, geaendert, aenderung, ...r } = t; return JSON.stringify(r); };
+  const vorher = new Map(alt.termine.map(t => [t.id, ohneZeit(t)]));
+  const neuT = [], geaendertT = [];
+  for (const t of neu.termine) {
+    if (!t.datum || t.datum < todayISO()) continue;
+    if (!vorher.has(t.id)) neuT.push(t); else if (vorher.get(t.id) !== ohneZeit(t)) geaendertT.push(t);
+  }
+  if (neuT.length > 2) msgs.push({ title: `${neuT.length} neue Termine`, body: neuT.slice(0, 3).map(t => `${terminTitel(t)} ${dateDE(t.datum)}`).join(' · ') + (neuT.length > 3 ? ' …' : ''), tag: 'termine' });
+  else neuT.forEach(t => msgs.push({ title: 'Neuer Termin', body: `${terminTitel(t)} – ${terminWann(t)}`, tag: 'termin-' + t.id }));
+  geaendertT.slice(0, 2).forEach(t => msgs.push({ title: `Termin geändert: ${terminTitel(t)}`, body: t.aenderung ? `${terminWann(t)} – ${t.aenderung}` : terminWann(t), tag: 'termin-' + t.id }));
+  const keys = [...new Set([...Object.keys(alt.fg), ...Object.keys(neu.fg)])].filter(k => !!alt.fg[k] !== !!neu.fg[k]);
+  if (keys.length) msgs.push({ title: 'Damwild-Freigabe geändert', body: keys.map(k => `${fgItem(k)?.lbl || k}: ${neu.fg[k] ? 'frei' : 'nicht mehr frei'}`).join(' · '), tag: 'freigabe' });
+  if (JSON.stringify(alt.sp) !== JSON.stringify(neu.sp)) {
+    if (neu.sp && !alt.sp) msgs.push({ title: '⛔ Hirschjagd gesperrt', body: `Gesperrt bis einschließlich ${dateDE(neu.sp.bis, true)}.`, tag: 'sperre' });
+    else if (neu.sp) msgs.push({ title: '⛔ Sperre Hirschjagd geändert', body: `Jetzt gesperrt bis einschließlich ${dateDE(neu.sp.bis, true)}.`, tag: 'sperre' });
+    else msgs.push({ title: 'Sperre Hirschjagd aufgehoben', body: 'Die Hirschjagd ist wieder offen (im Rahmen der Freigabe).', tag: 'sperre' });
+  }
+  msgs.slice(0, 4).forEach(m => Konto.pushSend(m));
+}
+function pushDamwild(recs) {
+  if (!recs.length || !CONF.push || !(window.Konto?.isAdmin() || window.Konto?.can('schalen'))) return;
+  const plan = wildbretPlan();
+  recs.slice(0, 3).forEach(rec => Konto.pushSend({
+    title: 'Damwild erlegt',
+    body: `${katName('damm', rec.kat)}${rec.datum ? ` am ${dateDE(rec.datum)}` : ''} – Wildbret: ${gruppeLabel(plan.map[rec.id] || 'keine')}`,
+    tag: 'damm-' + rec.id,
+  }));
+}
+
 /* ================= Meldungen („Wild melden“) =================
    Eigenes Repository <repo>-meldungen, Datei meldungen.json (mit dem Passwort verschlüsselt).
    Der Melde-Zugang (Token nur für dieses Repo) liegt in der verschlüsselten Hauptdatei –
    nur wer das Passwort kennt, kann melden. */
-const MELD_PATH = 'meldungen.json';
-const meldRepo = () => state.data?.melde?.repo || (state.cfg.repo ? `${state.cfg.repo}-meldungen` : '');
+const MELD_PATH = CONF.meldPath || 'meldungen.json';
+const meldRepo = () => CONF.meldRepo || state.data?.melde?.repo || (state.cfg.repo ? `${state.cfg.repo}-meldungen` : '');
 const meldToken = () => state.data?.melde?.token || '';
-const canMelden = () => !!(meldToken() && state.cfg.owner && meldRepo());
+const canMelden = () => !!((viaKonto() || meldToken()) && state.cfg.owner && meldRepo());
 state.meldungen = [];
-function meldHeaders() { return { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', Authorization: `Bearer ${meldToken()}` }; }
+/* Mit Konto läuft die Meldung über den Konten-Server, sonst mit dem Melde-Token aus den Daten */
+const meldBase = () => viaKonto() ? Konto.ghBase() : 'https://api.github.com';
+function meldHeaders() { return { Accept: 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28', Authorization: `Bearer ${viaKonto() ? Konto.token() : meldToken()}` }; }
 async function fetchMeldungen() {
-  const r = await fetch(ghFileUrl(meldRepo(), MELD_PATH) + `&t=${Date.now()}`, { headers: meldHeaders(), cache: 'no-store' });
+  const r = await fetch(ghFileUrl(meldRepo(), MELD_PATH, true, meldBase()) + `&t=${Date.now()}`, { headers: meldHeaders(), cache: 'no-store' });
   if (r.status === 404) return { list: [], sha: undefined };
   if (!r.ok) throw new Error(`Meldungen: GitHub ${r.status}`);
   const j = await r.json();
@@ -573,26 +674,26 @@ async function changeMeldungen(fn, message) {
     const next = fn(list);
     const body = { message, content: b64encodeUtf8(JSON.stringify(await sealData({ version: 1, eintraege: next }), null, 2) + '\n'), branch: state.cfg.branch || 'main' };
     if (sha) body.sha = sha;
-    const r = await fetch(ghFileUrl(meldRepo(), MELD_PATH, false), { method: 'PUT', headers: { ...meldHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const r = await fetch(ghFileUrl(meldRepo(), MELD_PATH, false, meldBase()), { method: 'PUT', headers: { ...meldHeaders(), 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
     if (r.ok) { state.meldungen = next; updateBadge(); return true; }
     if (r.status === 409 || r.status === 422) continue;
-    throw new Error(r.status === 401 || r.status === 403 || r.status === 404 ? 'Melde-Zugang ungültig – bitte Sebastian Bescheid geben.' : `GitHub ${r.status}`);
+    throw new Error(r.status === 401 || r.status === 403 || r.status === 404 ? (viaKonto() ? await serverFehler(r, 'Kein Melde-Recht') : 'Melde-Zugang ungültig – bitte Sebastian Bescheid geben.') : `GitHub ${r.status}`);
   }
   throw new Error('Konflikt beim Speichern – bitte nochmal versuchen.');
 }
 async function loadMeldungen() {
-  if (!isAdmin() || !canMelden()) return;
+  if (!canMeldungen() || !canMelden()) return;
   try { state.meldungen = (await fetchMeldungen()).list; updateBadge(); if (state.tab === 'start') renderStart(); } catch { /* offline */ }
 }
 /** Zahl der offenen Meldungen am App-Symbol (nur beim Admin) */
 function updateBadge() {
-  if (!isAdmin() || !('setAppBadge' in navigator)) return;
-  const n = state.meldungen.length;
+  if (!canMeldungen() || !('setAppBadge' in navigator)) return;
+  const n = meineMeldungen().length;
   (n ? navigator.setAppBadge(n) : navigator.clearAppBadge()).catch(() => {});
 }
 /* Push über ntfy.sh: geheimer Kanal, gespeichert verschlüsselt in den Hauptdaten.
    Einfache POST-Anfrage ohne eigene Header → kein CORS-Preflight. Inhalt ohne Namen. */
-const ntfyTopic = () => state.data?.melde?.ntfy || '';
+const ntfyTopic = () => CONF.ntfy === false ? '' : (state.data?.melde?.ntfy || '');
 function newNtfyTopic() {
   const a = crypto.getRandomValues(new Uint8Array(12));
   return 'jg-thuine-' + Array.from(a, b => (b % 36).toString(36)).join('');
@@ -654,7 +755,8 @@ function openMelden() {
       try {
         await changeMeldungen(list => [...list, rec], `Meldung: ${meldText(rec)} von ${shooterName(rec.von)}`);
         closeSheet(); toast('Gemeldet ✓ – danke! Sebastian trägt es ein.', 4000);
-        sendPush(ntfyTopic(), 'Neue Wildmeldung', `${meldText(rec)}${rec.datum ? ` am ${dateDE(rec.datum)}` : ' (Datum unbekannt)'} – in der App übernehmen`);
+        // Mit Konto benachrichtigt der Konten-Server die Admins selbst – dann kein ntfy (sonst doppelt)
+        if (!viaKonto()) sendPush(ntfyTopic(), 'Neue Wildmeldung', `${meldText(rec)}${rec.datum ? ` am ${dateDE(rec.datum)}` : ' (Datum unbekannt)'} – in der App übernehmen`);
       } catch (err) { btn.disabled = false; btn.textContent = 'Melden'; toast(err.message || 'Senden fehlgeschlagen – Internet prüfen.', 4500); }
     });
   };
@@ -662,7 +764,7 @@ function openMelden() {
 }
 
 function openMeldungen() {
-  const list = [...state.meldungen].sort((a, b) => a.zeit.localeCompare(b.zeit));
+  const list = [...meineMeldungen()].sort((a, b) => a.zeit.localeCompare(b.zeit));
   const body = list.length ? `<div class="card"><ul class="nt-list">${list.map(m => `
       <li>
         <span class="nt-date ${m.datum ? '' : 'unk'}">${datumText(m.datum)}</span>
@@ -718,6 +820,7 @@ function render() {
   renderTage(); renderStrecke(); renderKoenig(); renderSchalen(); renderStart();
   if (state.tab === 'berichte') renderBerichte();
   if (state.tab === 'termine') renderTermine();
+  if (state.tab === 'jagdzeiten') renderJagdzeiten();
 }
 
 function chipsFor(perSpecies, perHund = {}) {
@@ -883,7 +986,7 @@ function freigabeCard() {
   }).join('');
   return `${liste.length ? `<div class="fgc-grid">${chips}</div>` : '<p class="hint">Kein Wild für die Freigabe ausgewählt (Einstellungen → Freigabe Damwild).</p>'}
     <p class="hint fg-legend"><span class="fg-k fg-frei"></span>frei <span class="fg-k fg-regel"></span>gesperrt nach unserer Regelung <span class="fg-k fg-gesetz"></span>Schonzeit laut Jagdgesetz${stand ? ` · Stand ${dateDE(stand)}` : ''}</p>
-    ${isAdmin() ? '<button class="btn secondary block" id="fgEdit" style="margin-top:4px">Freigabe ändern</button>' : ''}`;
+    ${canFreigabe() ? '<button class="btn secondary block" id="fgEdit" style="margin-top:4px">Freigabe ändern</button>' : ''}`;
 }
 /** Admin: Freigabe je Kategorie umschalten */
 function openFreigabe() {
@@ -1087,7 +1190,6 @@ function wildbretCard() {
   const last = {}; // Gruppe → letztes Stück
   plan.list.forEach(x => { const g = plan.map[x.id]; if (g && g !== 'keine') last[g] = x; });
   return `<div class="wb-card">
-      <div class="wb-next"><span class="sub">Als Nächstes dran</span><b>${esc(gruppeLabel(plan.next))}</b></div>
       <ol class="wb-list">${gs.map(g => `<li class="${g.id === plan.next ? 'next' : ''}">
         <span class="wb-names">${esc(gruppeLabel(g.id))}</span>
         <small>${last[g.id] ? `zuletzt ${datumText(last[g.id].datum)} · ${esc(katName('damm', last[g.id].kat))}` : '–'}</small></li>`).join('')}</ol>
@@ -1096,14 +1198,16 @@ function wildbretCard() {
     </div>`;
 }
 
-/** Zuletzt erlegtes Stück Damwild (kein Fallwild) und an wen das Wildbret geht – steht immer sichtbar oben */
+/** Zuletzt erlegtes Stück Damwild (kein Fallwild), an wen das Wildbret geht, und wer als Nächstes dran ist –
+    eine Kachel, steht immer sichtbar oben (die Kachel Wildbret-Verteilung ist nur noch die Liste) */
 function aktuellesStueck() {
   const plan = wildbretPlan(), akt = plan.list[plan.list.length - 1];
-  return akt ? `<div class="wb-next wb-akt wb-akt-top">
-        <span class="sub">Aktuelles Stück · ${esc(datumText(akt.datum))}</span>
+  return `<div class="wb-next wb-akt wb-akt-top">
+      ${akt ? `<span class="sub">Aktuelles Stück · ${esc(datumText(akt.datum))}</span>
         <b>🥩 ${esc(gruppeLabel(plan.map[akt.id] || 'keine'))}</b>
-        <small>${esc(katName('damm', akt.kat))} · erlegt von ${esc(schuetzeText(akt) || 'unbekannt')}</small>
-      </div>` : '';
+        <small>${esc(katName('damm', akt.kat))} · erlegt von ${esc(schuetzeText(akt) || 'unbekannt')}</small>` : ''}
+      ${plan.next ? `<div class="wb-dran${akt ? '' : ' allein'}"><span class="sub">Nächstes Stück geht an</span><b>${esc(gruppeLabel(plan.next))}</b></div>` : ''}
+    </div>`;
 }
 
 /* ---------- Aufklappbare Kacheln (Schalenwild) ----------
@@ -1188,7 +1292,7 @@ function renderSchalen() {
   const plural = (n, a, b) => `${n} ${n === 1 ? a : b}`;
   const fgInhalt = art === 'damm' ? freigabeCard() : '';
   const kacheln = [
-    art === 'damm' && aktuell ? klappKachel(`${art}-wildbret`, 'Wildbret-Verteilung', `dran: ${esc(gruppeLabel(plan.next, true).replace(/^\d+\.\s*/, ''))}`, wildbretCard()) : '',
+    art === 'damm' && aktuell ? klappKachel(`${art}-wildbret`, 'Wildbret-Verteilung', `${wvGruppen().length} Gruppen`, wildbretCard()) : '',
     klappKachel(`${art}-uebersicht`, `Übersicht ${esc(state.season)}`, 'nach Kategorie', catTable),
     klappKachel(`${art}-erlegt`, 'Erlegt', plural(erlegt.length, 'Stück', 'Stück'),
       erlegt.length ? `<ul class="nt-list">${[...erlegt].reverse().map(item).join('')}</ul>` : '<p class="sub kk-leer">Noch nichts erlegt in diesem Jagdjahr.</p>'),
@@ -1210,7 +1314,7 @@ function renderSchalen() {
       <div class="card stat"><div class="v">${t.erlegt + t.fallwild}</div><div class="l">gesamt</div></div>
     </div>
     ${canSchalen() ? `<button class="btn block" id="btnSchalen">+ ${W.name} eintragen</button>` : ''}
-    ${art === 'damm' && isAdmin() ? `<button class="btn ${hirschSperre() ? 'danger' : 'secondary'} block" id="btnSperre" style="margin-top:8px">${hirschSperre() ? '⛔ Sperre Hirschjagd ändern / aufheben' : 'Hirschjagd sperren (Fehlabschuss)'}</button>` : ''}
+    ${art === 'damm' && canSperre() ? `<button class="btn ${hirschSperre() ? 'danger' : 'secondary'} block" id="btnSperre" style="margin-top:8px">${hirschSperre() ? '⛔ Sperre Hirschjagd ändern / aufheben' : 'Hirschjagd sperren (Fehlabschuss)'}</button>` : ''}
     ${state.schalenOps.length ? `<div class="alert">${state.schalenOps.length} Änderung(en) noch nicht hochgeladen.</div>` : ''}
     ${art === 'damm' && aktuell ? aktuellesStueck() : ''}
     <div class="kk-stack">${kacheln}</div>`;
@@ -1808,8 +1912,9 @@ async function saveEditor() {
 }
 
 /* ================= Foto → KI ================= */
+const kiUeberServer = () => !!window.Konto?.kiServer();
 function startPhoto() {
-  if (!state.cfg.apiKey) {
+  if (!kiUeberServer() && !state.cfg.apiKey) {
     toast('Für die Foto-Auswertung bitte zuerst den Anthropic-API-Schlüssel in den Einstellungen eintragen.', 4500);
     openSettings(); return;
   }
@@ -1884,6 +1989,11 @@ async function analysePhoto(file) {
   try {
     const dataUrl = await imageToJpeg(file);
     const b64 = dataUrl.split(',')[1];
+    let text;
+    if (kiUeberServer()) {
+      // Schlüssel liegt im Konten-Server – auf dem Gerät ist keiner nötig
+      text = (await Konto.ki(b64, buildPrompt(), ctrl.signal)).text;
+    } else {
     const model = state.cfg.model || FALLBACK_MODEL;
     const r = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST', signal: ctrl.signal,
@@ -1903,7 +2013,8 @@ async function analysePhoto(file) {
     });
     const j = await r.json().catch(() => ({}));
     if (!r.ok) throw new Error(j?.error?.message || `API-Fehler ${r.status}`);
-    const text = (j.content || []).filter(c => c.type === 'text').map(c => c.text).join('');
+    text = (j.content || []).filter(c => c.type === 'text').map(c => c.text).join('');
+    }
     const m = text.match(/\{[\s\S]*\}/);
     if (!m) throw new Error('Antwort der KI enthielt kein JSON.');
     const parsed = JSON.parse(m[0]);
@@ -1988,15 +2099,93 @@ function applyAiResult(res, photo) {
   renderEditor();
 }
 
+/* ================= Hinweis „Bitte eigenes Konto anlegen“ =================
+   Für alle, die die App noch mit dem gemeinsamen Passwort nutzen (z. B. nach der Umstellung auf Konten).
+   Kachel oben auf dem Start, solange kein Konto angemeldet ist; dazu einmal ein Fenster (bei „Später“ nach 3 Tagen wieder). */
+const LS_KONTO_FRAGE = 'sb.kontoFrage.v1';
+const kontoHinweisNoetig = () => !!(CONF.api && window.Konto?.enabled() && !Konto.loggedIn() && Konto.user()?.status !== 'gesperrt');
+function kontoKachel() {
+  if (!kontoHinweisNoetig()) return '';
+  const b = Konto.beantragt();
+  if (b) return `<div class="start-tile konto-tile wartet">
+      <span class="st-title">⏳ Dein Konto ist beantragt</span>
+      <span class="st-meta">Sobald Sebastian es freigegeben hat, meldest du dich einmal mit Namen und Passwort an.</span>
+      <div class="kt-btns"><button type="button" class="btn" id="btnKontoLogin">Jetzt anmelden</button></div>
+    </div>`;
+  return `<div class="start-tile konto-tile">
+      <span class="st-title">🔑 Bitte eigenes Konto anlegen</span>
+      <span class="st-meta">Die App hat jetzt eigene Konten. Damit bekommst du Benachrichtigungen (z. B. neue Termine, Damwild) – und das gemeinsame Passwort wird später abgeschaltet. Dauert eine Minute.</span>
+      <div class="kt-btns"><button type="button" class="btn" id="btnKontoNeu">Konto anlegen</button><button type="button" class="btn secondary" id="btnKontoLogin">Ich habe schon eins</button></div>
+    </div>`;
+}
+/** Einmaliges Fenster beim Start (bei „Später“ nach 3 Tagen wieder). Promise erfüllt, wenn geschlossen. */
+function kontoFrage() {
+  if (!kontoHinweisNoetig() || Konto.beantragt() || !state.data || !$('#lock').hidden || !$('#sheet').hidden) return Promise.resolve();
+  if (Date.now() - (lsGet(LS_KONTO_FRAGE, 0) || 0) < 3 * 864e5) return Promise.resolve();
+  return new Promise(resolve => {
+    openSheet('Neu: eigenes Konto', `
+      <p><b>Die App Jagd Thuine hat jetzt eigene Konten.</b> Bitte leg dir einmal ein Konto mit deinem Namen und einem eigenen Passwort an.</p>
+      <ul class="kf-liste"><li>🔔 Benachrichtigungen bei neuen Terminen, Damwild und Hirschjagd-Sperre</li><li>🔑 Das gemeinsame Passwort wird später abgeschaltet – dann geht es nur noch mit Konto</li><li>✓ Sebastian gibt dein Konto frei, danach meldest du dich einmal an</li></ul>
+      <p class="hint">Bis dahin funktioniert alles wie gewohnt.</p>`,
+      '<button class="btn secondary" id="kfSpaeter">Später</button><button class="btn" id="kfNeu">Konto anlegen</button>');
+    lsSet(LS_KONTO_FRAGE, Date.now());
+    let weiter = false;
+    const mo = new MutationObserver(() => { if ($('#sheet').hidden) { mo.disconnect(); resolve(); } });
+    mo.observe($('#sheet'), { attributes: true, attributeFilter: ['hidden'] });
+    $('#kfSpaeter').addEventListener('click', () => closeSheet());
+    $('#kfNeu').addEventListener('click', () => { if (weiter) return; weiter = true; Konto.openLogin({ mode: 'neu' }); });
+  });
+}
+
+/* ================= „Wer bist du?“ – beim ersten Öffnen bzw. nach der ersten Anmeldung ================= */
+const LS_ICH_GEFRAGT = 'sb.ichGefragt.v1';
+const normName = t => String(t || '').trim().toLowerCase().replace(/\s+/g, ' ');
+const ichKandidaten = () => state.data.schuetzen.filter(s => isMember(s, seasonOf(todayISO())));
+/** Passt der Konto-Name („Vorname Nachname“) eindeutig zu einem Schützen? */
+function ichAusKonto() {
+  const n = window.Konto?.loggedIn() ? normName(Konto.user()?.name) : '';
+  if (!n) return null;
+  const t = ichKandidaten().filter(s => normName(s.vollname) === n);
+  return t.length === 1 ? t[0] : null;
+}
+function ichSetzen(id) { state.cfg.ich = id; lsSet(LS_CFG, state.cfg); lsSet(LS_ICH_GEFRAGT, true); }
+/** Fragt einmal je Gerät, wer die App benutzt (gleiche Einstellung wie „Ich bin“ in den Einstellungen).
+    Bei einem Konto mit passendem Namen wird ohne Frage zugeordnet. Promise ist erfüllt, wenn erledigt/geschlossen. */
+function ichFrage() {
+  if (ichFrage._p) return ichFrage._p;
+  if (!state.data || !$('#lock').hidden || (state.cfg.ich && shooterById(state.cfg.ich))) return Promise.resolve();
+  const k = ichAusKonto();
+  if (k) { ichSetzen(k.id); toast(`Du bist als ${k.vollname || k.name} eingetragen ✓`); return Promise.resolve(); }
+  if (lsGet(LS_ICH_GEFRAGT, false) || !$('#sheet').hidden) return Promise.resolve();
+  const nach = s => { const v = (s.vollname || s.name).trim(); return v.split(' ').slice(-1)[0] + ' ' + v; };
+  const list = ichKandidaten().sort((a, b) => nach(a).localeCompare(nach(b), 'de'));
+  if (!list.length) return Promise.resolve();
+  ichFrage._p = new Promise(resolve => {
+    openSheet('Wer bist du?', `<p class="hint">Bitte einmal antippen, wer du bist. Dann ist dein Name z. B. beim Wild-Melden schon eingetragen. Ändern kannst du das jederzeit unter Einstellungen → „Ich bin“.</p>
+      <div class="ich-liste">${list.map(s => `<button type="button" class="ich-btn" data-ich="${esc(s.id)}">${esc(s.vollname || s.name)}</button>`).join('')}</div>`,
+      '<button class="btn secondary block" id="ichNein">Ich bin nicht in der Liste</button>');
+    const fertig = () => { mo.disconnect(); lsSet(LS_ICH_GEFRAGT, true); ichFrage._p = null; resolve(); };
+    const mo = new MutationObserver(() => { if ($('#sheet').hidden) fertig(); });
+    mo.observe($('#sheet'), { attributes: true, attributeFilter: ['hidden'] });
+    $$('[data-ich]', $('#sheet')).forEach(b => b.addEventListener('click', () => {
+      ichSetzen(b.dataset.ich); closeSheet(); toast(`Hallo ${(shooterName(b.dataset.ich) || '').split(' ')[0]} ✓`);
+    }));
+    $('#ichNein').addEventListener('click', () => closeSheet());
+  });
+  return ichFrage._p;
+}
+
 /* ================= Einstellungen ================= */
 function openSettings() {
   const c = state.cfg;
   const body = `
-    <div class="alert info">${isAdmin() ? '<b>Voller Zugang.</b> Du kannst alles erfassen und verwalten.' : canSchalen() ? '<b>Zugang Schalenwild.</b> Du kannst Reh-, Dam- und Schwarzwild eintragen, alles andere nur ansehen.' : '<b>Ansichtsmodus.</b> Zum Ansehen brauchst du nichts einzutragen.'}</div>
-    <fieldset><legend>Zugang</legend>
+    <div class="alert info">${viaKonto() && isAdmin() ? '<b>Admin (über dein Konto).</b> Du kannst alles erfassen und verwalten.' : viaKonto() ? `<b>Angemeldet mit Konto.</b> Du kannst alles ansehen und Wild melden${[canTermine() && 'Termine eintragen', canFreigabe() && 'die Damwild-Freigabe ändern', canSperre() && 'die Hirschjagd-Sperre setzen', window.Konto?.can('schalen') && 'Reh-, Dam- und Schwarzwild eintragen'].filter(Boolean).map(t => ', ' + t).join('')}.` : isAdmin() ? '<b>Voller Zugang.</b> Du kannst alles erfassen und verwalten.' : canSchalen() ? '<b>Zugang Schalenwild.</b> Du kannst Reh-, Dam- und Schwarzwild eintragen, alles andere nur ansehen.' : '<b>Ansichtsmodus.</b> Zum Ansehen brauchst du nichts einzutragen.'}</div>
+    ${window.Konto?.settingsHtml() || ''}
+    <fieldset><legend>${CONF.api ? 'Auf diesem Gerät' : 'Zugang'}</legend>
       <label class="field"><span>Ich bin</span>
         <select id="cfIch"><option value="">– bitte wählen –</option>${state.data.schuetzen.filter(s => isMember(s, seasonOf(todayISO())) || s.id === c.ich).map(s => `<option value="${esc(s.id)}" ${s.id === c.ich ? 'selected' : ''}>${esc(s.vollname || s.name)}</option>`).join('')}</select>
       </label>
+      ${CONF.api ? '' : `
       <label class="field"><span>Berechtigung</span>
         <select id="cfMode">
           <option value="" ${!c.mode ? 'selected' : ''}>Nur ansehen</option>
@@ -2013,6 +2202,7 @@ function openSettings() {
         </div>
         <label class="field" style="margin-top:10px"><span>Repository Schalenwild</span><input id="cfRepo2" value="${esc(c.repo2)}" autocapitalize="off" autocorrect="off"></label>
       </details>` : ''}
+      `}
     </fieldset>
     <fieldset><legend>Termine</legend>
       <label class="check-row"><input type="checkbox" id="cfErinnerung" ${c.erinnerung !== false ? 'checked' : ''}> <span><b>Erinnerung 60 Minuten vorher</b><small>„In Kalender“ übernimmt den Termin mit Erinnerung, und die App zeigt in der letzten Stunde einen Hinweis auf der Startseite.</small></span></label>
@@ -2033,12 +2223,14 @@ function openSettings() {
       <label class="field"><span>Passwort der Jagdgemeinschaft</span><input id="cfPw" type="text" value="${esc(state.pw)}" placeholder="mind. 6 Zeichen" autocomplete="off" autocapitalize="off" autocorrect="off"></label>
       <p class="hint">${state.pw ? 'Die Daten werden verschlüsselt gespeichert. Alle Jäger brauchen dieses Passwort zum Ansehen.' : '<b>Noch kein Passwort gesetzt – die Daten sind im Klartext lesbar.</b>'} Ändern: neues Passwort eintragen und übernehmen, danach müssen alle Jäger das neue Passwort einmal eingeben. <b>Passwort gut aufbewahren – ohne es sind die Daten nicht mehr lesbar.</b></p>
     </fieldset>` : ''}
-    <fieldset ${c.mode === 'voll' ? '' : 'hidden'}><legend>Foto-Auswertung (KI)</legend>
+    <fieldset ${isAdmin() ? '' : 'hidden'}><legend>Foto-Auswertung (KI)</legend>
+      ${kiUeberServer() ? '<p class="hint"><b>✓ Läuft über den Konten-Server</b> – auf diesem Gerät ist kein Schlüssel nötig. Tageslimit je Admin, jede Auswertung steht im Protokoll.</p><details><summary>Eigener Schlüssel auf diesem Gerät (nur ohne Server)</summary>' : ''}
       <label class="field"><span>Anthropic-API-Schlüssel (nur auf diesem Gerät gespeichert)</span><input id="cfKey" type="password" value="${esc(c.apiKey)}" placeholder="sk-ant-…" autocomplete="off"></label>
       <label class="field"><span>Modell</span>
         <select id="cfModel">${c.model ? `<option value="${esc(c.model)}" selected>${esc(c.model)}</option>` : `<option value="">Standard (${FALLBACK_MODEL})</option>`}</select>
       </label>
       <button class="btn secondary block" id="cfLoadModels">Verfügbare Modelle laden</button>
+      ${kiUeberServer() ? '</details>' : ''}
     </fieldset>
     ${isAdmin() ? `
     <fieldset><legend>Schützen</legend>
@@ -2068,6 +2260,7 @@ function openSettings() {
       <p class="hint">Der Einrichtungs-Link öffnet die App mit der Installationshilfe – gut zum Weiterschicken (z. B. per WhatsApp).</p>
     </fieldset>`;
   openSheet('Einstellungen', body, `<button class="btn secondary" data-close>Abbrechen</button><button class="btn" id="cfSave">Übernehmen</button>`);
+  window.Konto?.wireSettings($('#sheet'));
   $('#cfFgWild')?.addEventListener('click', () => { closeSheet(); setTimeout(openFreigabeWild, 50); });
   $('#cfInvite')?.addEventListener('click', () => kopiereLink(appLink() + '?installieren'));
   $('#cfInstall')?.addEventListener('click', () => { lsSet(LS_INST_HIDE, undefined); closeSheet(); renderStart(); setTimeout(() => startInstall(), 50); });
@@ -2103,7 +2296,7 @@ function openSettings() {
       const j = await r.json();
       if (!r.ok) throw new Error(j?.error?.message || r.status);
       const models = (j.data || []).map(m => m.id);
-      const pick = state.cfg.model || models.find(m => m.includes('sonnet')) || models[0] || FALLBACK_MODEL;
+      const pick = state.cfg.model || models.find(m => m.includes('opus')) || models[0] || FALLBACK_MODEL;
       $('#cfModel').innerHTML = models.map(m => `<option value="${esc(m)}" ${m === pick ? 'selected' : ''}>${esc(m)}</option>`).join('');
       toast('Schlüssel gültig ✓ – Modelle geladen.');
     } catch (e) { toast('Schlüssel/Modelle: ' + e.message, 4500); }
@@ -2134,8 +2327,8 @@ function openSettings() {
     }
     Object.assign(state.cfg, {
       owner: $('#cfOwner')?.value.trim() ?? state.cfg.owner, repo: $('#cfRepo')?.value.trim() ?? state.cfg.repo, repo2: $('#cfRepo2')?.value.trim() ?? state.cfg.repo2,
-      token: $('#cfToken').value.trim(), apiKey: $('#cfKey').value.trim(), model: $('#cfModel').value,
-      mode: $('#cfMode').value, ich: $('#cfIch').value, erinnerung: $('#cfErinnerung').checked,
+      token: CONF.api ? '' : ($('#cfToken')?.value.trim() ?? state.cfg.token), apiKey: $('#cfKey').value.trim(), model: $('#cfModel').value,
+      mode: CONF.api ? '' : ($('#cfMode')?.value ?? state.cfg.mode), ich: $('#cfIch').value, erinnerung: $('#cfErinnerung').checked,
     });
     if (pwChanged) { state.pwOld = state.pw; state.pw = newPw; lsSet(LS_PW, newPw); }
     if (!pwChanged) loadSchalen();
@@ -2162,6 +2355,7 @@ function openSettings() {
       if (canMelden()) { try { await changeMeldungen(l => l, 'Meldungen neu verschlüsselt'); } catch { /* egal */ } }
       await reencryptDocs();
       state.pwOld = '';
+      if (window.Konto?.isAdmin()) Konto.setDataPw(state.pw, true).catch(() => toast('Neues Passwort konnte nicht im Konten-Server hinterlegt werden – unter „Konten verwalten“ erneut versuchen.', 6000));
       toast('Daten sind jetzt mit dem Passwort verschlüsselt.', 4000);
     } else if (meldChanged || JSON.stringify({ s: state.data.schuetzen, w: state.data.wildarten }) !== before) { await persist(meldChanged ? 'Melde-Zugang geändert' : 'Schützen/Punkte geändert'); loadMeldungen(); }
     else { render(); if (state.pending) pushRemote(); else load(); }
@@ -2255,6 +2449,7 @@ function openReset() {
       await restoreData(src, 'Wiederherstellung mit neuem Passwort');
       if (state.pending || state.schalenOps.length) throw new Error('Speichern auf GitHub fehlgeschlagen – Token prüfen.');
       box.hidden = true; $('#lockForm').hidden = false; $('#lock').hidden = true;
+      if (window.Konto?.isAdmin()) Konto.setDataPw(pw, true).catch(() => {});
       toast('Wiederhergestellt ✓ – neues Passwort ist aktiv.', 4500);
     } catch (err) { msg(err.message); }
     finally { $('#rsGo').disabled = false; }
@@ -2609,7 +2804,7 @@ async function exportGesamt(season) {
 
 /* ================= Navigation ================= */
 /** Bereiche: Start → Niederwild (Strecke, Jagdtage, Jagdkönig) oder Schalenwild (Reh & Damm) */
-const sectionOf = tab => tab === 'start' ? 'start' : tab.startsWith('schalen') ? 'schalen' : tab === 'berichte' ? 'berichte' : tab === 'termine' ? 'termine' : 'nieder';
+const sectionOf = tab => tab === 'start' ? 'start' : tab.startsWith('schalen') ? 'schalen' : ['berichte', 'termine', 'jagdzeiten'].includes(tab) ? tab : 'nieder';
 function switchTab(tab, fromPop = false) {
   if (tab === 'schalen') tab = `schalen-${state.schalenArt || 'reh'}`;
   if (tab.startsWith('schalen-')) state.schalenArt = tab.slice(8);
@@ -2619,8 +2814,10 @@ function switchTab(tab, fromPop = false) {
     else if (sec === 'start' && histLvl() === 1 && !(history.state && history.state.sheet)) histBack();
   }
   state.tab = tab;
-  $('.tabbar').hidden = sec === 'start';
-  $$('.tab').forEach(t => { t.classList.toggle('active', t.dataset.tab === tab); t.hidden = !!t.dataset.sec && t.dataset.sec !== sec; });
+  // Leiste unten immer sichtbar: auf Start/Termine/Berichte „Niederwild | Schalenwild“, sonst die Seiten des Bereichs
+  const barSec = sec === 'nieder' || sec === 'schalen' ? sec : 'start';
+  $('.tabbar').hidden = false;
+  $$('.tab').forEach(t => { t.classList.toggle('active', t.dataset.tab === tab); t.hidden = !!t.dataset.sec && t.dataset.sec !== barSec; });
   const view = tab.startsWith('schalen') ? 'schalen' : tab;
   $$('.view').forEach(v => (v.hidden = v.dataset.view !== view));
   if (view === 'schalen') renderSchalen();
@@ -2628,6 +2825,7 @@ function switchTab(tab, fromPop = false) {
   if (tab === 'start') renderStart();
   if (tab === 'berichte') renderBerichte();
   if (tab === 'termine') renderTermine();
+  if (tab === 'jagdzeiten') renderJagdzeiten();
   window.scrollTo({ top: 0 });
 }
 
@@ -2660,7 +2858,7 @@ async function fetchDocBytes(d) {
   const tries = [];
   if (isAdmin()) tries.push(() => fetch(ghFileUrl(repo, d.datei) + `&t=${Date.now()}`, { headers: { ...ghHeaders(true), Accept: 'application/vnd.github.raw+json' }, cache: 'no-store' }));
   tries.push(() => fetch(`${d.datei}?t=${Date.now()}`, { cache: 'no-store' }));
-  if (owner && repo) tries.push(() => fetch(`https://raw.githubusercontent.com/${owner}/${repo}/${branch || 'main'}/${d.datei}?t=${Date.now()}`, { cache: 'no-store' }));
+  if (owner && repo) tries.push(() => fetch(`https://raw.githubusercontent.com/${owner}/${repo}/${branch || 'main'}/${repoPath(repo, d.datei)}?t=${Date.now()}`, { cache: 'no-store' }));
   for (const t of tries) {
     try { const r = await t(); if (r.ok) { const b = new Uint8Array(await r.arrayBuffer()); if (b.length) return b; } } catch { /* nächster Weg */ }
   }
@@ -2747,6 +2945,25 @@ const TERMIN_ARTEN = {
   gruenkohl: 'Grünkohlessen', leberessen: 'Leberessen', bockvertrinken: 'Bockvertrinken', hirschvertrinken: 'Hirschvertrinken', sonst: 'Sonstiges',
 };
 const terminTitel = t => t.titel || TERMIN_ARTEN[t.art] || 'Termin';
+/** Kurzer Text, was sich an einem Termin geändert hat (für Neuigkeiten und Benachrichtigung) */
+function terminAenderung(alt, neu) {
+  const f = [
+    ['Datum', t => t.datum ? dateDE(t.datum, true) : ''],
+    ['Uhrzeit', t => t.zeit ? `${t.zeit} Uhr` : ''],
+    ['Art', t => terminTitel(t)],
+    ['Treffpunkt', t => t.ort || ''],
+    ['Leitung', t => terminLeitung(t)],
+    ['Hinweis', t => t.besonderheit || ''],
+  ];
+  return f.map(([lbl, get]) => {
+    const a = get(alt), b = get(neu);
+    if (a === b) return '';
+    if (lbl === 'Hinweis') return b ? 'Hinweis geändert' : 'Hinweis entfernt';
+    if (!a) return `${lbl}: ${b}`;
+    if (!b) return `${lbl} entfällt`;
+    return `${lbl}: ${a} → ${b}`;
+  }).filter(Boolean).join(' · ');
+}
 const terminLeitung = t => t.leitungGruppe ? gruppeLabel(t.leitungGruppe).replace(/^\d+\.\s*/, '') : t.leitungId ? shooterName(t.leitungId) : (t.leitung || '');
 /* Bei Jagden heißt es „Jagdleitung“, bei allen anderen Terminen (Essen, Vertrinken, Versammlung …) „Organisation“ */
 const JAGD_ARTEN = ['jagdtag', 'treibjagd', 'venslage', 'drueckjagd'];
@@ -2776,10 +2993,87 @@ function terminCard(t, admin) {
     </div>
   </div>`;
 }
+/* ================= Jagd- und Schonzeiten Niedersachsen =================
+   Daten: data/jagdzeiten.json (öffentlich, nicht verschlüsselt – amtliche Jagdzeiten), Quelle: Nds. Landwirtschaftsministerium.
+   Die Datei wird bei jedem Start neu geladen (offline: letzter Stand) – Änderungen der Verordnung kommen so ohne App-Update an.
+   Der Status (Jagdzeit/Schonzeit) wird jeden Tag neu aus dem Datum berechnet. */
+const LS_JZ = 'sb.jagdzeiten.v1';
+async function loadJagdzeiten() {
+  if (!state.jz) state.jz = lsGet(LS_JZ, null);
+  try {
+    const r = await fetch(`data/jagdzeiten.json?t=${Date.now()}`, { cache: 'no-store' });
+    if (!r.ok) throw new Error(r.status);
+    const j = await r.json();
+    if (!Array.isArray(j.gruppen)) throw new Error('Format');
+    state.jz = j; lsSet(LS_JZ, j);
+  } catch { /* offline: letzter Stand */ }
+  if (state.tab === 'start') renderStart();
+  if (state.tab === 'jagdzeiten') renderJagdzeiten();
+}
+/** Ende des laufenden Zeitraums (ISO), in dem iso liegt */
+function jzEnde(ranges, iso) {
+  const y = +iso.slice(0, 4), md = iso.slice(5);
+  const ends = ranges.filter(([a, b]) => a <= b ? md >= a && md <= b : md >= a || md <= b)
+    .map(([a, b]) => `${a <= b || md <= b ? y : y + 1}-${b}`);
+  // Zusammenhängende Zeiträume (z. B. 20.8.–31.3.) – spätestes Ende
+  return ends.sort().pop();
+}
+const mdDE = iso => { const [, m, d] = iso.split('-').map(Number); return `${d}.${m}.`; };
+/** Status einer Altersklasse: { cls, txt } */
+function jzStatus(k, iso = todayISO()) {
+  if (k.geschont) return { cls: 'zu', txt: 'ganzjährig geschont', offen: false };
+  if (k.ganz) return { cls: 'auf', txt: 'ganzjährig', offen: true };
+  const jz = k.jz || [];
+  if (inJagdzeit(jz, iso)) return { cls: k.sonder ? 'sonder' : 'auf', txt: `${k.sonder ? 'Sonderregel · ' : 'Jagdzeit '}bis ${mdDE(jzEnde(jz, iso)).replace('29.2.', 'Ende Feb.')}`, offen: true };
+  const nb = naechsterBeginn(jz, iso);
+  return { cls: 'zu', txt: nb ? `Schonzeit · ab ${mdDE(nb)}` : 'Schonzeit', offen: false };
+}
+const jzZeitText = k => k.geschont ? 'keine Jagdzeit' : k.ganz ? 'ganzjährig' : jagdzeitText(k.jz).replace(/29\.2\./g, 'Ende Feb.');
+function jzStartMeta() {
+  if (!state.jz) return 'Niedersachsen';
+  const heute = todayISO();
+  const n = state.jz.gruppen.flatMap(g => g.arten).filter(a => a.klassen.some(k => !k.ganz && !k.sonder && jzStatus(k, heute).offen)).length;
+  return `${esc(state.jz.land || 'Niedersachsen')} · Stand ${esc(mdDE(state.jz.stand))}${state.jz.stand.slice(0, 4)} · heute ${n} Arten offen`;
+}
+function renderJagdzeiten() {
+  const el = $('#view-jagdzeiten');
+  if (!el) return;
+  const d = state.jz;
+  if (!d) { el.innerHTML = '<h2 class="section" style="margin-top:4px">Jagd- und Schonzeiten</h2><div class="card pad empty"><p>Die Jagdzeiten konnten nicht geladen werden – bitte mit Internet erneut öffnen.</p></div>'; return; }
+  const heute = todayISO(), nurOffen = !!state.jzNurOffen;
+  const gruppen = d.gruppen.map(g => {
+    const arten = g.arten.map(a => {
+      const kl = a.klassen.filter(k => !nurOffen || jzStatus(k, heute).offen);
+      if (!kl.length) return '';
+      const allein = a.klassen.length === 1 && !a.klassen[0].name;
+      return `<div class="jz-art">
+        <div class="jz-name">${esc(a.name)}</div>
+        ${kl.map(k => { const st = jzStatus(k, heute); return `<div class="jz-kl">
+          <div class="jz-kt">${allein ? '' : `<b>${esc(k.name)}</b>`}<span>${esc(jzZeitText(k))}</span>${k.hinweis ? `<small>${esc(k.hinweis)}</small>` : ''}</div>
+          <span class="jz-st ${st.cls}">${esc(st.txt)}</span></div>`; }).join('')}
+        ${a.hinweis ? `<small class="jz-hw">${esc(a.hinweis)}</small>` : ''}
+      </div>`;
+    }).join('');
+    return arten ? `<h3 class="jz-gr">${esc(g.name)}</h3><div class="card jz-card">${arten}</div>` : '';
+  }).join('');
+  el.innerHTML = `
+    <h2 class="section" style="margin-top:4px">Jagd- und Schonzeiten</h2>
+    <p class="sub jz-kopf">${esc(d.land || 'Niedersachsen')} · Stand <b>${esc(dateDE(d.stand))}</b> · heute ${esc(dateDE(heute))}</p>
+    <div class="seg seg2 jz-seg"><button type="button" data-jzf="alle" class="${nurOffen ? '' : 'on'}">Alle</button><button type="button" data-jzf="offen" class="${nurOffen ? 'on' : ''}">Heute Jagdzeit</button></div>
+    ${gruppen || '<div class="card pad empty"><p>Heute ist für keine Wildart Jagdzeit.</p></div>'}
+    <div class="card pad jz-quelle">
+      <p><b>Quelle:</b> ${d.quelle?.url ? `<a href="${esc(d.quelle.url)}" target="_blank" rel="noopener">${esc(d.quelle.titel || d.quelle.url)}</a>` : esc(d.quelle?.titel || '')}</p>
+      ${(d.quelle?.pdfs || []).filter(x => /^https:\/\//.test(x.url || '')).map(x => `<a class="jz-pdf" href="${esc(x.url)}" target="_blank" rel="noopener"><span aria-hidden="true">📄</span><span>${esc(x.titel || 'PDF')}<small>PDF beim Ministerium öffnen</small></span></a>`).join('')}
+      <p class="hint">${esc(d.rechtsgrundlage || '')}. Zuletzt mit der Quelle abgeglichen am ${esc(dateDE(d.geprueft || d.stand))}.</p>
+      <p class="hint">Angaben ohne Gewähr – maßgeblich ist die Verordnung. Örtliche Regelungen (z. B. Abschussplan, Freigabe der Jagdgemeinschaft, Vogelschutz- und Naturschutzgebiete, Elterntierschutz) gelten zusätzlich.</p>
+    </div>`;
+  $$('[data-jzf]', el).forEach(b => b.addEventListener('click', () => { state.jzNurOffen = b.dataset.jzf === 'offen'; renderJagdzeiten(); }));
+}
+
 function renderTermine() {
   const el = $('#view-termine');
   if (!el || !state.data) return;
-  const admin = isAdmin();
+  const admin = canTermine();
   const kommend = kommendeTermine();
   const vergangen = sortTermine(state.data.termine.filter(terminVorbei)).reverse();
   const vSeasons = [...new Set(vergangen.map(t => seasonOf(t.datum)))].sort().reverse();
@@ -2828,6 +3122,14 @@ function openTermin(id) {
     const rec = { id: ex?.id || `t-${Date.now().toString(36)}`, datum, zeit: $('#tmZeit').value, art: $('#tmArt').value, titel: $('#tmTitel').value.trim(),
       ort: $('#tmOrt').value.trim(), leitungGruppe: sel.startsWith('grp:') ? sel.slice(4) : '', leitungId: sel && sel !== '__frei' && !sel.startsWith('grp:') ? sel : '', leitung: sel === '__frei' ? $('#tmLeiFrei').value.trim() : '', besonderheit: $('#tmBes').value.trim() };
     Object.keys(rec).forEach(k => { if (rec[k] === '') delete rec[k]; });
+    // Für „Neuigkeiten“ auf der Startseite: wann eingetragen bzw. zuletzt geändert
+    const jetzt = new Date().toISOString();
+    rec.erstellt = ex?.erstellt || jetzt;
+    if (ex) {
+      const was = terminAenderung(ex, rec);
+      if (was) { rec.geaendert = jetzt; rec.aenderung = was; }
+      else { if (ex.geaendert) rec.geaendert = ex.geaendert; if (ex.aenderung) rec.aenderung = ex.aenderung; }
+    }
     state.data.termine = ex ? state.data.termine.map(x => x.id === ex.id ? rec : x) : [...state.data.termine, rec];
     closeSheet(); persist(`Termin: ${terminTitel(rec)} ${dateDE(datum)}`); renderTermine();
   });
@@ -2932,7 +3234,7 @@ function openIcsImport(list) {
     const pick = $$('[data-icsi]:checked').map(c => list[+c.dataset.icsi]);
     const stamp = Date.now().toString(36);
     const neu = pick.map((t, i) => {
-      const rec = { id: `t-${stamp}${i}`, uid: t.uid, datum: t.datum, zeit: t.zeit, art: t.art, titel: t.titel, ort: t.ort, leitungId: t.leitungId, leitung: t.leitung, besonderheit: t.besonderheit };
+      const rec = { id: `t-${stamp}${i}`, uid: t.uid, datum: t.datum, zeit: t.zeit, art: t.art, titel: t.titel, ort: t.ort, leitungId: t.leitungId, leitung: t.leitung, besonderheit: t.besonderheit, erstellt: new Date().toISOString() };
       Object.keys(rec).forEach(k => { if (!rec[k]) delete rec[k]; });
       return rec;
     });
@@ -3159,6 +3461,58 @@ function openInstallHilfeOrPrompt() {
   } else openInstallHilfe();
 }
 
+/* ---------- Neuigkeiten auf der Startseite ----------
+   Die letzten Änderungen der vergangenen 14 Tage: erlegtes Damwild (mit Wildbret-Gruppe),
+   Rehwild (erlegt/Fallwild), neue/geänderte Termine (mit Änderung), Damwild-Freigabe. Niederwild bewusst nicht. */
+const NEWS_TAGE = 14;
+const NEWS_ICO = {
+  termin: '<svg viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14" rx="2.2"/><path d="M4 10h16M8.5 3.5v4M15.5 3.5v4"/></svg>',
+  damm: '<svg viewBox="0 0 24 24"><path d="M12 21c-1.8 0-3-2.6-3-5.2 0-1.9 1.2-3.3 3-3.3s3 1.4 3 3.3C15 18.4 13.8 21 12 21z"/><path d="M9.6 13.2 6.5 10 4 10.5M6.5 10 5.6 6.6M6.5 10l-.3-3.6M14.4 13.2l3.1-3.2 2.5.5M17.5 10l.9-3.4M17.5 10l.3-3.6"/></svg>',
+  frei: '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="m8 12.3 2.7 2.7L16.2 9.4"/></svg>',
+  reh: '<svg viewBox="0 0 24 24"><path d="M12 21c-1.8 0-3-2.6-3-5.2 0-1.9 1.2-3.3 3-3.3s3 1.4 3 3.3C15 18.4 13.8 21 12 21z"/><path d="M10.4 12.7 9.3 8.5M9.3 8.5 7.6 6M9.3 8.5l.2-3.5M13.6 12.7l1.1-4.2M14.7 8.5 16.4 6M14.7 8.5l-.2-3.5"/></svg>',
+};
+function neuigkeiten() {
+  const heute = todayISO(), ab = addDaysISO(heute, -NEWS_TAGE), items = [];
+  const plan = state.schalen ? wildbretPlan() : null;
+  if (plan) plan.list.filter(x => x.datum && x.datum >= ab && x.datum <= heute).forEach(x => items.push({
+    tag: x.datum, sort: x.datum + (x.zeit || ''), go: 'schalen-damm', ico: 'damm',
+    titel: `Damwild erlegt · ${katName('damm', x.kat)}`,
+    text: `${dateDE(x.datum)} · Wildbret: ${gruppeLabel(plan.map[x.id] || 'keine')}`,
+  }));
+  (state.schalen?.eintraege || []).filter(x => x.art === 'reh' && x.datum && x.datum >= ab && x.datum <= heute).forEach(x => items.push({
+    tag: x.datum, sort: x.datum + (x.zeit || ''), go: 'schalen-reh', ico: 'reh',
+    titel: `Rehwild ${x.fallwild ? 'Fallwild' : 'erlegt'} · ${katName('reh', x.kat)}`,
+    text: `${dateDE(x.datum)}${x.fallwild ? '' : ` · erlegt von ${schuetzeText(x) || 'unbekannt'}`}`,
+  }));
+  (state.data.termine || []).filter(t => t.datum >= heute).forEach(t => {
+    const neu = t.erstellt && t.erstellt.slice(0, 10) >= ab, geaendert = t.geaendert && t.geaendert.slice(0, 10) >= ab;
+    if (!neu && !geaendert) return;
+    const wann = geaendert ? t.geaendert : t.erstellt;
+    items.push({ tag: wann.slice(0, 10), sort: wann, go: 'termine', ico: 'termin',
+      titel: `${geaendert ? 'Termin geändert' : 'Neuer Termin'} · ${terminTitel(t)}`,
+      text: geaendert && t.aenderung ? t.aenderung : `${dateDE(t.datum, true)}${t.zeit ? `, ${t.zeit} Uhr` : ''}` });
+  });
+  const fgStand = state.data.damFreigabeStand;
+  if (fgStand && fgStand >= ab && fgStand <= heute) {
+    const frei = fgKats().filter(x => damStatus(x.k, heute).art === 'frei').map(x => x.lbl);
+    items.push({ tag: fgStand, sort: fgStand, go: 'schalen-damm', ico: 'frei', titel: 'Damwild-Freigabe geändert', text: frei.length ? `Frei: ${frei.join(', ')}` : 'Zurzeit nichts frei' });
+  }
+  return items.sort((a, b) => b.sort.localeCompare(a.sort)).slice(0, 5);
+}
+function newsKachel() {
+  if (state.season !== seasonOf(todayISO())) return '';
+  const n = neuigkeiten();
+  if (!n.length) return '';
+  const wann = iso => { const d = Math.round((new Date(todayISO()) - new Date(iso)) / 864e5); return d <= 0 ? 'heute' : d === 1 ? 'gestern' : `vor ${d} Tagen`; };
+  return `<div class="start-tile news-tile">
+    <span class="st-title">Neuigkeiten</span>
+    ${n.map(x => `<button type="button" class="news-row" data-go="${x.go}">
+      <span class="news-ico" aria-hidden="true">${NEWS_ICO[x.ico]}</span>
+      <span class="news-txt"><b>${esc(x.titel)}</b><small>${esc(x.text)}</small></span>
+      <span class="news-when">${wann(x.tag)}</span>
+    </button>`).join('')}
+  </div>`;
+}
 function renderStart() {
   const el = $('#view-start');
   if (!el || !state.data) return;
@@ -3177,13 +3531,15 @@ function renderStart() {
     </div>
     ${sperreBanner(true)}
     ${erinnerungBanner()}
+    ${kontoKachel()}
     ${installAngebot(true) ? `<button class="start-tile inst-tile" id="btnInstall"><span class="st-title">📲 App installieren</span><span class="st-meta">${installPrompt ? 'Ein Tipp – dann liegt Jagd Thuine auf dem Startbildschirm' : 'So kommt Jagd Thuine auf den Startbildschirm'}</span><span class="st-go" aria-hidden="true">›</span></button>` : ''}
-    ${isAdmin() && state.meldungen.length ? `<button class="start-tile ml-tile" id="btnMeldungen"><span class="st-title">📬 ${state.meldungen.length} neue Meldung${state.meldungen.length === 1 ? '' : 'en'}</span><span class="st-meta">antippen zum Prüfen und Übernehmen</span><span class="st-go" aria-hidden="true">›</span></button>` : ''}
+    ${canMeldungen() && meineMeldungen().length ? `<button class="start-tile ml-tile" id="btnMeldungen"><span class="st-title">📬 ${meineMeldungen().length} neue Meldung${meineMeldungen().length === 1 ? '' : 'en'}</span><span class="st-meta">antippen zum Prüfen und Übernehmen</span><span class="st-go" aria-hidden="true">›</span></button>` : ''}
     ${canMelden() ? `<button class="start-tile melden-tile" id="btnMelden">
       <span class="st-title"><span class="mt-plus" aria-hidden="true">+</span> Wild melden</span>
       <span class="st-meta">Erlegtes Stück oder Fallwild melden</span>
       <span class="st-go" aria-hidden="true">›</span>
     </button>` : ''}
+    ${newsKachel()}
     <button class="start-tile" data-go="termine">
       <span class="st-title">Termine</span>
       ${kommend.length ? kommend.slice(0, 2).map(t => `<span class="st-tm">
@@ -3192,22 +3548,19 @@ function renderStart() {
       </span>`).join('') + (kommend.length > 2 ? `<span class="st-meta">+ ${kommend.length - 2} weitere</span>` : '') : '<span class="st-meta">Zurzeit keine Termine eingetragen</span>'}
       <span class="st-go" aria-hidden="true">›</span>
     </button>
-    <div class="st-grid">
-      <button class="start-tile st-half st-sym" data-go="strecke">
-        <span class="st-icon st-wide"><svg viewBox="0 0 120 64" fill="currentColor" aria-hidden="true"><path d="M46 43c4-4 9-7 15-9l11-4c4-1 7-3 9-5l3-4c1-2 3-3 6-3 2 0 4 1 5 2l4 1-3 2c-1 1-2 2-4 2l-2 1c-1 2-2 4-4 5 1 3 0 6-1 8-2 5-7 8-12 9-7 2-15 2-22 1z"/><path d="M52 41 34 46 14 52 2 57l14-2 20-6 18-5z"/><path d="M50 44 30 50 4 61l18-5 22-7z"/><path d="M62 33c-3-4-6-9-7-14l-3-11 4 4-1-9 4 6 1-9 3 7 2-8 2 8 3-7 1 8 3-5-1 8 4-4-1 8 4-2-3 7 4 0-4 5c-3 4-7 6-12 6z"/><path d="M68 46c3 2 6 5 8 8l3 4 1-3 2 4 1-3 3 4 1-3 3 3-1-3 4 1-3-3c-3-3-7-6-11-8-4-2-8-2-12-1z"/></svg></span>
-        <span class="st-title">Niederwild</span>
-      </button>
-      <button class="start-tile st-half st-sym" data-go="schalen">
-        <span class="st-icon"><svg viewBox="0 0 64 64" fill="currentColor" aria-hidden="true"> <path d="M24 26c0-2 3.5-4 8-4s8 2 8 4l-2 18c-.5 4-3 8-6 8s-5.5-4-6-8z"/> <ellipse cx="20" cy="28" rx="6" ry="2.6" transform="rotate(20 20 28)"/> <ellipse cx="44" cy="28" rx="6" ry="2.6" transform="rotate(-20 44 28)"/> <g fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"> <path d="M27 23C22 17 18 13 17 4M20.5 15.5 12 12M18 9.5 12 4.5M23 19.5 15 20"/> <path d="M37 23c5-6 9-10 10-19M43.5 15.5 52 12M46 9.5l6-5M41 19.5 49 20"/> </g> </svg></span>
-        <span class="st-title">Schalenwild</span>
-      </button>
-    </div>
     <button class="start-tile" data-go="berichte">
       <span class="st-title">Streckenberichte</span>
       <span class="st-meta">PDF-Berichte aller Jagdjahre</span>
       <span class="st-go" aria-hidden="true">›</span>
+    </button>
+    <button class="start-tile" data-go="jagdzeiten">
+      <span class="st-title">Jagd- und Schonzeiten</span>
+      <span class="st-meta">${jzStartMeta()}</span>
+      <span class="st-go" aria-hidden="true">›</span>
     </button>`;
   $('#btnMelden')?.addEventListener('click', openMelden);
+  $('#btnKontoNeu')?.addEventListener('click', e => { e.stopPropagation(); Konto.openLogin({ mode: 'neu' }); });
+  $('#btnKontoLogin')?.addEventListener('click', e => { e.stopPropagation(); Konto.openLogin(); });
   $('#spGesehen')?.addEventListener('click', () => { const sp = hirschSperre(); if (sp) lsSet(LS_SPERRE_OK, sperreKey(sp)); renderStart(); toast('Ausgeblendet – die Sperre steht weiter auf der Damwild-Seite.', 3500); });
   $('#btnInstall')?.addEventListener('click', () => startInstall(true));
   $('#btnMeldungen')?.addEventListener('click', openMeldungen);
@@ -3269,10 +3622,35 @@ if ('serviceWorker' in navigator && location.protocol !== 'file:') {
       w?.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) offer(w); });
     });
     setInterval(() => reg.update().catch(() => {}), 30 * 60 * 1000);
+    // iPhone startet die App beim Zurückholen aus dem Hintergrund nicht neu → dann selbst nach Updates schauen
+    let zuletzt = Date.now();
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden || Date.now() - zuletzt < 60e3) return;
+      zuletzt = Date.now(); reg.update().catch(() => {});
+    });
   }).catch(() => {});
   navigator.serviceWorker.addEventListener('controllerchange', reloadOnce);
 }
 
 try { history.replaceState({ sb: 0 }, ''); } catch { /* egal */ }
+/* ---------- Konto (Konten-Server) ---------- */
+window.Konto?.init({
+  ui: {
+    openSheet: (t, b, f, over) => { openSheet(t, b, f); $('#sheet').classList.toggle('over-lock', !!over); },
+    closeSheet: () => closeSheet(),
+    toast,
+  },
+  getPw: () => state.pw,
+  setPw: async pw => { state.pw = pw; state.pwOld = ''; lsSet(LS_PW, pw); await load(true); if ($('#lock').hidden) loadSchalen(); },
+  onChange: () => { refreshLockKonto(); if (state.data && $('#lock').hidden) { render(); loadSchalen(); loadMeldungen(); } },
+  // Nach der Anmeldung (vor der Frage nach Benachrichtigungen): „Wer bist du?“, sobald die Daten offen sind
+  nachAnmeldung: async () => {
+    for (let i = 0; i < 40 && !(state.data && $('#lock').hidden); i++) await new Promise(r => setTimeout(r, 250));
+    await ichFrage();
+  },
+  badge: () => { if (canMeldungen()) updateBadge(); else { try { navigator.clearAppBadge?.().catch(() => {}); } catch { /* egal */ } } },
+});
+refreshLockKonto();
 load().then(() => { loadSchalen(); loadMeldungen(); });
+loadJagdzeiten();
 switchTab('start');

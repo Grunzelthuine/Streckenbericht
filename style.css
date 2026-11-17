@@ -44,8 +44,7 @@ button { cursor: pointer; }
   position: sticky; top: 0; z-index: 20;
   display: flex; align-items: center; gap: 10px;
   padding: calc(env(safe-area-inset-top, 0px) + 8px) 14px 8px;
-  background: rgba(227, 229, 204, .92);
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  background: #e3e5cc; /* deckend, ohne Weichzeichner: iOS zeigt backdrop-filter nach Rückkehr aus dem Hintergrund teils verschwommen */
   border-bottom: 1px solid var(--line);
 }
 .topbar-logo { width: 46px; height: 46px; flex: none; }
@@ -257,8 +256,7 @@ legend { font: 600 15px var(--serif); color: var(--green); padding: 0 6px; }
   position: fixed; left: 0; right: 0; bottom: 0; z-index: 30;
   display: flex; gap: 4px;
   padding: 6px 8px calc(env(safe-area-inset-bottom, 0px) + 6px);
-  background: rgba(242, 240, 223, .96);
-  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+  background: #f2f0df;
   border-top: 1px solid var(--line);
 }
 .tab { display: grid; justify-items: center; gap: 2px; padding: 6px 0; border: 0; background: none; color: var(--muted); font-size: 11.5px; font-weight: 600; border-radius: 10px; }
@@ -327,7 +325,7 @@ td.wrap { white-space: normal; text-align: left; min-width: 180px; font-size: 13
 .tab span { white-space: nowrap; font-size: 11px; }
 /* ---------- Start & Bereiche ---------- */
 .tab { flex: 1 1 0; min-width: 0; }
-body.on-start { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 24px); }
+.tab svg.tab-wide { width: 40px; }
 .start-hero { text-align: center; padding: 8px 0 4px; }
 .start-hero img { width: min(220px, 60vw); height: auto; }
 .start-hero .sub { margin: 4px 0 0; }
@@ -662,3 +660,57 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .sperre .sp-ok { flex: none; align-self: center; margin-left: auto; min-height: 40px; padding: 6px 12px; border: 1px solid rgba(255,255,255,.6); border-radius: 10px; background: rgba(255,255,255,.15); color: #fff; font: 600 14px/1 var(--sans); white-space: nowrap; cursor: pointer; }
 .sperre .sp-ok:active { background: rgba(255,255,255,.3); }
 .sperre .sp-txt { display: grid; gap: 3px; min-width: 0; }
+
+/* v2.24.6 Neuigkeiten auf der Startseite */
+.news-tile { padding-right: 16px; }
+.news-tile .news-row { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px 0; border: 0; border-top: 1px solid var(--line); background: none; color: inherit; font: inherit; cursor: pointer; }
+.news-tile .st-title + .news-row { border-top: 0; padding-top: 2px; }
+.news-ico { flex: none; width: 34px; height: 34px; border-radius: 10px; background: var(--green-soft, #dfe6cf); display: grid; place-items: center; align-self: flex-start; }
+.news-ico svg { width: 21px; height: 21px; fill: none; stroke: var(--green); stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; }
+.news-txt { flex: 1; min-width: 0; display: grid; gap: 1px; }
+.news-txt b { font-size: 14.5px; font-weight: 600; color: var(--ink); overflow-wrap: anywhere; }
+.news-txt small { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+.news-when { flex: none; align-self: flex-start; font-size: 12px; color: var(--muted); padding-top: 2px; white-space: nowrap; }
+/* 2.24.12: „Wer bist du?“ und Bereichs-Knöpfe in der unteren Leiste */
+.ich-liste { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+.ich-btn { min-height: 48px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper); color: var(--ink); font: inherit; font-size: 15px; font-weight: 600; text-align: left; box-shadow: var(--shadow); }
+.ich-btn:active { background: var(--green-soft); }
+@media (max-width: 340px) { .ich-liste { grid-template-columns: 1fr; } }
+.tab svg.tab-wide { width: 44px; }
+/* 2.24.14: „Nächstes Stück“ in der Kachel „Aktuelles Stück“ */
+.wb-dran { display: grid; gap: 2px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed #d8c48f; }
+.wb-dran.allein { margin-top: 0; padding-top: 0; border-top: 0; }
+.wb-dran b { font: 600 17px/1.25 var(--serif); color: var(--green); }
+/* 2.24.15: Jagd- und Schonzeiten */
+.jz-kopf { margin: 0 0 10px; }
+.jz-seg { margin-bottom: 4px; }
+.jz-seg.seg { grid-template-columns: 1fr 1fr; }
+.jz-gr { margin: 18px 0 8px; font: 600 17px var(--serif); color: var(--green); }
+.jz-card { padding: 4px 14px; }
+.jz-art { padding: 10px 0; border-bottom: 1px solid var(--line); }
+.jz-art:last-child { border-bottom: 0; }
+.jz-name { font-weight: 700; font-size: 15.5px; margin-bottom: 2px; }
+.jz-kl { display: flex; gap: 10px; align-items: flex-start; justify-content: space-between; padding: 4px 0; }
+.jz-kt { display: grid; gap: 1px; min-width: 0; font-size: 14px; }
+.jz-kt b { font-weight: 600; }
+.jz-kt span { color: var(--muted); }
+.jz-kt small, .jz-hw { display: block; font-size: 12px; color: var(--muted); line-height: 1.35; }
+.jz-hw { margin-top: 4px; }
+.jz-st { flex: none; max-width: 48%; text-align: right; font-size: 12px; font-weight: 700; padding: 4px 8px; border-radius: 999px; line-height: 1.25; }
+.jz-st.auf { background: #e6efd9; color: #2f6b31; }
+.jz-st.zu { background: #f4e3dc; color: #a3452f; }
+.jz-st.sonder { background: #f6ecd2; color: #8a5d0c; }
+.jz-quelle { margin-top: 16px; font-size: 14px; }
+.jz-quelle p { margin: 0 0 6px; }
+.jz-quelle a { color: var(--green); word-break: break-word; }
+.jz-pdf { display: flex; gap: 10px; align-items: center; margin: 8px 0; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--paper-2); color: var(--ink) !important; text-decoration: none; font-weight: 600; font-size: 14px; }
+.jz-pdf small { display: block; font-weight: 500; font-size: 12px; color: var(--green); }
+.jz-pdf > span:first-child { font-size: 20px; }
+/* 2.24.17: Hinweis eigenes Konto */
+.konto-tile { display: grid; gap: 6px; border: 2px solid var(--green); background: #eef3e2; cursor: default; }
+.konto-tile.wartet { border-color: #d8c48f; background: #f6efd8; }
+#view-start .konto-tile .st-meta { white-space: normal; overflow: visible; }
+.konto-tile .kt-btns { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 6px; }
+.konto-tile .kt-btns .btn { flex: 1 1 auto; }
+.kf-liste { margin: 10px 0; padding-left: 0; list-style: none; display: grid; gap: 8px; font-size: 14.5px; }
+.konto-tile { padding: 18px; }
