@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.25.1';
+const APP_VERSION = '2.25.2';
 /* Einstellungen je Installation (config.js): Konten-Server, Test-Umgebung, abweichende Speicherorte */
 const CONF = self.JAGD_CFG || {};
 const LSP = CONF.lsPrefix || '';
@@ -3598,7 +3598,8 @@ ensureRefreshBtn();
 $('#refreshBtn')?.addEventListener('click', async e => {
   const b = e.currentTarget; if (b.classList.contains('spin')) return;
   b.classList.add('spin');
-  await refreshAll();
+  // auch Konto/Rechte neu vom Server holen (z. B. gerade vergebenes Einzelrecht)
+  await Promise.allSettled([window.Konto?.refresh?.(), refreshAll()]);
   setTimeout(() => b.classList.remove('spin'), 400);
   toast(navigator.onLine === false ? 'Offline – zeige zuletzt geladenen Stand.' : 'Aktualisiert ✓');
 });
