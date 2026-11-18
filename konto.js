@@ -26,13 +26,22 @@ window.Konto = (() => {
   async function api(method, path, body, { auth = true, signal } = {}) {
     if (!API) throw new Error('Kein Konten-Server eingerichtet.');
     let r;
-    try {
-      r = await fetch(API + path, {
-        method, cache: 'no-store', signal,
-        headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(auth && st.token ? { Authorization: 'Bearer ' + st.token } : {}) },
-        body: body ? JSON.stringify(body) : undefined,
-      });
-    } catch (e) { if (e.name === 'AbortError') throw e; throw new Error('Keine Verbindung zum Server.'); }
+    // Abfragen (GET) bei Verbindungsfehler bis zu 2× wiederholen: Nach dem Zurückkommen aus dem Hintergrund
+    // bricht auf dem iPhone die erste Anfrage oft ab (alte Verbindung). Änderungen (POST/PUT/DELETE) nicht doppelt senden.
+    for (let versuch = 0; ; versuch++) {
+      try {
+        r = await fetch(API + path, {
+          method, cache: 'no-store', signal,
+          headers: { ...(body ? { 'Content-Type': 'application/json' } : {}), ...(auth && st.token ? { Authorization: 'Bearer ' + st.token } : {}) },
+          body: body ? JSON.stringify(body) : undefined,
+        });
+        break;
+      } catch (e) {
+        if (e.name === 'AbortError') throw e;
+        if (method !== 'GET' || versuch >= 2 || !navigator.onLine) throw new Error(navigator.onLine ? 'Keine Verbindung zum Server – bitte gleich noch einmal versuchen.' : 'Kein Internet – bitte Verbindung prüfen.');
+        await new Promise(res => setTimeout(res, versuch ? 1500 : 500));
+      }
+    }
     let j = {}; try { j = await r.json(); } catch { /* leer */ }
     if (!r.ok) {
       const e = new Error(j.fehler || `Server-Fehler ${r.status}`); e.status = r.status;
