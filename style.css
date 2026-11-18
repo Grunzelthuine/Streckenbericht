@@ -714,3 +714,6 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .konto-tile .kt-btns .btn { flex: 1 1 auto; }
 .kf-liste { margin: 10px 0; padding-left: 0; list-style: none; display: grid; gap: 8px; font-size: 14.5px; }
 .konto-tile { padding: 18px; }
+
+/* Plus bei „Wild melden“ als Grafik – exakt mittig im Kreis */
+.mt-plus svg { width: 62%; height: 62%; display: block; fill: none; }

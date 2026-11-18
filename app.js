@@ -26,7 +26,7 @@ async function repairApp() {
 window.addEventListener('error', e => showRescue(e.message));
 window.addEventListener('unhandledrejection', e => { if (!(e.reason && e.reason.name === 'AbortError')) showRescue(e.reason?.message || e.reason); });
 
-const APP_VERSION = '2.25.5';
+const APP_VERSION = '2.25.6';
 /* Einstellungen je Installation (config.js): Konten-Server, Test-Umgebung, abweichende Speicherorte */
 const CONF = self.JAGD_CFG || {};
 const LSP = CONF.lsPrefix || '';
@@ -3537,7 +3537,7 @@ function renderStart() {
     ${installAngebot(true) ? `<button class="start-tile inst-tile" id="btnInstall"><span class="st-title">📲 App installieren</span><span class="st-meta">${installPrompt ? 'Ein Tipp – dann liegt Jagd Thuine auf dem Startbildschirm' : 'So kommt Jagd Thuine auf den Startbildschirm'}</span><span class="st-go" aria-hidden="true">›</span></button>` : ''}
     ${canMeldungen() && meineMeldungen().length ? `<button class="start-tile ml-tile" id="btnMeldungen"><span class="st-title">📬 ${meineMeldungen().length} neue Meldung${meineMeldungen().length === 1 ? '' : 'en'}</span><span class="st-meta">antippen zum Prüfen und Übernehmen</span><span class="st-go" aria-hidden="true">›</span></button>` : ''}
     ${canMelden() ? `<button class="start-tile melden-tile" id="btnMelden">
-      <span class="st-title"><span class="mt-plus" aria-hidden="true">+</span> Wild melden</span>
+      <span class="st-title"><span class="mt-plus" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M12 6v12M6 12h12" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg></span> Wild melden</span>
       <span class="st-meta">Erlegtes Stück oder Fallwild melden</span>
       <span class="st-go" aria-hidden="true">›</span>
     </button>` : ''}
